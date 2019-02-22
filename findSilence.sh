@@ -162,6 +162,8 @@ split_to_file () {
         ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
     elif [ -z $TARGET_EXT == "mp3" ]; then
         ffmpeg -i "$1" -ss "$2" -t "$3" -codec:a libmp3lame -q:a 0 "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+    else
+        ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
     fi
 
     if [ $error_code -ne 0 ]; then
