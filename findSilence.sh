@@ -51,7 +51,6 @@ print_help() {
 # Parse argument options
 # 1 - the input array
 #**************************************************************************************************************
-
 parse_arguments () {
     getopt --test > /dev/null || error_code=$?
     if [[ $error_code -ne 4 ]]; then
@@ -148,7 +147,6 @@ write_silencedata () {
 # 3 - duration
 # 4 - number
 #**************************************************************************************************************
-
 split_to_file () {
     error_code=0
     if [ -z $TARGET_EXT ]; then
@@ -274,6 +272,21 @@ do_directory () {
     done
 }
 
+#**********************************************************************************
+# Verify necessary external programs
+#**********************************************************************************
+verify_dependencies() {
+    error_code=0
+    hash ffmpeg || error_code=$?
+    hash ffprobe || error_code=$?
+    hash awk || error_code=$?
+
+    if [ $error_code -ne 0 ]; then
+        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk"
+        exit 1
+    fi
+}
+
 #**************************************************************************************************************
 # The main function
 #**************************************************************************************************************
@@ -298,6 +311,7 @@ run_main() {
 
 #**************************************************************************************************************
 
+verify_dependencies
 init
 parse_arguments "$@"
 
