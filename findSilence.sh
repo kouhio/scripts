@@ -112,7 +112,6 @@ parse_arguments () {
                 break
                 ;;
             *)
-                echo "What $1"
                 exit 1
                 ;;
         esac
@@ -206,7 +205,7 @@ split_file_by_silence () {
                 START=0
             else
                 DURATION_2=$(bc <<< "$START - $END")
-                if  (( $(echo "$DURATION_2< $_MIN_DURATION" |bc -l) )); then
+                if  (( $(echo "$DURATION_2< $MIN_DURATION" |bc -l) )); then
                     FILENUMBER=$((FILENUMBER - 1))
                 else
                     split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
