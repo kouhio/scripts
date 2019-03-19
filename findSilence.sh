@@ -148,19 +148,21 @@ write_silencedata () {
 #**************************************************************************************************************
 split_to_file () {
     error_code=0
-    if [ -z $TARGET_EXT ]; then
-        OUTPUT=$(printf "%02d_$1" "$4")
-    else
-        OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
+    OUTPUT=$(printf "%02d_$1" "$4")
+    if [ ! -z $TARGET_EXT ]; then
+        PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
     fi
 
     echo "Extracting $OUTPUT | Start: $2 Duration: $3"
-    if [ -z $TARGET_EXT ]; then
-        ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
-    elif [ -z $TARGET_EXT == "mp3" ]; then
-        ffmpeg -i "$1" -ss "$2" -t "$3" -codec:a libmp3lame -q:a 0 "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
-    else
-        ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+    ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+
+    if [ ! -z "$TARGET_EXT" ]; then
+        if [ $TARGET_EXT == "mp3" ]; then
+            echo "Packing to mp3 with lame"
+            lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" Z>/dev/null 2>&1 || error_code=$?
+        else
+            echo "Packing target type $TARGET_EXT not supported, yet!"
+        fi
     fi
 
     if [ $error_code -ne 0 ]; then
@@ -279,9 +281,10 @@ verify_dependencies() {
     hash ffmpeg || error_code=$?
     hash ffprobe || error_code=$?
     hash awk || error_code=$?
+    hash lame || error_code=$?
 
     if [ $error_code -ne 0 ]; then
-        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk"
+        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk, lame"
         exit 1
     fi
 }
