@@ -153,13 +153,16 @@ split_to_file () {
         PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
     fi
 
-    echo "Extracting $OUTPUT | Start: $2 Duration: $3"
+    echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
     ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
     if [ ! -z "$TARGET_EXT" ]; then
         if [ $TARGET_EXT == "mp3" ]; then
-            echo "Packing to mp3 with lame"
-            lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" Z>/dev/null 2>&1 || error_code=$?
+            echo "Packing to mp3 with lame $OUTPUT to $PACK_OUTPUT"
+            lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
+            if [ $error_code -eq 0 ]; then
+                rm "$OUTPUT"
+            fi
         else
             echo "Packing target type $TARGET_EXT not supported, yet!"
         fi
@@ -201,13 +204,17 @@ split_file_by_silence () {
         fi
 
         if [ $END != "0" ] && [ $START != "0" ]; then
-            if ((  $(echo "$START < $END" |bc -l) )); then
+            if (( $(echo "$START < $END" |bc -l) )); then
                 # There is no silence in the beginning, so the first file start from the beginning
-                split_to_file "$2" "0" "$START" "$FILENUMBER"
+                if (( $(echo "$START < $MIN_DURATION" |bc -l) )); then
+                    FILENUMBER=$((FILENUMBER - 1))
+                else
+                    split_to_file "$2" "0" "$START" "$FILENUMBER"
+                fi
                 START=0
             else
                 DURATION_2=$(bc <<< "$START - $END")
-                if  (( $(echo "$DURATION_2< $MIN_DURATION" |bc -l) )); then
+                if  (( $(echo "$DURATION_2 < $MIN_DURATION" |bc -l) )); then
                     FILENUMBER=$((FILENUMBER - 1))
                 else
                     split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
@@ -222,7 +229,9 @@ split_file_by_silence () {
     if [ $END != "0" ]; then
         # The is no silence at the end of the file, so the last file is created here
         DURATION_2=$(bc <<< "$TOTAL_LENGTH - $END")
-        split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
+        if  (( $(echo "$DURATION_2 >= $MIN_DURATION" |bc -l) )); then
+            split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
+        fi
     fi
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
