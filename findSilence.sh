@@ -303,7 +303,8 @@ split_file_by_silence () {
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
         echo "everythings fine, deleting original"
-        rm "$2"
+        rm "$2" 
+        [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
     fi
 }
 
