@@ -45,7 +45,7 @@ print_help() {
     echo "-f    Output filename for list of files with silence (instead of splitting)"
     echo "-t    Target output format extensioni (default: input filetype)"
     echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
-    echo "-F    Path to filenames in order to put as output tracks"
+    echo "-F    Path to filenames in order to put as output tracks (add to D:target path to file for automatic output dir)"
     echo "-T    Path to output directory"
     echo "Options without arguments: "
     echo "-s    Split input file to files without silence"
@@ -152,6 +152,16 @@ write_silencedata () {
     fi
 }
 
+#**************************************************************************************************************
+# Find target directoryname in trackfiles starting with D:
+#**************************************************************************************************************
+find_target_in_file () {
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [[ $line =~ "D:" ]]; then
+            TARGET_DIR="${line##*:}"
+        fi
+    done < "$NAMEPATH"
+}
 
 #**************************************************************************************************************
 # Find trackname from given filepath
@@ -160,10 +170,14 @@ write_silencedata () {
 find_name_in_file () {
     cnt=1
     while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [[ $line =~ "D:" ]]; then
+            continue
+        fi
         if [ "$cnt" -eq "$1" ]; then
             CURRENT_NAME="$line"
             break
         fi
+
         cnt=$((cnt + 1))
     done < "$NAMEPATH"
 
@@ -240,6 +254,10 @@ split_file_by_silence () {
 
     if [ $MIN_DURATION -le 0 ]; then
         MIN_DURATION="$DURATION"
+    fi
+
+    if [ ! -z "$NAMEPATH" ] && [ -z "$TARGET_DIR" ]; then
+        find_target_in_file
     fi
 
     for index in "${!array[@]}"
