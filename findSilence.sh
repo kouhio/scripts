@@ -28,6 +28,7 @@ init () {
     error_code=0        # Error checking code for external functionalities
     NAMEPATH=""         # path to text file with previously given filenames in order
     CURRENT_NAME=""     # trackname found from the file
+    TARGET_DIR=""       # Directory where to put the output files
 }
 
 #**************************************************************************************************************
@@ -45,6 +46,7 @@ print_help() {
     echo "-t    Target output format extensioni (default: input filetype)"
     echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
     echo "-F    Path to filenames in order to put as output tracks"
+    echo "-T    Path to output directory"
     echo "Options without arguments: "
     echo "-s    Split input file to files without silence"
     echo "-D    Delete input file after successful splitting"
@@ -61,7 +63,7 @@ parse_arguments () {
         exit 1
     fi
 
-    SHORT="d:n:m:f:F:t:sDhi:"
+    SHORT="d:n:m:f:F:t:T:sDhi:"
 
     PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
     if [[ $? -ne 0 ]]; then
@@ -111,6 +113,10 @@ parse_arguments () {
                 ;;
             -F)
                 NAMEPATH="$2"
+                shift 2
+                ;;
+            -T)
+                TARGET_DIR="$2"
                 shift 2
                 ;;
             --)
@@ -176,6 +182,10 @@ find_name_in_file () {
 split_to_file () {
     error_code=0
     OUTPUT=$(printf "%02d_$1" "$4")
+    if  [ ! -z "$TARGET_DIR" ]; then
+        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
+    fi
+
     if [ ! -z $TARGET_EXT ]; then
         if [ -z "$NAMEPATH" ]; then
             PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
@@ -184,10 +194,12 @@ split_to_file () {
             PACK_OUTPUT=$(printf "%02d_${CURRENT_NAME}.$TARGET_EXT" "$4")
             CURRENT_NAME=""
         fi
+        [ ! -z "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
     elif [ ! -z "$NAMEPATH" ]; then
         find_name_in_file "$4"
         OUTPUT=$(printf "%02d_$CURRENT_NAME" "$4")
-        CURRENT_NAME=""
+        CURRENT_NAME=""i
+        [ ! -z "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
     fi
 
     echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
