@@ -26,6 +26,8 @@ init () {
     DELETE=0            # Delete original file after done
     ERROR=0             # Error has happened during extraction
     error_code=0        # Error checking code for external functionalities
+    NAMEPATH=""         # path to text file with previously given filenames in order
+    CURRENT_NAME=""     # trackname found from the file
 }
 
 #**************************************************************************************************************
@@ -42,6 +44,7 @@ print_help() {
     echo "-f    Output filename for list of files with silence (instead of splitting)"
     echo "-t    Target output format extensioni (default: input filetype)"
     echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
+    echo "-F    Path to filenames in order to put as output tracks"
     echo "Options without arguments: "
     echo "-s    Split input file to files without silence"
     echo "-D    Delete input file after successful splitting"
@@ -58,7 +61,7 @@ parse_arguments () {
         exit 1
     fi
 
-    SHORT="d:n:m:f:t:sDhi:"
+    SHORT="d:n:m:f:F:t:sDhi:"
 
     PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
     if [[ $? -ne 0 ]]; then
@@ -106,6 +109,10 @@ parse_arguments () {
                 SPLIT=1
                 shift
                 ;;
+            -F)
+                NAMEPATH="$2"
+                shift 2
+                ;;
             --)
                 FILENAME="$2"
                 shift 2
@@ -139,6 +146,26 @@ write_silencedata () {
     fi
 }
 
+
+#**************************************************************************************************************
+# Find trackname from given filepath
+# 1 - filenumber (aka the row in the file
+#**************************************************************************************************************
+find_name_in_file () {
+    cnt=1
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [ "$cnt" -eq "$1" ]; then
+            CURRENT_NAME="$line"
+            break
+        fi
+        cnt=$((cnt + 1))
+    done < "$NAMEPATH"
+
+    if [ -z "$CURRENT_NAME" ]; then
+        CURRENT_NAME="unknown"
+    fi
+}
+
 #**************************************************************************************************************
 # Split data from file between silences
 # 1 - filename
@@ -150,7 +177,17 @@ split_to_file () {
     error_code=0
     OUTPUT=$(printf "%02d_$1" "$4")
     if [ ! -z $TARGET_EXT ]; then
-        PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
+        if [ -z "$NAMEPATH" ]; then
+            PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
+        else
+            find_name_in_file "$4"
+            PACK_OUTPUT=$(printf "%02d_${CURRENT_NAME}.$TARGET_EXT" "$4")
+            CURRENT_NAME=""
+        fi
+    elif [ ! -z "$NAMEPATH" ]; then
+        find_name_in_file "$4"
+        OUTPUT=$(printf "%02d_$CURRENT_NAME" "$4")
+        CURRENT_NAME=""
     fi
 
     echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
