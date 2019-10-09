@@ -292,6 +292,7 @@ massive_filecheck () {
     MASSIVE_TIME_COMP=0
     RUNNING_FILE_NUMBER=0
     MASSIVE_SIZE_COMP=0
+    TOO_SMALL_FILE=0
 
     while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
@@ -300,20 +301,21 @@ massive_filecheck () {
             CFT=$(mediainfo '--Inform=Video;%Duration%' "$RUNNING_FILENAME")
             MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
             MSC=$(du -k "$RUNNING_FILENAME" | cut -f1)
+            [ "$MSC" -lt "3000" ] && TOO_SMALL_FILE=$((TOO_SMALL_FILE + 1))
             MASSIVE_SIZE_COMP=$((MASSIVE_SIZE_COMP + MSC))
         else
             break
         fi
     done
 
-    if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ]; then
+    if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         OSZ=$(du -k "$FILE" | cut -f1)
         delete_file "$FILE"
         OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
         echo -e -n"${Green}Saved $OSZ Mb with splitting${Color_Off}\n"
 
     else
-        echo -e -n "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK)${Color_Off}\n"
+        echo -e -n "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
     fi
 }
 
