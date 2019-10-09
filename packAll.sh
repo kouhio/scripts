@@ -299,7 +299,17 @@ massive_filecheck () {
     while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
         make_running_name
-        if [ -f "$RUNNING_FILENAME" ]; then
+        if [ ! -z "$TARGET_DIR" ]; then
+            if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                CFT=$(mediainfo '--Inform=Video;%Duration%' "${TARGET_DIR}/$RUNNING_FILENAME")
+                MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
+                MSC=$(du -k "${TARGET_DIR}/$RUNNING_FILENAME" | cut -f1)
+                [ "$MSC" -lt "3000" ] && TOO_SMALL_FILE=$((TOO_SMALL_FILE + 1))
+                MASSIVE_SIZE_COMP=$((MASSIVE_SIZE_COMP + MSC))
+            else
+                break
+            fi
+        elif [ -f "$RUNNING_FILENAME" ]; then
             CFT=$(mediainfo '--Inform=Video;%Duration%' "$RUNNING_FILENAME")
             MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
             MSC=$(du -k "$RUNNING_FILENAME" | cut -f1)
@@ -1029,12 +1039,15 @@ move_to_a_running_file () {
         while true; do
             RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
             make_running_name
-            if [ ! -f "$RUNNING_FILENAME" ]; then
+            if [ ! -z "$TARGET_DIR" ]; then
+                if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                    break
+                fi
+            elif [ ! -f "$RUNNING_FILENAME" ]; then
                 break;
             fi
         done
     fi
-
     
     if [ ! -z "$TARGET_DIR" ]; then
         [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
