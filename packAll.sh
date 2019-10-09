@@ -61,6 +61,7 @@ SPLIT_MAX=0                     # Number of files input is to be split into
 SUBFILE=""                      # Path to subtitle file to be burned into target video
 WRITEOUT=""                     # Target filename for file info printing
 NEWNAME=""                      # New target filename, if not set, will use input filename
+TARGET_DIR=""                   # Target directory for successful file
 
 process_start_time=0            # Time in seconds, when processing started
 script_start_time=$(date +%s)   # Time in seconds, when the script started running
@@ -169,7 +170,8 @@ print_help () {
     echo " "
     echo "sub=         -    subtitle file to be burned into video"
     echo "w(rite)=     -    Write printing output to file"
-    echo "n(ame)=      -    Give file a new target name (without file extension"
+    echo "n(ame)=      -    Give file a new target name (without file extension)"
+    echo "T(arget)=    -    Target directory for the target file"
     echo " "
     echo "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc"
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
@@ -558,6 +560,8 @@ parse_values () {
             WRITEOUT="$VALUE"
         elif [ "$HANDLER" == "n" ] || [ "$HANDLER" == "name" ]; then
             NEWNAME="$VALUE"
+        elif [ "$HANDLER" == "T" ] || [ "$HANDLER" == "Target" ]; then
+            TARGET_DIR="$VALUE"
         elif [ "$1" == "scrub" ] || [ "$1" == "s" ]; then
             SCRUB=$VALUE
         else
@@ -1031,7 +1035,13 @@ move_to_a_running_file () {
         done
     fi
 
-    mv "$FILE$CONV_TYPE" "$RUNNING_FILENAME"
+    
+    if [ ! -z "$TARGET_DIR" ]; then
+        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
+        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+    else
+        mv "$FILE$CONV_TYPE" "$RUNNING_FILENAME"
+    fi
 }
 
 #***************************************************************************************************************
@@ -1051,13 +1061,26 @@ handle_file_rename () {
         if [ "$SPLIT_FILE" == 0 ]; then
             if [ "$KEEPORG" == "0" ]; then
                 if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-                    if [ -z "$NEWNAME" ]; then
+                    if [ ! -z "$TARGET_DIR" ]; then
+                        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
+                        if [ -z "$NEWNAME" ]; then
+                            mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
+                        else
+                            mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"
+                        fi
+                    elif [ -z "$NEWNAME" ]; then
                         mv "$FILE$CONV_TYPE" "$FILE"
                     else
                         mv "$FILE$CONV_TYPE" "$NEWNAME$CONV_TYPE"
                     fi
                 else
-                    rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
+                    if [ ! -z "$TARGET_DIR" ]; then
+                        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
+                        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                        rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                    else
+                        rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
+                    fi
                 fi
             else
                 move_to_a_running_file
