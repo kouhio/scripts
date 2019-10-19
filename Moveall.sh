@@ -24,6 +24,20 @@ for D in *; do
             SUCS=0
             cnt=`ls -l *.part 2>/dev/null | grep -v ^l | wc -l`
             if [ $cnt -lt "1" ]; then
+                IS_DIR=0
+                for DIRE in *; do
+                    if [ -f "${DIRE}" ]; then
+                        IS_DIR=1
+                        echo "$D has subdirectories $DIRE"
+                        break;
+                    fi
+                done
+
+                if [ $IS_DIR -eq 1 ]; then
+                    cd ..
+                    continue
+                fi
+
                 for index in "${!array[@]}"
                 do
                     cnt=`ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l`
@@ -33,6 +47,7 @@ for D in *; do
                         echo "Found ${array[index]} in $D (*${array[index]})"
                     fi
                 done
+
                 if [ $SUCS -gt "0" ]; then
                     for index in "${!array2[@]}"
                     do

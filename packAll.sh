@@ -312,7 +312,9 @@ massive_filecheck () {
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         OSZ=$(du -k "$FILE" | cut -f1)
-        delete_file "$FILE"
+        if [ "$KEEPORG" == "0" ]; then
+            delete_file "$FILE"
+        fi
         OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
         echo -e -n"${Green}Saved $OSZ Mb with splitting${Color_Off}\n"
 
@@ -334,7 +336,6 @@ new_massive_file_split () {
     MASSIVE_TIME_CHECK=0
     SPLIT_FILE=0
     SPLIT_COUNTER=0
-    KEEPORG=1
     FILECOUNT=1
     MASSIVE_SPLIT=1
 
@@ -362,7 +363,7 @@ new_massive_file_split () {
                 BEGTIME=$CALCTIME
                 calculate_time "${array2[1]}"
                 ENDTIME=$CALCTIME
-                
+
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
                     echo -e -n "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME, Size: $WIDTH >= $XSS${Color_Off}\n"
@@ -1062,8 +1063,12 @@ handle_file_rename () {
                         mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"
                     fi
                 else
-                    mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
-                    rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                    if [ "${TARGET_DIR}" != "." ]; then
+                        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                        rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                    else
+                        rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
+                    fi
                 fi
             else
                 move_to_a_running_file
