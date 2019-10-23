@@ -252,7 +252,7 @@ goThroughAllFiles() {
 printEndData() {
     echo "#END" >> $FILE
     echo " " >> $FILE
-    printfShit "if [ \"$error_code\” -eq \"0\" ]; then"
+    printShit "if [ \"\$error_code\" -eq \"0\" ]; then"
     printShit "    rm $FILE"
     printShit "    rm $VLC"
     printShit "fi"

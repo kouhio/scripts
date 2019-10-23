@@ -1340,8 +1340,13 @@ pack_file () {
             print_info
             echo "$FILE width:$X skipping"
         elif [ "$X" -le "$WIDTH" ] && [ "$FILECOUNT" == 1 ]; then
-            echo -e -n "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
-            RETVAL=1
+            if [ "$EXT_CURR" != "$CONV_TYPE" ]; then
+                REPACK=1
+                handle_file_packing
+            else
+                echo -e -n "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
+                RETVAL=1
+            fi
         fi
     fi
 }
