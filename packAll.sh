@@ -66,6 +66,8 @@ TARGET_DIR="."                  # Target directory for successful file
 process_start_time=0            # Time in seconds, when processing started
 script_start_time=$(date +%s)   # Time in seconds, when the script started running
 
+RETVAL=0                        # If everything was done as expected, is set to 0
+
 #***************************************************************************************************************
 # Define regular colors for echo
 #***************************************************************************************************************
@@ -106,6 +108,7 @@ print_total () {
         fi
         if [ "$MISSING" -gt "0" ]; then
             echo "Number of files disappeared during process: $MISSING"
+            RETVAL=1
         fi
     fi
 }
@@ -288,6 +291,7 @@ massive_filecheck () {
     if [ "$ERROR_WHILE_SPLITTING" != "0" ]; then
         echo -e -n "${Red}Something went wrong with splitting $FILE${Color_Off}\n"
         ERROR_WHILE_SPLITTING=0
+        RETVAL=1
         return 0;
     fi
 
@@ -320,6 +324,7 @@ massive_filecheck () {
 
     else
         echo -e -n "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
+        RETVAL=1
     fi
 }
 
@@ -367,6 +372,7 @@ new_massive_file_split () {
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
                     echo -e -n "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME, Size: $WIDTH >= $XSS${Color_Off}\n"
+                    RETVAL=1
                 else
                     if [ "$CALCTIME" != "0" ]; then
                         ENDTIME=$((LEN - CALCTIME))
@@ -383,6 +389,7 @@ new_massive_file_split () {
                 if [ "$SPLIT_POINT2" -le "$SPLIT_POINT" ] && [ $SPLIT_POINT2 != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
                     echo -e -n "${Red}Split error $FILE - Time: $SPLIT_POINT2 <= $SPLIT_POINT, - Size: $WIDTH <= $XSS${Color_Off}\n"
+                    RETVAL=1
                 else
                     if [ "$index" == 0 ]; then
                         BEGTIME=0
@@ -490,6 +497,7 @@ parse_handlers () {
             DEBUG_PRINT=1
         else
             echo "Unknown handler $1"
+            RETVAL=1
         fi
     fi
 }
@@ -568,6 +576,7 @@ parse_values () {
             SCRUB=$VALUE
         else
             echo "Unknown value $1"
+            RETVAL=1
         fi
         check_workmode
     fi
@@ -780,6 +789,7 @@ extract_mp3 () {
         echo "Successfully extracted mp3"
     else
         echo -e -n "${Red}Failed!${Color_Off}\n"
+        RETVAL=1
     fi
 }
 
@@ -870,9 +880,11 @@ burn_subs () {
             echo "Done"
         else
             echo -e -n "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
+            RETVAL=1
         fi
     else
         echo -e -n "${Red}File $FILE not found!${Color_Off}\n"
+        RETVAL=1
     fi
 }
 
@@ -1084,6 +1096,7 @@ handle_file_rename () {
                 if [ ! -d "./Failed" ]; then
                     mkdir "Failed"
                 fi
+                RETVAL=1
                 mv "$FILE" "./Failed"
             fi
         fi
@@ -1126,6 +1139,7 @@ handle_error_file () {
     fi
     mv "$FILE" "./Error"
     echo -e -n "${Red}Something corrupted with $FILE${Color_Off}\n"
+    RETVAL=1
 }
 
 #***************************************************************************************************************
@@ -1157,6 +1171,7 @@ check_alternative_conversion () {
     else
         handle_file_rename 0
         echo -e -n "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+        RETVAL=1
     fi
 }
 
@@ -1238,6 +1253,7 @@ check_file_conversion () {
         fi
         mv "$FILE" "./Nodest"
         remove_interrupted_files
+        RETVAL=1
     fi
 }
 
@@ -1325,6 +1341,7 @@ pack_file () {
             echo "$FILE width:$X skipping"
         elif [ "$X" -le "$WIDTH" ] && [ "$FILECOUNT" == 1 ]; then
             echo -e -n "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
+            RETVAL=1
         fi
     fi
 }
@@ -1399,6 +1416,7 @@ done
 
 if [ "$CHECKRUN" == "0" ]; then
         print_help
+        RETVAL=1
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ ! -z "$SUBFILE" ]; then
         burn_subs
@@ -1430,3 +1448,5 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         print_total
     fi
 fi
+
+exit "$RETVAL"
