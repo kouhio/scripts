@@ -136,7 +136,8 @@ remove_interrupted_files () {
 #If SYS_INTERRUPTted, stop process, remove files not complete and print final situation
 #***************************************************************************************************************
 set_int () {
-    echo " Main conversion interrupted!"
+    calculate_duration
+    echo " Main conversion interrupted in ${TIMERVALUE}!"
     remove_interrupted_files
     print_total
     exit 1

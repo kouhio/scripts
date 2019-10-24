@@ -28,15 +28,15 @@ for D in *; do
                 for DIRE in *; do
                     if [ -f "${DIRE}" ]; then
                         IS_DIR=1
-                        echo "$D has subdirectories $DIRE"
+                        #echo "$D has subdirectories $DIRE"
                         break;
                     fi
                 done
 
-                if [ $IS_DIR -eq 1 ]; then
-                    cd ..
-                    continue
-                fi
+                #if [ $IS_DIR -eq 1 ]; then
+                #    cd ..
+                #    continue
+                #fi
 
                 for index in "${!array[@]}"
                 do
