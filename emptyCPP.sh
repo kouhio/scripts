@@ -5,6 +5,9 @@
 # $1 - filename
 # $2 - extra include header name
 
+##########################################################
+# Print header information
+##########################################################
 header_print() {
     if [ -z "$1" ]; then
         echo "No output file given! Aborting!"
@@ -17,13 +20,16 @@ header_print() {
         echo " *"
         echo " * Copyright of INSERT INFO. All rights reserved."
         echo " *"
-        echo " * \\author INSER NAME <INSERT EMAIL>"
+        echo " * \\author INSERT NAME <INSERT EMAIL>"
         echo " *"
         echo " * any other legal text to be defined later"
         echo -e " */\n"
     } > "$1"
 }
 
+##########################################################
+# Check input filename and create dummy files
+##########################################################
 if [ ! -z "$1" ]; then
     if [ -f "$1.cpp" ] || [ -f "$1.h" ]; then
         echo "File $1 already exists, aborting!"

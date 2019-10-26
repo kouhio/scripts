@@ -13,10 +13,16 @@ NEW_FILES=0
 FOUND=false
 VLC="playlist.xspf"
 
+##########################################################
+# Push string to target file
+##########################################################
 printShit () {
     echo "$@" >> "$FILE"
 }
 
+##########################################################
+# End of process output
+##########################################################
 printSavedData () {
     printShit "ENDSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
     printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))"
@@ -25,6 +31,9 @@ printSavedData () {
     printShit "echo Totally saved \$TOTALSIZE Mb"
 }
 
+##########################################################
+# When ctrl+c is pressed, use this process
+##########################################################
 printTerminatorFunction () {
     echo -e "\ncleanup () {" >> "$FILE"
     echo -e "echo \"Terminated, quitting process!\"" >> "$FILE"
@@ -35,6 +44,10 @@ printTerminatorFunction () {
     echo -e "#BEGIN" >> "$FILE"
 }
 
+##########################################################
+# Check if given input file exists in old file
+# 1 - file path
+##########################################################
 verifyFileNotInList() {
     for i in "${FILE_ARRAY[@]}"
     do
@@ -45,12 +58,19 @@ verifyFileNotInList() {
     return 1
 }
 
+##########################################################
+# VLC playlist start information
+##########################################################
 printVLCStart() {
     echo -e "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > $VLC
     echo -e "<playlist xmlns=\"http://xspf.org/ns/0/\" xmlns:vlc=\"http://www.videolan.org/vlc/playlist/ns/0/\" version=\"1\">" >> $VLC
     echo -e "\t<title>Playlist</title>\n\t<trackList>" >> $VLC
 }
 
+##########################################################
+# Change filename to VLC url encoding
+# 1 - filepath
+##########################################################
 VLC_FILENANE=""
 
 rawurlencode() {
@@ -72,6 +92,10 @@ rawurlencode() {
   VLC_FILENAME="${encoded}"
 }
 
+##########################################################
+# Add file to VLC playlist
+# 1 - filepath
+##########################################################
 printVLCFile() {
     rawurlencode "$1"
     echo -e "\t\t<track>" >> $VLC
@@ -84,6 +108,9 @@ printVLCFile() {
     echo -e "\t\t</track>" >> $VLC
 }
 
+##########################################################
+# Add playlist eof
+##########################################################
 printVLCEnd() {
     echo -e "\t</trackList>" >> $VLC
     echo -e "\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">" >> $VLC
@@ -96,7 +123,9 @@ printVLCEnd() {
     echo -e "</playlist>" >> $VLC
 }
 
-
+##########################################################
+# Add new files to an existing editlist
+##########################################################
 addNewFiles() {
     echo -e "\n#NEW" >> $TMPFILE
     index=1
@@ -130,6 +159,10 @@ addNewFiles() {
     printVLCEnd
 }
 
+##########################################################
+# If file previously exists, verify existing files,
+# remove wanted files and add new files to list
+##########################################################
 updateExistingFile () {
     STARTSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
     REM_COUNT=0
@@ -175,6 +208,10 @@ updateExistingFile () {
     fi
 }
 
+##########################################################
+# Parse individual line settings from input
+# 1 - the whole array of data variables
+##########################################################
 parsePackData() {
     for var in "$@"
     do
@@ -196,6 +233,9 @@ parsePackData() {
     done
 }
 
+##########################################################
+# Verify if file exists
+##########################################################
 verifyOldFile() {
     if [ -f "$FILE" ]; then
         updateExistingFile
@@ -203,6 +243,9 @@ verifyOldFile() {
     fi
 }
 
+##########################################################
+# Print bash script base data
+##########################################################
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
@@ -211,6 +254,9 @@ printBaseData() {
     printTerminatorFunction
 }
 
+##########################################################
+# Remane all video files to mp4
+##########################################################
 renameLocalFiles() {
     rename 's/webm/mp4/' *
     rename 's/flv/mp4/' *
@@ -219,6 +265,9 @@ renameLocalFiles() {
     rename 's/wmv/mp4/' *
 }
 
+##########################################################
+# Go through all the files in the current directory
+##########################################################
 goThroughAllFiles() {
     printVLCStart
     index=1
@@ -249,6 +298,9 @@ goThroughAllFiles() {
     printVLCEnd
 }
 
+##########################################################
+# Print bash eof data
+##########################################################
 printEndData() {
     echo "#END" >> $FILE
     echo " " >> $FILE
@@ -258,6 +310,9 @@ printEndData() {
     printShit "fi"
 }
 
+##########################################################
+# Main functionality
+##########################################################
 parsePackData "$@"
 verifyOldFile
 if [ $FILE_UPDATED == false ]; then
