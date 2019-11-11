@@ -68,6 +68,8 @@ script_start_time=$(date +%s)   # Time in seconds, when the script started runni
 
 RETVAL=0                        # If everything was done as expected, is set to 0
 
+SPACELEFT=0                     # Target directory drive space left
+
 #***************************************************************************************************************
 # Define regular colors for echo
 #***************************************************************************************************************
@@ -1266,6 +1268,13 @@ handle_file_packing () {
         echo "handle_file_packing"
     fi
 
+    ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
+    get_space_left
+    if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ]; then
+        echo "Not enough space left! File:$ORIGINAL_SIZE > harddrive:$SPACELEFT"
+        exit 1
+    fi
+
     Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
     CUTTING_TIME=$((BEGTIME + ENDTIME + DURATION_TIME))
     ORIGINAL_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
@@ -1311,6 +1320,18 @@ handle_file_packing () {
         calculate_duration
         check_file_conversion
     fi
+}
+
+#***************************************************************************************************************
+# Get space left on target directory
+#***************************************************************************************************************
+get_space_left () {
+    FULL=$(df -k "${TARGET_DIR}" |grep "/")
+
+    IFS=" "
+    array=(${FULL//,/$IFS})
+
+    SPACELEFT=${array[3]}
 }
 
 #***************************************************************************************************************
