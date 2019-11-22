@@ -141,11 +141,11 @@ addNewFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS || error_code=$?" >> "$TMPFILE"
+                echo "packAll.sh \"$f\" $OPTIONS || error_code=\$?" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS || error_code=$?" >> "$TMPFILE"
+                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS || error_code=\$?" >> "$TMPFILE"
             fi
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
@@ -279,11 +279,11 @@ goThroughAllFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS  || error_code=$?" >> "$FILE"
+                echo "packAll.sh \"$f\" $OPTIONS  || error_code=\$?" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS  || error_code=$?" >> "$FILE"
+                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS  || error_code=\$?" >> "$FILE"
             fi
 
             printVLCFile "$f"
