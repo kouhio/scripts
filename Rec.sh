@@ -2,6 +2,7 @@
 
 #**********************************************************************************
 # Verify that the target file is being created in the correct format
+# 1 - filename
 #**********************************************************************************
 verify_target() {
     WAV="$1"
@@ -32,8 +33,14 @@ get_sink_monitor() {
 #**********************************************************************************
 record_audio_stream() {
     echo "Recording to $WAV ..."
-    echo "Close this window to stop (with ctrl+c)"
-    parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+
+    if [ -z "$1" ]; then
+        echo "Close this window to stop (with ctrl+c)"
+        parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+    else
+        echo "This process will terminate in $1"
+        timeout "$1" parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+    fi
     #parec –format=s16le –device=”$MONITOR” | oggenc –raw –quiet –quality=4 -o $WAV -
 }
 
@@ -53,9 +60,22 @@ verify_dependencies() {
 }
 
 #**********************************************************************************
-# Main function
+# Help printing 
 #**********************************************************************************
+printHelp() {
+    echo "System audio output recorder"
+    echo "first parameter: name of the target wav file"
+    echo "second parameter (optional): time to run 'VALUE's/m/h/d (secs/mins/hours/days)"
+    exit 1
+}
+
+#**********************************************************************************
+# Main function
+# 1 - filename
+# 2 - timeout value (VALUEs/m/h/d)
+#**********************************************************************************
+[ "$1" == "-h" ] printHelp
 verify_dependencies
 verify_target "$1"
 get_sink_monitor
-record_audio_stream
+record_audio_stream "$2"
