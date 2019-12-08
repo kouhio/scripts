@@ -60,7 +60,7 @@ verify_dependencies() {
 }
 
 #**********************************************************************************
-# Help printing 
+# Help printing
 #**********************************************************************************
 printHelp() {
     echo "System audio output recorder"
@@ -74,7 +74,9 @@ printHelp() {
 # 1 - filename
 # 2 - timeout value (VALUEs/m/h/d)
 #**********************************************************************************
-[ "$1" == "-h" ] printHelp
+
+[ "$1" == "-h"] && printHelp
+
 verify_dependencies
 verify_target "$1"
 get_sink_monitor
