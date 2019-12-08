@@ -75,7 +75,7 @@ printHelp() {
 # 2 - timeout value (VALUEs/m/h/d)
 #**********************************************************************************
 
-[ "$1" == "-h"] && printHelp
+[ "$1" == "-h" ] && printHelp
 
 verify_dependencies
 verify_target "$1"
