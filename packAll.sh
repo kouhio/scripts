@@ -70,6 +70,7 @@ RETVAL=0                        # If everything was done as expected, is set to 
 
 SPACELEFT=0                     # Target directory drive space left
 
+ERROR=0
 #***************************************************************************************************************
 # Define regular colors for echo
 #***************************************************************************************************************
@@ -270,7 +271,9 @@ delete_file () {
         echo "delete_file"
     fi
 
-    if [ -f "$1" ]; then
+    if [ "$ERROR" -ne "0" ]; then
+	echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+    elif [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then
             scrub -r "$1" >/dev/null 2>&1
         elif [ "$SCRUB" == "2" ]; then
@@ -829,6 +832,7 @@ copy_hevc () {
         #no time removal, so just pack it
         ffmpeg -i "$FILE" -c:v:1 copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
     fi
+    ERROR=$?
 }
 
 #***************************************************************************************************************
@@ -863,6 +867,7 @@ convert_hevc () {
         #no time removal, so just pack it
         ffmpeg -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
     fi
+    ERROR=$?
 }
 
 #***************************************************************************************************************
@@ -880,6 +885,7 @@ burn_subs () {
             PROCESS_NOW=$(date +%T)
             echo -n "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
             ffmpeg -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
+            ERROR=$?
             echo "Done"
         else
             echo -e -n "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
@@ -927,6 +933,7 @@ pack_it () {
         #avconv -i "$FILE" -map 0 -map_metadata 0:s:0 -strict experimental -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
         avconv -i "$FILE" -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
     fi
+    ERROR=$?
 }
 
 #***************************************************************************************************************
@@ -970,6 +977,7 @@ copy_it () {
             avconv -i "$FILE" -c:a copy -c:v copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
         fi
     fi
+    ERROR=$?
 }
 
 #***************************************************************************************************************
