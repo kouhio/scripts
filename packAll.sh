@@ -376,6 +376,15 @@ new_massive_file_split () {
                 calculate_time "${array2[1]}"
                 ENDTIME=$CALCTIME
 
+                if [ -z "$XSS" ] || [ -z "$WIDTH" ]; then
+                    echo "Something wrong with width w:$WIDTH s:$XSS"
+                    ERROR_WHILE_SPLITTING=1
+                    RETVAL=1
+                    continue
+                fi
+
+                echo "1 - e:$ENDTIME b:$BEGTIME w:$WIDTH x:$XSS"
+
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
                     echo -e -n "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME, Size: $WIDTH >= $XSS${Color_Off}\n"
