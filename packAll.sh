@@ -271,9 +271,10 @@ delete_file () {
         echo "delete_file"
     fi
 
-    if [ "$ERROR" -ne "0" ]; then
-	echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
-    elif [ -f "$1" ]; then
+    #if [ "$ERROR" -ne "0" ]; then
+    #echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+    #el
+    if [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then
             scrub -r "$1" >/dev/null 2>&1
         elif [ "$SCRUB" == "2" ]; then
@@ -1007,6 +1008,7 @@ remove_segment () {
         ENDTIME=$((ENDTIME * -1))
     fi
     avconv -ss "$SKIPBEG" -i "$FILE" -t "$ENDO" -map 0 -map_metadata 0:s:0 -c copy "${FILE}_2${CONV_TYPE}" -v quiet >/dev/null 2>&1
+    ERROR=$?
 
     if [ "$SKIP" == 1 ]; then
         MP4Box "temp_1$CONV_TYPE" -cat "temp_2$CONV_TYPE" -out "$FILE$CONV_TYPE" >/dev/null 2>&1
@@ -1072,7 +1074,7 @@ handle_file_rename () {
         echo "handle_file_rename"
     fi
 
-    if [ "$1" -gt 0 ]; then
+    if [ "$1" -gt 0 ] && [ "$ERROR" -eq 0 ] ; then
         if [ "$KEEPORG" == "0" ]; then
             delete_file "$FILE"
         fi
@@ -1098,6 +1100,10 @@ handle_file_rename () {
             fi
         fi
     else
+	if [ "$ERROR" -ne "0" ]; then
+    	    echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+	fi
+
         if [ "$SPLIT_FILE" == 1 ]; then
             delete_file "${FILE}_1${CONV_TYPE}"
             delete_file "${FILE}_2${CONV_TYPE}"
