@@ -43,7 +43,7 @@ print_help() {
     echo "-d    Minimum duration in seconds to be calculated as silence (default: 5)"
     echo "-n    Noise level maximum to be calculated as silence (default: 0.001)"
     echo "-f    Output filename for list of files with silence (instead of splitting)"
-    echo "-t    Target output format extensioni (default: input filetype)"
+    echo "-t    Target output format extension (default: input filetype)"
     echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
     echo "-F    Path to filenames in order to put as output tracks (add to D:target path to file for automatic output dir)"
     echo "-T    Path to output directory"
@@ -216,18 +216,25 @@ split_to_file () {
         [ ! -z "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
     fi
 
-    echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
-    ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+    ORG_EXT="${1##*.}"
 
-    if [ ! -z "$TARGET_EXT" ]; then
-        if [ $TARGET_EXT == "mp3" ]; then
-            echo "Packing to mp3 with lame $OUTPUT to $PACK_OUTPUT"
-            lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
-            if [ $error_code -eq 0 ]; then
-                rm "$OUTPUT"
+    if [ "$ORG_EXT" == "mp3" ]; then
+        echo "Extracting mp3 from $1! | Start: $2 Duration: $3, Min: $MIN_DURATION"
+        ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+    else
+        echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
+        ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+
+        if [ ! -z "$TARGET_EXT" ]; then
+            if [ $TARGET_EXT == "mp3" ]; then
+                echo "Packing to mp3 with lame $OUTPUT to $PACK_OUTPUT"
+                lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
+                if [ $error_code -eq 0 ]; then
+                    rm "$OUTPUT"
+                fi
+            else
+                echo "Packing target type $TARGET_EXT not supported, yet!"
             fi
-        else
-            echo "Packing target type $TARGET_EXT not supported, yet!"
         fi
     fi
 
