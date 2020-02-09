@@ -507,7 +507,7 @@ parse_handlers () {
         elif [ "$1" == "print" ] || [ "$1" == "p" ]; then
             PRINT_INFO=1
         elif [ "$1" == "hevc" ] || [ "$1" == "h" ]; then
-            IGNORE=1
+            #IGNORE=1
             HEVC_CONV=1
         elif [ "$1" == "D" ]; then
             DEBUG_PRINT=1

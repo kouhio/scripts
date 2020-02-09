@@ -29,6 +29,7 @@ init () {
     NAMEPATH=""         # path to text file with previously given filenames in order
     CURRENT_NAME=""     # trackname found from the file
     TARGET_DIR=""       # Directory where to put the output files
+    INFO_FROM_FILE=""   # Split data from file instead of silence
 }
 
 #**************************************************************************************************************
@@ -47,6 +48,7 @@ print_help() {
     echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
     echo "-F    Path to filenames in order to put as output tracks (add to D:target path to file for automatic output dir)"
     echo "-T    Path to output directory"
+    echo "-S    Path to file with splitting information (start-end;trackname)"
     echo "Options without arguments: "
     echo "-s    Split input file to files without silence"
     echo "-D    Delete input file after successful splitting"
@@ -63,7 +65,7 @@ parse_arguments () {
         exit 1
     fi
 
-    SHORT="d:n:m:f:F:t:T:sDhi:"
+    SHORT="d:n:m:f:F:t:T:sDhi:S:"
 
     PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
     if [[ $? -ne 0 ]]; then
@@ -110,6 +112,11 @@ parse_arguments () {
             -s)
                 SPLIT=1
                 shift
+                ;;
+            -S)
+                INFO_FROM_FILE="$2"
+                NAMEPATH="$2"
+                shift 2
                 ;;
             -F)
                 NAMEPATH="$2"
@@ -168,6 +175,8 @@ find_target_in_file () {
 # 1 - filenumber (aka the row in the file
 #**************************************************************************************************************
 find_name_in_file () {
+    [ ! -z "$INFO_FROM_FILE" ] && return
+
     cnt=1
     while IFS='' read -r line || [[ -n "$line" ]]; do
         if [[ $line =~ "D:" ]]; then
@@ -194,6 +203,7 @@ find_name_in_file () {
 # 4 - number
 #**************************************************************************************************************
 split_to_file () {
+
     error_code=0
     OUTPUT=$(printf "%02d_$1" "$4")
     if  [ ! -z "$TARGET_DIR" ]; then
@@ -216,7 +226,9 @@ split_to_file () {
         [ ! -z "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
     fi
 
+    echo "000 $1 - $2 - $3 - $4"
     ORG_EXT="${1##*.}"
+    echo "111 $1 - $2 - $3 - $4"
 
     if [ "$ORG_EXT" == "mp3" ]; then
         echo "Extracting mp3 from $1! | Start: $2 Duration: $3, Min: $MIN_DURATION"
@@ -310,10 +322,145 @@ split_file_by_silence () {
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
         echo "everythings fine, deleting original"
-        rm "$2" 
+        rm "$2"
         [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
     fi
 }
+
+#***************************************************************************************************************
+# Check if given value starts with a 0 and remove it
+# 1 - Value to be verified and modified
+#***************************************************************************************************************
+check_zero () {
+    if [ "$DEBUG_PRINT" == 1 ]; then
+        echo "change_zero"
+    fi
+
+    ZERORETVAL="$1"
+    ttime="${1:0:1}"
+    if [ ! -z "$ttime" ]; then
+        if [ "$ttime" == "0" ]; then
+            ZERORETVAL="${1:1:1}"
+        fi
+    fi
+}
+
+#***************************************************************************************************************
+# Separate and calculate given time into seconds and set to corresponting placeholder
+# 1 - time value in hh:mm:ss / mm:ss / ss
+#***************************************************************************************************************
+calculate_time () {
+    if [ "$DEBUG_PRINT" == 1 ]; then
+        echo "calculate_time"
+    fi
+
+    if [ ! -z "$1" ]; then
+        t1=$(echo "$1" | cut -d : -f 1)
+        t2=$(echo "$1" | cut -d : -f 2)
+        t3=$(echo "$1" | cut -d : -f 3)
+
+        occ=$(grep -o ":" <<< "$1" | wc -l)
+
+        check_zero "$t1"
+        t1=$ZERORETVAL
+        check_zero "$t2"
+        t2=$ZERORETVAL
+        check_zero "$t3"
+        t3=$ZERORETVAL
+
+        if [ "$occ" == "0" ]; then
+            calc_time=$1
+        elif [ "$occ" == "1" ]; then
+            t1=$((t1 * 60))
+            calc_time=$((t1 + t2))
+        else
+            t1=$((t1 * 3600))
+            t2=$((t2 * 60))
+            calc_time=$((t1 + t2 + t3))
+        fi
+
+        CALCTIME=$calc_time
+    else
+        CALCTIME=0
+    fi
+}
+
+#**************************************************************************************************************
+# Parse found silencedata and split input file to separate files with audio only
+# 1 - Source filename
+#**************************************************************************************************************
+split_file_by_input_file () {
+    START=0
+    END=0
+    FILENUMBER=1
+    TOTAL_LENGTH=`ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0"`
+
+    if [ $MIN_DURATION -le 0 ]; then
+        MIN_DURATION="$DURATION"
+    fi
+
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [[ $line =~ "D:" ]]; then
+            TARGET_DIR="${line##*:}"
+            continue
+        fi
+        CURRENT_NAME="$line"
+
+        TIMEDATA=${CURRENT_NAME%;*}
+        START=${TIMEDATA%-*}
+        END=${TIMEDATA#*-}
+        CURRENT_NAME=${CURRENT_NAME#*;}
+
+        calculate_time "$START"
+        START="$CALCTIME"
+        calculate_time "$END"
+        END="$CALCTIME"
+
+        if [ -z "$END" ] || [ "$END" == "0" ]; then
+            TOTAL_LENGTH=${TOTAL_LENGTH%.*}
+            END=$((TOTAL_LENGTH - START))
+        else
+            END=$((END - START))
+        fi
+
+        echo "$FILENUMBER $CURRENT_NAME $START $END $TARGET_DIR"
+
+        split_to_file "$1" "$START" "$END" "$FILENUMBER"
+        START=0
+        END=0
+        FILENUMBER=$((FILENUMBER + 1))
+    done < "$INFO_FROM_FILE"
+
+    if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
+        echo "everythings fine, deleting original"
+        rm "$1"
+        [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
+        [ -f "$INFO_FROM_FILE" ] && rm "$INFO_FROM_FILE"
+    fi
+}
+
+#**************************************************************************************************************
+# Check if given file has silence within given parameters and either split or add to output list
+# 1 - Sourcefile
+#**************************************************************************************************************
+check_file () {
+    EXT="${1##*.}"
+    if [ "mp3" == "$EXT" ] || [ $EXT == "wav" ]; then
+        if [ -f "$1" ]; then
+            SILENCEDATA=`ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence" `
+            if [ ! -z "$SILENCEDATA" ]; then
+                if [ $SPLIT == 1 ]; then
+                    split_file_by_silence "$SILENCEDATA" "$1"
+                else
+                    write_silencedata "$SILENCEDATA"
+                fi
+            fi
+        fi
+    fi
+}
+
+
+
 
 #**************************************************************************************************************
 # Check if given file has silence within given parameters and either split or add to output list
@@ -377,7 +524,7 @@ verify_dependencies() {
 # The main function
 #**************************************************************************************************************
 run_main() {
-    if [ ! -z "$FILE" ]; then
+    if [ ! -z "$FILE" ] && [ -z "$INFO_FROM_FILE" ]; then
         echo "Seeking silence with $DURATION secs or more" > "$FILE"
     fi
 
@@ -391,7 +538,12 @@ run_main() {
         cd ..
     else
         echo "Seeking silence from $FILENAME"
-        check_file "$FILENAME"
+        if [ -z "$INFO_FROM_FILE" ]; then
+            check_file "$FILENAME"
+        else
+            echo "Splitting $FILENAME by $INFO_FROM_FILE"
+            split_file_by_input_file "$FILENAME"
+        fi
     fi
 }
 
