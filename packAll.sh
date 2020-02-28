@@ -325,9 +325,9 @@ massive_filecheck () {
         OSZ=$(du -k "$FILE" | cut -f1)
         if [ "$KEEPORG" == "0" ]; then
             delete_file "$FILE"
+            OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
+            echo -e -n "${Yellow}Saved $OSZ Mb with splitting${Color_Off}\n"
         fi
-        OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
-        echo -e -n"${Green}Saved $OSZ Mb with splitting${Color_Off}\n"
 
     else
         echo -e -n "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
@@ -340,7 +340,6 @@ massive_filecheck () {
 # 1 - Splitting time information
 #***************************************************************************************************************
 new_massive_file_split () {
-
     if [ "$DEBUG_PRINT" == 1 ]; then
         echo "new_massive_file_split"
     fi
@@ -367,6 +366,8 @@ new_massive_file_split () {
 
         for index in "${!array[@]}"
         do
+            [ "$index" -ne "0" ] && echo -en "\n"
+
             if [ "$SPLIT_P2P" -gt 0 ]; then
                 IFS="-"
                 array2=(${array[index]//-/$IFS})
@@ -403,6 +404,9 @@ new_massive_file_split () {
                     MASSIVE_TIME_CHECK=$((MASSIVE_TIME_CHECK + (ENDTIME - BEGTIME)))
                 fi
             else
+                if [ "${array[index + 1]}" == "D" ]; then
+                    KEEPORG=0
+                fi
                 calculate_time "${array[index]}"
                 SPLIT_POINT=$CALCTIME
                 calculate_time "${array[index + 1]}"
@@ -454,6 +458,11 @@ calculate_time () {
     fi
 
     if [ ! -z "$1" ]; then
+        if [ "$1" == "D" ]; then
+            CALCTIME=0
+            return
+        fi
+
         t1=$(echo "$1" | cut -d : -f 1)
         t2=$(echo "$1" | cut -d : -f 2)
         t3=$(echo "$1" | cut -d : -f 3)
@@ -825,7 +834,7 @@ copy_hevc () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint HEVC copy (${X}x${Y}) "
+    echo -n "$PROCESS_NOW : $FILEprint FFMPEG copy (${X}x${Y}) "
     if [ "$MASSIVE_SPLIT" == 1 ]; then
         echo -n "splitting file $CUTTING_TIME sec (mode: $WORKMODE) "
     elif [ "$CUTTING_TIME" -gt 0 ]; then
@@ -1267,7 +1276,7 @@ check_file_conversion () {
             ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
-                echo -e -n "${Green} Success in $TIMERVALUE${Color_Off}\n"
+                echo -e -n "${Green} Success in $TIMERVALUE${Color_Off} "
             elif [ "$SPLIT_FILE" == 0 ]; then
                 echo -e -n "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
             else
@@ -1354,6 +1363,9 @@ handle_file_packing () {
 # Get space left on target directory
 #***************************************************************************************************************
 get_space_left () {
+    if [ "$DEBUG_PRINT" == 1 ]; then
+        echo "get_space_left"
+    fi
     FULL=$(df -k "${TARGET_DIR}" |grep "/")
 
     IFS=" "
