@@ -350,6 +350,7 @@ new_massive_file_split () {
     SPLIT_COUNTER=0
     FILECOUNT=1
     MASSIVE_SPLIT=1
+    KEEPORG=1
 
     if [ -f "$FILE" ]; then
         EXT_CURR="${FILE##*.}"
@@ -360,7 +361,8 @@ new_massive_file_split () {
         SPLIT_P2P=$(grep -o "-" <<< "$1" | wc -l)
 
         IFS=","
-        array=(${1//,/$IFS})
+        DO_THE_SPLITS="$1"
+        array=(${DO_THE_SPLITS//,/$IFS})
         SPLIT_MAX=${#array[@]}
 
         for index in "${!array[@]}"
@@ -369,7 +371,10 @@ new_massive_file_split () {
                 IFS="-"
                 array2=(${array[index]//-/$IFS})
 
-                [ "${array2[0]}" == "D" ] && break
+                if [ "${array2[0]}" == "D" ]; then
+                    KEEPORG=0
+                    break
+                fi
 
                 calculate_time "${array2[0]}"
                 BEGTIME=$CALCTIME
@@ -383,7 +388,7 @@ new_massive_file_split () {
                     continue
                 fi
 
-                echo "1 - e:$ENDTIME b:$BEGTIME w:$WIDTH x:$XSS"
+                #echo "1 - e:$ENDTIME b:$BEGTIME w:$WIDTH x:$XSS"
 
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
@@ -1109,9 +1114,9 @@ handle_file_rename () {
             fi
         fi
     else
-	if [ "$ERROR" -ne "0" ]; then
-    	    echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
-	fi
+        if [ "$ERROR" -ne "0" ]; then
+            echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+        fi
 
         if [ "$SPLIT_FILE" == 1 ]; then
             delete_file "${FILE}_1${CONV_TYPE}"
@@ -1352,9 +1357,9 @@ get_space_left () {
     FULL=$(df -k "${TARGET_DIR}" |grep "/")
 
     IFS=" "
-    array=(${FULL//,/$IFS})
+    space_array=(${FULL//,/$IFS})
 
-    SPACELEFT=${array[3]}
+    SPACELEFT=${space_array[3]}
 }
 
 #***************************************************************************************************************
