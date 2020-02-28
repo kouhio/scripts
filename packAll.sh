@@ -322,11 +322,13 @@ massive_filecheck () {
     done
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
-        OSZ=$(du -k "$FILE" | cut -f1)
         if [ "$KEEPORG" == "0" ]; then
+            OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
             OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
             echo -e -n "${Yellow}Saved $OSZ Mb with splitting${Color_Off}\n"
+        else
+            echo -en "${Yellow}Finished${Color_Off}\n"
         fi
 
     else
