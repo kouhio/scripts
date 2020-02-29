@@ -213,7 +213,7 @@ check_and_crop () {
                     short_name
                     process_start_time=$(date +%s)
                     PROCESS_NOW=$(date +%T)
-                    echo -n -e "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
+                    printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
                     ffmpeg -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
                     calculate_duration
                     check_file_conversion
@@ -272,7 +272,7 @@ delete_file () {
     fi
 
     #if [ "$ERROR" -ne "0" ]; then
-    #echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+    #printf "${Red}Something went wrong, keeping original!${Color_Off}\n"
     #el
     if [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then
@@ -296,7 +296,7 @@ massive_filecheck () {
     fi
 
     if [ "$ERROR_WHILE_SPLITTING" != "0" ]; then
-        echo -e -n "${Red}Something went wrong with splitting $FILE${Color_Off}\n"
+        printf "${Red}Something went wrong with splitting $FILE${Color_Off}\n"
         ERROR_WHILE_SPLITTING=0
         RETVAL=1
         return 0;
@@ -326,13 +326,13 @@ massive_filecheck () {
             OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
             OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
-            echo -e -n "${Yellow}Saved $OSZ Mb with splitting${Color_Off}\n"
+            printf "${Yellow}Saved $OSZ Mb with splitting${Color_Off}\n"
         else
-            echo -en "${Yellow}Finished${Color_Off}\n"
+            printf "${Yellow}Finished${Color_Off}\n"
         fi
 
     else
-        echo -e -n "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
+        printf "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
         RETVAL=1
     fi
 }
@@ -377,7 +377,7 @@ new_massive_file_split () {
                     break
                 fi
 
-                [ "$index" -ne "0" ] && echo -en "\n"
+                [ "$index" -ne "0" ] && printf "\n"
 
                 calculate_time "${array2[0]}"
                 BEGTIME=$CALCTIME
@@ -395,7 +395,7 @@ new_massive_file_split () {
 
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
-                    echo -e -n "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME, Size: $WIDTH >= $XSS${Color_Off}\n"
+                    printf "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME, Size: $WIDTH >= $XSS${Color_Off}\n"
                     RETVAL=1
                 else
                     if [ "$CALCTIME" != "0" ]; then
@@ -410,7 +410,7 @@ new_massive_file_split () {
                     KEEPORG=0
                 fi
 
-                [ "$index" -ne "0" ] && echo -en "\n"
+                [ "$index" -ne "0" ] && printf "\n"
 
                 calculate_time "${array[index]}"
                 SPLIT_POINT=$CALCTIME
@@ -418,7 +418,7 @@ new_massive_file_split () {
                 SPLIT_POINT2=$CALCTIME
                 if [ "$SPLIT_POINT2" -le "$SPLIT_POINT" ] && [ $SPLIT_POINT2 != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
-                    echo -e -n "${Red}Split error $FILE - Time: $SPLIT_POINT2 <= $SPLIT_POINT, - Size: $WIDTH <= $XSS${Color_Off}\n"
+                    printf "${Red}Split error $FILE - Time: $SPLIT_POINT2 <= $SPLIT_POINT, - Size: $WIDTH <= $XSS${Color_Off}\n"
                     RETVAL=1
                 else
                     if [ "$index" == 0 ]; then
@@ -743,9 +743,9 @@ print_info () {
     fi
 
     if [ "$FILECOUNT" -gt 1 ]; then
-        echo -n "$CURRENTFILECOUNTER of $FILECOUNT "
+        printf "$CURRENTFILECOUNTER of $FILECOUNT "
     elif [ "$MULTIFILECOUNT" -gt 1 ]; then
-        echo -n "$CURRENTFILECOUNTER of $MULTIFILECOUNT "
+        printf "$CURRENTFILECOUNTER of $MULTIFILECOUNT "
     fi
 }
 
@@ -780,12 +780,14 @@ short_name () {
     nameLen=${#FILE}
     extLen=${#EXT_CURR}
     if [ "$nameLen" -gt "$NAMELIMITER" ]; then
-        FILEprint="${FILE:0:$NAMELIMITER}...$EXT_CURR"
+        #FILEprint="${FILE:0:$NAMELIMITER}...$EXT_CURR"
+        FILEprint=$(printf "%-40.40s.%3.3s" "$FILE" "$EXT_CURR")
     elif [ "$nameLen" -le "$NAMELIMITER" ]; then
-        PADDER=$(((NAMELIMITER - nameLen) + 3 + extLen))
-        PAD="                             "
-        PADDING="${PAD:0:$PADDER}"
-        FILEprint=$FILE$PADDING
+        FILEprint=$(printf "%-44.44s" "$FILE")
+        #PADDER=$(((NAMELIMITER - nameLen) + 3 + extLen))
+        #PAD="                             "
+        #PADDING="${PAD:0:$PADDER}"
+        #FILEprint=$FILE$PADDING
     #else
     #    FILEprint=$FILE
     fi
@@ -802,7 +804,7 @@ extract_mp3 () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint extracting mp3 "
+    printf "$PROCESS_NOW : $FILEprint extracting mp3 "
 
     if [ "$DURATION_TIME" -gt 0 ]; then
         ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
@@ -823,7 +825,7 @@ extract_mp3 () {
         rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
         echo "Successfully extracted mp3"
     else
-        echo -e -n "${Red}Failed!${Color_Off}\n"
+        printf "${Red}Failed!${Color_Off}\n"
         RETVAL=1
     fi
 }
@@ -839,11 +841,11 @@ copy_hevc () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint FFMPEG copy (${X}x${Y}) "
+    printf "$PROCESS_NOW : $FILEprint FFMPEG copy (%04dx%04d) " "${X}" "${Y}"
     if [ "$MASSIVE_SPLIT" == 1 ]; then
-        echo -n "splitting file $CUTTING_TIME sec (mode: $WORKMODE) "
+        printf "splitting file %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
-        echo -n "shortened by $CUTTING_TIME sec (mode: $WORKMODE) "
+        printf "shortened by %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
     fi
 
     if [ "$WORKMODE" == "1" ]; then
@@ -875,9 +877,9 @@ convert_hevc () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint FFMPEG packing (${X}x${Y})->($PACKSIZE) "
+    printf "$PROCESS_NOW : $FILEprint FFMPEG packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     if [ "$CUTTING_TIME" -gt 0 ]; then
-        echo -n "cut $CUTTING_TIME sec (mode:$WORKMODE) "
+        printf "cut %05d sec (mode:$WORKMODE) " "$CUTTING_TIME"
     fi
 
     #ffmpeg -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
@@ -912,16 +914,16 @@ burn_subs () {
             short_name
             process_start_time=$(date +%s)
             PROCESS_NOW=$(date +%T)
-            echo -n "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
+            printf "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
             ffmpeg -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
             ERROR=$?
             echo "Done"
         else
-            echo -e -n "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
+            printf "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
             RETVAL=1
         fi
     else
-        echo -e -n "${Red}File $FILE not found!${Color_Off}\n"
+        printf "${Red}File $FILE not found!${Color_Off}\n"
         RETVAL=1
     fi
 }
@@ -937,9 +939,9 @@ pack_it () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint packing (${X}x${Y})->$PACKSIZE "
+    printf "$PROCESS_NOW : $FILEprint packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     if [ "$CUTTING_TIME" -gt 0 ]; then
-        echo -n "cut $CUTTING_TIME sec (mode:$WORKMODE) "
+        printf "cut %05d sec (mode:$WORKMODE) " "$CUTTING_TIME"
     fi
 
     if [ "$DURATION_TIME" -gt 0 ]; then
@@ -976,16 +978,16 @@ copy_it () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    echo -n "$PROCESS_NOW : $FILEprint "
+    printf "$PROCESS_NOW : $FILEprint "
 
     if [ "$EXT_CURR" != "$CONV_CHECK" ]; then
-        echo -n "being transformed "
+        printf "being transformed "
     fi
 
     if [ "$MASSIVE_SPLIT" == 1 ]; then
-        echo -n "splitting file $CUTTING_TIME sec (mode: $WORKMODE) "
+        printf "splitting file %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
-        echo -n "shortened by $CUTTING_TIME sec (mode: $WORKMODE) "
+        printf "shortened by %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
     fi
 
     if [ "$WORKMODE" == "1" ]; then
@@ -1022,9 +1024,9 @@ remove_segment () {
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
     if [ "$SKIP" == 1 ]; then
-        echo -n "$PROCESS_NOW : $FILEprint segment being removed (not really working good!)"
+        printf "$PROCESS_NOW : $FILEprint segment being removed (not really working good!)"
     else
-        echo -n "$PROCESS_NOW : $FILEprint being split into two files"
+        printf "$PROCESS_NOW : $FILEprint being split into two files"
     fi
     BEGTIME=0
 
@@ -1129,7 +1131,7 @@ handle_file_rename () {
         fi
     else
         if [ "$ERROR" -ne "0" ]; then
-            echo -e -n "${Red}Something went wrong, keeping original!${Color_Off}\n"
+            printf "${Red}Something went wrong, keeping original!${Color_Off}\n"
         fi
 
         if [ "$SPLIT_FILE" == 1 ]; then
@@ -1183,7 +1185,7 @@ handle_error_file () {
         mkdir "Error"
     fi
     mv "$FILE" "./Error"
-    echo -e -n "${Red}Something corrupted with $FILE${Color_Off}\n"
+    printf "${Red}Something corrupted with $FILE${Color_Off}\n"
     RETVAL=1
 }
 
@@ -1201,7 +1203,7 @@ check_alternative_conversion () {
     xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
         handle_file_rename 0
-        echo -e -n "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
     elif [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
@@ -1210,12 +1212,12 @@ check_alternative_conversion () {
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
-            echo -e -n "${Red}| FAILED CONVERSION! time:$xNEW_DURATION<$xORIGINAL_DURATION file:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+            printf "${Red}| FAILED CONVERSION! time:$xNEW_DURATION<$xORIGINAL_DURATION file:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
             handle_file_rename 0
         fi
     else
         handle_file_rename 0
-        echo -e -n "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
         RETVAL=1
     fi
 }
@@ -1281,18 +1283,18 @@ check_file_conversion () {
             ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
-                echo -e -n "${Green} Success in $TIMERVALUE${Color_Off} "
+                printf "${Green} Success in $TIMERVALUE${Color_Off} "
             elif [ "$SPLIT_FILE" == 0 ]; then
-                echo -e -n "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
+                printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
             else
-                echo -e -n "${Green} Done!${Color_Off}\n"
+                printf "${Green} Done!${Color_Off}\n"
             fi
             handle_file_rename 1
         else
             check_alternative_conversion
         fi
     else
-        echo -e -n "${Red} No destination file!${Color_Off}\n"
+        printf "${Red} No destination file!${Color_Off}\n"
         if [ ! -d "./Nodest" ]; then
             mkdir "Nodest"
         fi
@@ -1411,7 +1413,7 @@ pack_file () {
                 REPACK=1
                 handle_file_packing
             else
-                echo -e -n "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
+                printf "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
                 RETVAL=1
             fi
         fi
@@ -1454,11 +1456,11 @@ verify_necessary_programs() {
     fi
 
     if [ "$error_code" -ne 0 ]; then
-        echo -e -n "Missing necessary programs: "
-        [ "$ff_missing" -ne 0 ] && echo -e -n "ffmpeg "
-        [ "$av_missing" -ne 0 ] && echo -e -n "avconv "
-        [ "$mi_missing" -ne 0 ] && echo -e -n "mediainfo "
-        echo -e -n "\n"
+        printf "Missing necessary programs: "
+        [ "$ff_missing" -ne 0 ] && printf "ffmpeg "
+        [ "$av_missing" -ne 0 ] && printf "avconv "
+        [ "$mi_missing" -ne 0 ] && printf "mediainfo "
+        printf "\n"
         exit 1
     fi
 }
