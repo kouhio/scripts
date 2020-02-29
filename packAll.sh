@@ -368,8 +368,6 @@ new_massive_file_split () {
 
         for index in "${!array[@]}"
         do
-            [ "$index" -ne "0" ] && echo -en "\n"
-
             if [ "$SPLIT_P2P" -gt 0 ]; then
                 IFS="-"
                 array2=(${array[index]//-/$IFS})
@@ -378,6 +376,8 @@ new_massive_file_split () {
                     KEEPORG=0
                     break
                 fi
+
+                [ "$index" -ne "0" ] && echo -en "\n"
 
                 calculate_time "${array2[0]}"
                 BEGTIME=$CALCTIME
@@ -409,6 +409,9 @@ new_massive_file_split () {
                 if [ "${array[index + 1]}" == "D" ]; then
                     KEEPORG=0
                 fi
+
+                [ "$index" -ne "0" ] && echo -en "\n"
+
                 calculate_time "${array[index]}"
                 SPLIT_POINT=$CALCTIME
                 calculate_time "${array[index + 1]}"
