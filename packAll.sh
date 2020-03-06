@@ -781,9 +781,9 @@ short_name () {
     extLen=${#EXT_CURR}
     if [ "$nameLen" -gt "$NAMELIMITER" ]; then
         #FILEprint="${FILE:0:$NAMELIMITER}...$EXT_CURR"
-        FILEprint=$(printf "%-40.40s.%3.3s" "$FILE" "$EXT_CURR")
+        FILEprint=$(printf "%-40.40s...%3.3s" "$FILE" "$EXT_CURR")
     elif [ "$nameLen" -le "$NAMELIMITER" ]; then
-        FILEprint=$(printf "%-44.44s" "$FILE")
+        FILEprint=$(printf "%-46.46s" "$FILE")
         #PADDER=$(((NAMELIMITER - nameLen) + 3 + extLen))
         #PAD="                             "
         #PADDING="${PAD:0:$PADDER}"
@@ -841,7 +841,7 @@ copy_hevc () {
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint FFMPEG copy (%04dx%04d) " "${X}" "${Y}"
+    printf "$PROCESS_NOW : $FILEprint FFMPEG copying (%04dx%04d) " "${X}" "${Y}"
     if [ "$MASSIVE_SPLIT" == 1 ]; then
         printf "splitting file %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
@@ -1131,7 +1131,7 @@ handle_file_rename () {
         fi
     else
         if [ "$ERROR" -ne "0" ]; then
-            printf "${Red}Something went wrong, keeping original!${Color_Off}\n"
+            printf "${Red}Something went wrong, keeping original!${Color_Off}"
         fi
 
         if [ "$SPLIT_FILE" == 1 ]; then
@@ -1203,7 +1203,7 @@ check_alternative_conversion () {
     xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
         handle_file_rename 0
-        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
     elif [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
@@ -1212,14 +1212,15 @@ check_alternative_conversion () {
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
-            printf "${Red}| FAILED CONVERSION! time:$xNEW_DURATION<$xORIGINAL_DURATION file:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+            printf "${Red}| FAILED CONVERSION! time:$xNEW_DURATION<$xORIGINAL_DURATION file:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
             handle_file_rename 0
         fi
     else
         handle_file_rename 0
-        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}\n"
+        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
         RETVAL=1
     fi
+    printf "\n"
 }
 
 #***************************************************************************************************************
