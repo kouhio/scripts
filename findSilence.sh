@@ -226,9 +226,7 @@ split_to_file () {
         [ ! -z "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
     fi
 
-    echo "000 $1 - $2 - $3 - $4"
     ORG_EXT="${1##*.}"
-    echo "111 $1 - $2 - $3 - $4"
 
     if [ "$ORG_EXT" == "mp3" ]; then
         echo "Extracting mp3 from $1! | Start: $2 Duration: $3, Min: $MIN_DURATION"
@@ -255,6 +253,7 @@ split_to_file () {
         echo "ffmpeg failed to extract $4 audio from $1"
         Color.sh
         ERROR=1
+        exit 1
     fi
 }
 
@@ -399,8 +398,18 @@ split_file_by_input_file () {
         MIN_DURATION="$DURATION"
     fi
 
+    ROWSDATA=""
     while IFS='' read -r line || [[ -n "$line" ]]; do
-        if [[ $line =~ "D:" ]]; then
+        ROWSDATA+=" ${line// /_}"
+    done < "$INFO_FROM_FILE"
+
+    inputs=(${ROWSDATA//\// })
+
+    for index in "${!inputs[@]}"; do
+
+        line="${inputs[index]}"
+
+        if [[ ${inputs[index]} =~ "D:" ]]; then
             TARGET_DIR="${line##*:}"
             continue
         fi
@@ -423,13 +432,11 @@ split_file_by_input_file () {
             END=$((END - START))
         fi
 
-        echo "$FILENUMBER $CURRENT_NAME $START $END $TARGET_DIR"
-
         split_to_file "$1" "$START" "$END" "$FILENUMBER"
         START=0
         END=0
         FILENUMBER=$((FILENUMBER + 1))
-    done < "$INFO_FROM_FILE"
+    done
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
         echo "everythings fine, deleting original"
