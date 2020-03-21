@@ -724,7 +724,8 @@ print_file_info () {
                 fi
             fi
             short_name
-            echo "$FILECOUNTPRINTER$FILEprint X:$X Y:$Y Size:$SIZE Mb Lenght:$TIMER_TOTAL_PRINT"
+            LEN2=$((LEN / 60))
+            echo "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:${SIZE} Mb Lenght:${LEN}s (${LEN2}min)" #$TIMER_TOTAL_PRINT"
             if [ ! -z "$WRITEOUT" ]; then
                 echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
             fi

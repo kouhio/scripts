@@ -141,11 +141,11 @@ addNewFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS || error_code=\$?" >> "$TMPFILE"
+                echo "packAll.sh \"$f\" $OPTIONS || in_error_code=\$?" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS || error_code=\$?" >> "$TMPFILE"
+                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS || in_error_code=\$?" >> "$TMPFILE"
             fi
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
@@ -249,7 +249,7 @@ verifyOldFile() {
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
-    printShit "error_code=0"
+    printShit "in_error_code=0"
     printShit "STARTSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
     printTerminatorFunction
 }
@@ -279,11 +279,11 @@ goThroughAllFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS  || error_code=\$?" >> "$FILE"
+                echo "packAll.sh \"$f\" $OPTIONS  || in_error_code=\$?" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS  || error_code=\$?" >> "$FILE"
+                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS  || in_error_code=\$?" >> "$FILE"
             fi
 
             printVLCFile "$f"
@@ -304,7 +304,7 @@ goThroughAllFiles() {
 printEndData() {
     echo "#END" >> $FILE
     echo " " >> $FILE
-    printShit "if [ \"\$error_code\" -eq \"0\" ]; then"
+    printShit "if [ \"\$in_error_code\" -eq \"0\" ]; then"
     printShit "    rm $FILE"
     printShit "    rm $VLC"
     printShit "fi"
