@@ -319,7 +319,7 @@ split_file_by_silence () {
         fi
     fi
 
-    if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
+    if [ $ERROR == "0" ] && [ $DELETE == "1" ]  && [ "$FILENUMBER" -gt "1" ];; then
         echo "everythings fine, deleting original"
         rm "$2"
         [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
@@ -438,7 +438,7 @@ split_file_by_input_file () {
         FILENUMBER=$((FILENUMBER + 1))
     done
 
-    if [ $ERROR == "0" ] && [ $DELETE == "1" ]; then
+    if [ $ERROR == "0" ] && [ $DELETE == "1" ] && [ "$FILENUMBER" -gt "1" ]; then
         echo "everythings fine, deleting original"
         rm "$1"
         [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
