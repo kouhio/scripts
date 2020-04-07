@@ -25,6 +25,7 @@ CALCTIME=0                      # Global variable to handle calculated time in s
 TIMERVALUE=0                    # Printed time value, which is calculated
 REPACK=0                        # Repack file instead of changing dimensions
 IGNORE=0                        # Ignore bigger target file size
+IGNORE_SPACE=0                  # Ignore space warning and proceed to next file
 TIMESAVED=0                     # Time cut out from modifying videos
 
 CHECKRUN=0                      # Verificator of necessary inputs
@@ -166,6 +167,7 @@ print_help () {
     echo "t(arget)=    -    filetype to set destination filetype (mp4 as default)"
     echo " "
     echo "i(gnore)     -    to ignore size"
+    echo "I(gnore)     -    to ignore space check and continue to next file"
     echo "r(epack)     -    to repack file with original dimensions"
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
@@ -512,6 +514,8 @@ parse_handlers () {
             COPY_ONLY=0
         elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then
             IGNORE=1
+        elif [ "$1" == "Ignore" ] || [ "$1" == "I" ]; then
+            IGNORE_SPACE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
             KEEPORG=1
         elif [ "$1" == "mp3" ] || [ "$1" == "m" ]; then
@@ -1318,7 +1322,8 @@ handle_file_packing () {
     get_space_left
     if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ]; then
         echo "Not enough space left! File:$ORIGINAL_SIZE > harddrive:$SPACELEFT"
-        exit 1
+        [ "$IGNORE_SPACE" -eq "0" ] && exit 1
+        return
     fi
 
     Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
