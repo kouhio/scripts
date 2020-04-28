@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HEVC_CONV=0                     # Use ffmpeg instead of avconv to handle files
+HEVC_CONV=1                     # Use ffmpeg instead of avconv to handle files
 SCRUB=0                         # Instead of rm, use scrub, if this is set
 
 WORKMODE=4                      # Workmode handler (which part is to be split)
@@ -58,6 +58,7 @@ MASSIVE_SPLIT=0                 # Splitting one file into multiple files
 MASSIVE_TIME_CHECK=0            # Wanted total time of output files
 MASSIVE_TIME_COMP=0             # Actual total time of output files
 SPLIT_MAX=0                     # Number of files input is to be split into
+SPLIT_AND_COMBINE=0             # If set, will combine a new file from splitted files
 
 SUBFILE=""                      # Path to subtitle file to be burned into target video
 WRITEOUT=""                     # Target filename for file info printing
@@ -173,7 +174,7 @@ print_help () {
     echo "m(p3)        -    to extract mp3 from the file"
     echo "a(ll)        -    print all information"
     echo "p(rint)      -    print only file information (if set as 1, will print everything, 2 = lessthan, 3=biggerthan, 4=else )"
-    echo "h(evc)       -    convert with ffmpeg instead of avconv"
+    echo "h(evc)       -    convert with avconv instead of ffmpeg"
     echo "s(crub)      -    original on completion"
     echo "crop         -    crop black borders"
     echo " "
@@ -184,6 +185,7 @@ print_help () {
     echo " "
     echo "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc"
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
+    echo "C(ombine)    -    same as cutting with begin-end, but will combine split videos to one"
     echo "s(kip)=      -    time to skip|duration (in secs) Requires MP4Box installed (and doesn't work really good)"
     echo " "
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
@@ -449,10 +451,69 @@ new_massive_file_split () {
             fi
         done
         massive_filecheck
+
+        if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
+            combine_split_files
+        fi
+
     else
         echo "File '$FILE' not found, cannot split!"
     fi
     CONTINUE_PROCESS=0
+}
+
+
+#***************************************************************************************************************
+# Combine split files into one file, then remove splitted files and rename combofile
+#***************************************************************************************************************
+combine_split_files() {
+    if [ "$DEBUG_PRINT" == 1 ]; then
+        echo "combine_split_files"
+    fi
+
+    printf "           Combining split files "
+    ffmpeg -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo.$CONV_TYPE"  -v quiet >/dev/null 2>&1
+    ERROR=$?
+
+    RUNNING_FILE_NUMBER=1
+    rm "packcombofile.txt"
+
+    if [ "$ERROR" -eq "0" ]; then
+       make_running_name
+       if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+           while true; do
+               make_running_name
+               if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                   break
+               fi
+               rm "${TARGET_DIR}/$RUNNING_FILENAME"
+               RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+           done
+        fi
+    else
+        printf "${Red}Failed${Color_Off}\n"
+        rm "${TARGET_DIR}/tmp_combo.$CONV_TYPE"
+        return
+    fi
+
+    RUNNING_FILE_NUMBER=1
+    FILE="Combo_$FILE"
+
+    make_running_name
+    if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+        while true; do
+            make_running_name
+            if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                break
+            fi
+            rm "${TARGET_DIR}/$RUNNING_FILENAME"
+            RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+        done
+    fi
+
+    mv "${TARGET_DIR}/tmp_combo.$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+    calculate_time_taken
+    printf "${Green}Success ${Yellow}${RUNNING_FILENAME}${Color_Off} IN $TIMER_TOTAL_PRINT\n"
 }
 
 #***************************************************************************************************************
@@ -531,7 +592,7 @@ parse_handlers () {
             PRINT_INFO=1
         elif [ "$1" == "hevc" ] || [ "$1" == "h" ]; then
             #IGNORE=1
-            HEVC_CONV=1
+            HEVC_CONV=0
         elif [ "$1" == "D" ]; then
             DEBUG_PRINT=1
         else
@@ -598,6 +659,9 @@ parse_values () {
         elif [ "$HANDLER" == "target" ] || [ "$HANDLER" == "t" ]; then
             CONV_TYPE=".$VALUE"
             CONV_CHECK="$VALUE"
+        elif [ "$HANDLER" == "Combine" ] || [ "$HANDLER" == "C" ]; then
+            SPLIT_AND_COMBINE=1
+            new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "cut" ] || [ "$HANDLER" == "c" ]; then
             new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "print" ] || [ "$HANDLER" == "p" ]; then
@@ -1098,6 +1162,10 @@ move_to_a_running_file () {
     fi
 
     mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
+        echo "file '${TARGET_DIR}/${RUNNING_FILENAME}'" >> "packcombofile.txt"
+    fi
 }
 
 #***************************************************************************************************************
