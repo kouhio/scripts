@@ -34,11 +34,9 @@ CONTINUE_PROCESS=0              # If something went wrong, or file was split int
 WIDTH=0                         # Width of the video
 #HEIGHT=0                        # Height of the current video
 
-SKIP=0                          # Remove data from the middle of the file
 SKIPBEG=0                       # Beginning time of the video
 SKIPEND=0                       # Ending time of the video
 KEEPORG=0                       # If set, will not delete original file after success
-SPLIT_FILE=0                    # Split file into two, if set
 
 CROP=0                          # Crop video handler
 
@@ -185,8 +183,8 @@ print_help () {
     echo " "
     echo "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc"
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
-    echo "C(ombine)    -    same as cutting with begin-end, but will combine split videos to one"
-    echo "s(kip)=      -    time to skip|duration (in secs) Requires MP4Box installed (and doesn't work really good)"
+    echo "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one"
+    echo "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful"
     echo " "
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
 }
@@ -326,6 +324,7 @@ massive_filecheck () {
     done
 
     [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
+    [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         if [ "$KEEPORG" == "0" ]; then
@@ -353,7 +352,6 @@ new_massive_file_split () {
     fi
 
     MASSIVE_TIME_CHECK=0
-    SPLIT_FILE=0
     SPLIT_COUNTER=0
     FILECOUNT=1
     MASSIVE_SPLIT=1
@@ -434,7 +432,7 @@ new_massive_file_split () {
                         pack_file
                         MASSIVE_TIME_CHECK=$((MASSIVE_TIME_CHECK + (ENDTIME - BEGTIME)))
 
-                        # This is the second part of the beginning data 
+                        # This is the second part of the beginning data
                         BEGTIME=$SPLIT_POINT
                         ENDTIME=$((LEN - SPLIT_POINT2))
                         MASSIVE_TIME_CHECK=$((MASSIVE_TIME_CHECK + (ENDTIME - BEGTIME)))
@@ -629,36 +627,6 @@ parse_handlers () {
 }
 
 #**************************************************************************************************************
-# Parse skipdata
-# 1 - Input value
-#***************************************************************************************************************
-parse_skipdata () {
-    if [ "$DEBUG_PRINT" == 1 ]; then
-        echo "parse_skipdata"
-    fi
-
-    if [ ! -z "$1" ]; then
-        SKIPBEG=$(echo "$1" | cut -d "|" -f 1)
-        SKIPEND=$(echo "$1" | cut -d "|" -f 2)
-        occ=$(grep -o "|" <<< "$1" | wc -l)
-
-        calculate_time "$SKIPBEG"
-        SKIPBEG=$CALCTIME
-        if [ "$occ" -gt 0 ] ; then
-            calculate_time "$SKIPEND"
-            SKIPEND="$CALCTIME"
-
-            if [ "$SKIPEND" -gt "$SKIPBEG" ]; then
-                SKIPEND=$((SKIPEND - SKIPBEG))
-            fi
-        else
-            SKIPEND=0
-        fi
-
-    fi
-}
-
-#**************************************************************************************************************
 # Parse time values to remove
 # 1 - input value
 #***************************************************************************************************************
@@ -679,9 +647,6 @@ parse_values () {
         elif [ "$HANDLER" == "duration" ] || [ "$HANDLER" == "d" ]; then
             calculate_time "$VALUE"
             DURATION_TIME=$CALCTIME
-        elif [ "$HANDLER" == "skip" ] || [ "$HANDLER" == "s" ]; then
-            parse_skipdata "$VALUE"
-            SKIP=1
         elif [ "$HANDLER" == "target" ] || [ "$HANDLER" == "t" ]; then
             CONV_TYPE=".$VALUE"
             CONV_CHECK="$VALUE"
@@ -1107,42 +1072,6 @@ copy_it () {
 }
 
 #***************************************************************************************************************
-# Remove a segment from the middle of the video file
-# TODO: needs verification of functionality
-#***************************************************************************************************************
-remove_segment () {
-    if [ "$DEBUG_PRINT" == 1 ]; then
-        echo "remove_segment"
-    fi
-
-    short_name
-    process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
-    if [ "$SKIP" == 1 ]; then
-        printf "$PROCESS_NOW : $FILEprint segment being removed (not really working good!)"
-    else
-        printf "$PROCESS_NOW : $FILEprint being split into two files"
-    fi
-    BEGTIME=0
-
-    avconv -i "$FILE" -t $SKIPBEG -map 0 -map_metadata 0:s:0 -c copy "$FILE"_1"$CONV_TYPE" -v quiet >/dev/null 2>&1
-    SKIPBEG=$((SKIPBEG + SKIPEND))
-    ENDO=$((DUR - SKIPBEG))
-    ENDTIME=$((SKIPEND - SKIPBEG))
-    if [ "$ENDTIME" -lt 0 ]; then
-        ENDTIME=$((ENDTIME * -1))
-    fi
-    avconv -ss "$SKIPBEG" -i "$FILE" -t "$ENDO" -map 0 -map_metadata 0:s:0 -c copy "${FILE}_2${CONV_TYPE}" -v quiet >/dev/null 2>&1
-    ERROR=$?
-
-    if [ "$SKIP" == 1 ]; then
-        MP4Box "temp_1$CONV_TYPE" -cat "temp_2$CONV_TYPE" -out "$FILE$CONV_TYPE" >/dev/null 2>&1
-        delete_file "${FILE}_1${CONV_TYPE}"
-        delete_file "${FILE}_2${CONV_TYPE}"
-    fi
-}
-
-#***************************************************************************************************************
 # Make a filename with incrementing value
 #***************************************************************************************************************
 RUNNING_FILENAME=""
@@ -1204,43 +1133,36 @@ handle_file_rename () {
             delete_file "$FILE"
         fi
 
-        if [ "$SPLIT_FILE" == 0 ]; then
-            if [ "$KEEPORG" == "0" ]; then
-                if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-                    if [ -z "$NEWNAME" ]; then
-                        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
-                    else
-                        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"
-                    fi
+        if [ "$KEEPORG" == "0" ]; then
+            if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
+                if [ -z "$NEWNAME" ]; then
+                    mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
                 else
-                    if [ "${TARGET_DIR}" != "." ]; then
-                        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
-                        rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
-                    else
-                        rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
-                    fi
+                    mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"
                 fi
             else
-                move_to_a_running_file
+                if [ "${TARGET_DIR}" != "." ]; then
+                    mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                    rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
+                else
+                    rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
+                fi
             fi
+        else
+            move_to_a_running_file
         fi
     else
         if [ "$ERROR" -ne "0" ]; then
             printf "${Red}Something went wrong, keeping original!${Color_Off}"
         fi
 
-        if [ "$SPLIT_FILE" == 1 ]; then
-            delete_file "${FILE}_1${CONV_TYPE}"
-            delete_file "${FILE}_2${CONV_TYPE}"
-        else
-            delete_file "$FILE$CONV_TYPE"
-            if [ "$EXT_CURR" == "$CONV_CHECK" ] && [ "$COPY_ONLY" == "0" ]; then
-                if [ ! -d "./Failed" ]; then
-                    mkdir "Failed"
-                fi
-                RETVAL=1
-                mv "$FILE" "./Failed"
+        delete_file "$FILE$CONV_TYPE"
+        if [ "$EXT_CURR" == "$CONV_CHECK" ] && [ "$COPY_ONLY" == "0" ]; then
+            if [ ! -d "./Failed" ]; then
+                mkdir "Failed"
             fi
+            RETVAL=1
+            mv "$FILE" "./Failed"
         fi
     fi
 }
@@ -1329,10 +1251,6 @@ check_if_files_exist () {
     FILE_EXISTS=0
     if [ "$MASSIVE_SPLIT" == 1 ]; then
         FILE_EXISTS=1
-    elif [ "$SPLIT_FILE" == 1 ]; then
-        if [ -f "${FILE}_1${CONV_TYPE}" ] && [ -f "${FILE}_2${CONV_TYPE}" ]; then
-            FILE_EXISTS=1
-        fi
     elif [ -f "$FILE$CONV_TYPE" ]; then
         FILE_EXISTS=1
     fi
@@ -1349,15 +1267,8 @@ check_file_conversion () {
     #if destination file exists
     check_if_files_exist
     if [ "$FILE_EXISTS" == 1 ]; then
-        if [ "$SPLIT_FILE" == 1 ]; then
-            DURATION_P1=$(mediainfo '--Inform=Video;%Duration%' "$FILE"_1"$CONV_TYPE")
-            DURATION_P2=$(mediainfo '--Inform=Video;%Duration%' "$FILE"_2"$CONV_TYPE")
-            NEW_DURATION=$((DURATION_P1 + DURATION_P2))
-            NEW_FILESIZE=12
-        else
-            NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE")
-            NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
-        fi
+        NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE")
+        NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
         DURATION_CHECK=$((ORIGINAL_DURATION - DURATION_CUT - 2000))
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
@@ -1366,7 +1277,7 @@ check_file_conversion () {
             NEW_DURATION=0
         fi
 
-        if [ "$IGNORE" == "1" ] || [ "$SPLIT_FILE" == "1" ]; then
+        if [ "$IGNORE" == "1" ]; then
             ORIGINAL_SIZE=$((NEW_FILESIZE + 10000))
         fi
 
@@ -1380,10 +1291,8 @@ check_file_conversion () {
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
                 printf "${Green} Success in $TIMERVALUE${Color_Off} "
-            elif [ "$SPLIT_FILE" == 0 ]; then
-                printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
             else
-                printf "${Green} Done!${Color_Off}\n"
+                printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
             fi
             handle_file_rename 1
         else
@@ -1451,8 +1360,6 @@ handle_file_packing () {
             else
                 copy_hevc
             fi
-        elif [ "$SKIP" == 1 ] || [ "$SPLIT_FILE" == 1 ]; then
-            remove_segment
         elif [ "$COPY_ONLY" == 0 ]; then
             pack_it
         else
