@@ -485,7 +485,12 @@ make_or_remove_split_files() {
                 break
             fi
             mv "${TARGET_DIR}/$RUNNING_FILENAME" "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE"
-            echo "file '${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
+
+            if [ "$TARGET_DIR" == "." ]; then
+                echo "file 'temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
+            else
+                echo "file '${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
+            fi
         fi
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
