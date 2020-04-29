@@ -167,8 +167,8 @@ print_help () {
     echo "d(uration)=  -    Time from the beginning X:Y:Z, to skip the end after that"
     echo "t(arget)=    -    filetype to set destination filetype (mp4 as default)"
     echo " "
-    echo "i(gnore)     -    to ignore size"
-    echo "I(gnore)     -    to ignore space check and continue to next file"
+    echo "i(gnore)     -    to ignore size (both too big, or too small)"
+    echo "I(gnore)     -    to ignore space check exit (not the space check) and continue to next file"
     echo "r(epack)     -    to repack file with original dimensions"
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
@@ -325,6 +325,8 @@ massive_filecheck () {
         fi
     done
 
+    [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
+
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         if [ "$KEEPORG" == "0" ]; then
             OSZ=$(du -k "$FILE" | cut -f1)
@@ -462,6 +464,33 @@ new_massive_file_split () {
     CONTINUE_PROCESS=0
 }
 
+#***************************************************************************************************************
+# Rename files for concate compatibility or remove them
+# 1 - if set, will rename files, if not, will remove the renamed files
+#***************************************************************************************************************
+COMBINE_RUN_COUNT=0
+make_or_remove_split_files() {
+    RUNNING_FILE_NUMBER=1
+
+    while true; do
+        make_running_name
+
+        if [ -z "$1" ]; then
+            if [ ! -f "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" ]; then
+                break;
+            fi
+            rm "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE"
+        else
+            if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                break
+            fi
+            mv "${TARGET_DIR}/$RUNNING_FILENAME" "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE"
+            echo "file '${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
+        fi
+        COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
+        RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+    done
+}
 
 #***************************************************************************************************************
 # Combine split files into one file, then remove splitted files and rename combofile
@@ -471,33 +500,26 @@ combine_split_files() {
         echo "combine_split_files"
     fi
 
-    printf "           Combining split files "
-    ffmpeg -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo.$CONV_TYPE"  -v quiet >/dev/null 2>&1
+    make_or_remove_split_files 1
+
+    ERROR=0
+    printf "%-57.57s Combining $COMBINE_RUN_COUNT split files " " "
+    ffmpeg -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
-    RUNNING_FILE_NUMBER=1
     rm "packcombofile.txt"
-
     if [ "$ERROR" -eq "0" ]; then
-       make_running_name
-       if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-           while true; do
-               make_running_name
-               if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-                   break
-               fi
-               rm "${TARGET_DIR}/$RUNNING_FILENAME"
-               RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-           done
-        fi
+        LE_ORG_FILE="$FILE"
+        FILE="temp.mp4"
+        make_or_remove_split_files
     else
         printf "${Red}Failed${Color_Off}\n"
-        rm "${TARGET_DIR}/tmp_combo.$CONV_TYPE"
+        rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
         return
     fi
 
     RUNNING_FILE_NUMBER=1
-    FILE="Combo_$FILE"
+    FILE="Combo_$LE_ORG_FILE"
 
     make_running_name
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
@@ -506,14 +528,13 @@ combine_split_files() {
             if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
                 break
             fi
-            rm "${TARGET_DIR}/$RUNNING_FILENAME"
             RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
         done
     fi
 
-    mv "${TARGET_DIR}/tmp_combo.$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+    mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
     calculate_time_taken
-    printf "${Green}Success ${Yellow}${RUNNING_FILENAME}${Color_Off} IN $TIMER_TOTAL_PRINT\n"
+    printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE ${Yellow}${RUNNING_FILENAME}${Color_Off}\n"
 }
 
 #***************************************************************************************************************
@@ -1128,7 +1149,7 @@ make_running_name () {
 
     ExtLen=${#EXT_CURR}
     NameLen=${#FILE}
-    LEN_NO_EXT=$((NameLen - ExtLen))
+    LEN_NO_EXT=$((NameLen - ExtLen - 1))
     if [ -z "$NEWNAME" ]; then
         RUNNING_FILENAME=${FILE:0:$LEN_NO_EXT}
     else
@@ -1162,10 +1183,6 @@ move_to_a_running_file () {
     fi
 
     mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
-
-    if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
-        echo "file '${TARGET_DIR}/${RUNNING_FILENAME}'" >> "packcombofile.txt"
-    fi
 }
 
 #***************************************************************************************************************
