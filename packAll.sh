@@ -730,6 +730,8 @@ parse_data () {
             xss=$(grep -o "x" <<< "$1" | wc -l)
             DATA2=$(echo "$1" | cut -d x -f 2)
 
+            [ "$WIDTH" -ne "0" ] && xss=0
+
             if [ "$xss" == "0" ] || [ ! -z "$DATA2" ]; then
                 xss=$(grep -o "=" <<< "$1" | wc -l)
                 if [ "$xss" == "0" ]; then
