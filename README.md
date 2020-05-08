@@ -4,6 +4,8 @@ Miscellaneous scripts:
 
 Color.sh                - Change terminal output coloring
 
+VimScript.sh            - Open files with vim with special conditions
+
 
 Audio Manipulation scripts:
 
