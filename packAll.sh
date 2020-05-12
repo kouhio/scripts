@@ -71,6 +71,7 @@ RETVAL=0                        # If everything was done as expected, is set to 
 SPACELEFT=0                     # Target directory drive space left
 
 ERROR=0
+ERROR_WHILE_MORPH=0
 #***************************************************************************************************************
 # Define regular colors for echo
 #***************************************************************************************************************
@@ -297,7 +298,7 @@ massive_filecheck () {
         echo "massive_filecheck"
     fi
 
-    if [ "$ERROR_WHILE_SPLITTING" != "0" ]; then
+    if [ "$ERROR_WHILE_SPLITTING" != "0" ] || [ "$ERROR_WHILE_MORPH" != "0" ]; then
         printf "${Red}Something went wrong with splitting $FILE${Color_Off}\n"
         ERROR_WHILE_SPLITTING=0
         RETVAL=1
@@ -327,7 +328,7 @@ massive_filecheck () {
     [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
-        if [ "$KEEPORG" == "0" ]; then
+        if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
             OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
@@ -452,7 +453,7 @@ new_massive_file_split () {
         done
         massive_filecheck
 
-        if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
+        if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$RETVAL" -eq "0" ]; then
             combine_split_files
         fi
 
@@ -503,6 +504,7 @@ combine_split_files() {
         echo "combine_split_files"
     fi
 
+    process_start_time=$(date +%s)
     make_or_remove_split_files 1
 
     ERROR=0
@@ -521,23 +523,28 @@ combine_split_files() {
         return
     fi
 
-    RUNNING_FILE_NUMBER=1
-    FILE="Combo_$LE_ORG_FILE"
-
-    make_running_name
-    if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-        while true; do
-            make_running_name
-            if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-                break
-            fi
-            RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-        done
+    if [ -f "$LE_ORG_FILE" ]; then
+        RUNNING_FILE_NUMBER=1
+        FILE="Combo_$LE_ORG_FILE"
+        make_running_name
+        if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+            while true; do
+                make_running_name
+                if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+                    break
+                fi
+                RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+            done
+        fi
+        mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+    else
+        mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${LE_ORG_FILE}"
+        RUNNING_FILENAME="${LE_ORG_FILE}"
     fi
 
-    mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+    calculate_duration
     calculate_time_taken
-    printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE ${Yellow}${RUNNING_FILENAME}${Color_Off}\n"
+    printf "${Green} Success in $TIMERVALUE ${Yellow}${RUNNING_FILENAME}${Color_Off}\n"
 }
 
 #***************************************************************************************************************
@@ -1223,6 +1230,8 @@ check_alternative_conversion () {
     if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
         handle_file_rename 0
         printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
+        RETVAL=1
+        ERROR_WHILE_MORPH=1
     elif [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
@@ -1238,6 +1247,7 @@ check_alternative_conversion () {
         handle_file_rename 0
         printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
         RETVAL=1
+        ERROR_WHILE_MORPH=1
     fi
     printf "\n"
 }
