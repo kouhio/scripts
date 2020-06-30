@@ -69,6 +69,8 @@ script_start_time=$(date +%s)   # Time in seconds, when the script started runni
 RETVAL=0                        # If everything was done as expected, is set to 0
 
 SPACELEFT=0                     # Target directory drive space left
+SIZETYPE="Mb"                   # Saved size type
+SAVESIZE=0                      # Calculated value of size saved
 
 ERROR=0
 ERROR_WHILE_MORPH=0
@@ -86,6 +88,27 @@ Yellow='\033[0;33m'
 Color_Off='\033[0m'
 
 #***************************************************************************************************************
+# Change printout type to corrent
+#***************************************************************************************************************
+check_valuetype () {
+    SAVESIZE=0
+    SIZETYPE="kb"
+
+    [ -z "$1" ] && return
+
+    if [ "$1" -lt "10000" ]; then
+        SAVESIZE="$1"
+        SIZETYPE="kb"
+    elif [ "$1" -lt "1000000" ]; then
+        SIZETYPE="Mb"
+        SAVESIZE=$(bc <<<"scale=2; $1 / 1000")
+    else
+        SIZETYPE="Gb"
+        SAVESIZE=$(bc <<<"scale=2; $1 / 1000000")
+    fi
+}
+
+#***************************************************************************************************************
 # Print total handled data information
 #***************************************************************************************************************
 print_total () {
@@ -93,10 +116,12 @@ print_total () {
         echo "print_total"
     fi
 
-    TOTALSAVE=$((TOTALSAVE / 1000))
+    check_valuetype "$TOTALSAVE"
+    #TOTALSAVE=$((TOTALSAVE / 1000))
+
     if [ "$PRINT_INFO" == 1 ]; then
         calculate_time_taken "$TIMESAVED"
-        echo "Total in $CURRENTFILECOUNTER files, Size:$TOTALSAVE Length:$TIMER_TOTAL_PRINT"
+        echo "Total in $CURRENTFILECOUNTER files, Size:$SAVESIZE Length:$TIMER_TOTAL_PRINT"
     else
         if [ "$TIMESAVED" -gt "0" ]; then
             TIMESAVED=$((TIMESAVED  / 1000))
@@ -106,9 +131,9 @@ print_total () {
         calculate_time_taken
 
         if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then
-            echo  "Totally saved $TOTALSAVE Mb $TIMESAVEPRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
+            echo  "Totally saved $SAVESIZE ${SIZETYPE} $TIMESAVEPRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
         else
-            echo "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $TOTALSAVE Mb) in $TIMER_TOTAL_PRINT"
+            echo "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"
         fi
         if [ "$MISSING" -gt "0" ]; then
             echo "Number of files disappeared during process: $MISSING"
@@ -331,8 +356,9 @@ massive_filecheck () {
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
-            OSZ=$(((OSZ - MASSIVE_SIZE_COMP) / 1000))
-            printf "${Yellow}Saved $OSZ Mb with splitting${Color_Off}\n"
+            OSZ=$((OSZ - MASSIVE_SIZE_COMP))
+            check_valuetype "$OSZ"
+            printf "${Yellow}Saved $SAVESIZE ${SIZETYPE} with splitting${Color_Off}\n"
         else
             printf "${Yellow}Finished${Color_Off}\n"
         fi
@@ -780,7 +806,7 @@ print_file_info () {
             TIMESAVED=$((TIMESAVED + LEN))
             SIZE=$(du -k "$FILE" | cut -f1)
             TOTALSAVE=$((TOTALSAVE + SIZE))
-            SIZE=$((SIZE / 1000))
+            #SIZE=$((SIZE / 1000))
             if [ "$MULTIFILECOUNT" -gt 1 ]; then
                 FILECOUNT=$MULTIFILECOUNT
             fi
@@ -793,7 +819,8 @@ print_file_info () {
             fi
             short_name
             LEN2=$((LEN / 60))
-            echo "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:${SIZE} Mb Lenght:${LEN}s (${LEN2}min)" #$TIMER_TOTAL_PRINT"
+            check_valuetype "${SIZE}"
+            echo "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:${SAVESIZE} ${SIZETYPE} Lenght:${LEN}s (${LEN2}min)" #$TIMER_TOTAL_PRINT"
             if [ ! -z "$WRITEOUT" ]; then
                 echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
             fi
@@ -812,7 +839,8 @@ print_info () {
     fi
 
     if [ "$FILECOUNT" -gt 1 ]; then
-        printf "$CURRENTFILECOUNTER of $FILECOUNT "
+        #printf "$CURRENTFILECOUNTER of $FILECOUNT "
+        printf "%03d of %03d " "$CURRENTFILECOUNTER" "$FILECOUNT"
     elif [ "$MULTIFILECOUNT" -gt 1 ]; then
         printf "$CURRENTFILECOUNTER of $MULTIFILECOUNT "
     fi
@@ -1236,7 +1264,8 @@ check_alternative_conversion () {
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1
-            echo "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and $(((ORIGINAL_SIZE - NEW_FILESIZE) / 1000))Mb in $TIMERVALUE"
+            check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))"
+            echo "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and $(SAVESIZE) ${SIZETYPE} in $TIMERVALUE"
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
@@ -1299,12 +1328,13 @@ check_file_conversion () {
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
             TOTALSAVE=$((TOTALSAVE + ENDSIZE))
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
-            ENDSIZE=$((ENDSIZE / 1000))
+            #ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
                 printf "${Green} Success in $TIMERVALUE${Color_Off} "
             else
-                printf "${Green} Success! Saved $ENDSIZE Mb in $TIMERVALUE${Color_Off}\n"
+                check_valuetype "$ENDSIZE"
+                printf "${Green} Success! Saved $SAVESIZE ${SIZETYPE} in $TIMERVALUE${Color_Off}\n"
             fi
             handle_file_rename 1
         else
