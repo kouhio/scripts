@@ -14,6 +14,11 @@ trap set_int SIGINT SIGTERM
 
 SUCS=0
 
+if [ "$PWD" == "$HOME" ]; then
+    echo "home directory! no way!"
+    exit 1
+fi
+
 array=(${extensions//\t})
 array2=(${skiplist//\t})
 
