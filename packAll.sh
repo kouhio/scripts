@@ -820,7 +820,7 @@ print_file_info () {
             short_name
             LEN2=$((LEN / 60))
             check_valuetype "${SIZE}"
-            echo "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:${SAVESIZE} ${SIZETYPE} Lenght:${LEN}s (${LEN2}min)" #$TIMER_TOTAL_PRINT"
+            echo "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:${SAVESIZE} ${SIZETYPE} Lenght:${LEN}s (${LEN2}min)"
             if [ ! -z "$WRITEOUT" ]; then
                 echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
             fi
@@ -1476,7 +1476,18 @@ calculate_time_taken () {
 
     JUST_NOW=$(date +%s)
     SCRIPT_TOTAL_TIME=$((JUST_NOW - script_start_time))
-    TIMER_TOTAL_PRINT=$(date -d@${SCRIPT_TOTAL_TIME} -u +%T)
+
+    if [ "$SCRIPT_TOTAL_TIME" -gt "86399" ]; then
+        DAYS_TOTAL=0
+        while [ "$SCRIPT_TOTAL_TIME" -gt "86399" ]; do
+            DAYS_TOTAL=$((DAYS_TOTAL + 1))
+            SCRIPT_TOTAL_TIME=$((SCRIPT_TOTAL_TIME - 86400))
+        done
+        TIMER_TOTAL_PRINT=$(date -d@${SCRIPT_TOTAL_TIME} -u +%T)
+        TIMER_TOTAL_PRINT="${DAYS_TOTAL}:${TIMER_TOTAL_PRINT}"
+    else
+        TIMER_TOTAL_PRINT=$(date -d@${SCRIPT_TOTAL_TIME} -u +%T)
+    fi
 }
 
 #***************************************************************************************************************
