@@ -93,13 +93,18 @@ Color_Off='\033[0m'
 check_valuetype () {
     SAVESIZE=0
     SIZETYPE="kb"
+    HAND_VAL="$1"
 
     [ -z "$1" ] && return
 
-    if [ "$1" -lt "10000" ]; then
+    if [ "$1" -lt "0" ]; then
+        HAND_VAL=$((HAND_VAL * -1))
+    fi
+
+    if [ "$HAND_VAL" -lt "10000" ]; then
         SAVESIZE="$1"
         SIZETYPE="kb"
-    elif [ "$1" -lt "1000000" ]; then
+    elif [ "$HAND_VAL" -lt "1000000" ]; then
         SIZETYPE="Mb"
         SAVESIZE=$(bc <<<"scale=2; $1 / 1000")
     else
