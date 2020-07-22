@@ -14,6 +14,8 @@ MULTIFILECOUNT=0                # Number of files one video was split into
 MISSING=0                       # File existance checker
 CURRENTFILECOUNTER=0            # Currently processed file number
 SUCCESFULFILECNT=0              # Number of successfully handled files
+START_POSITION=0                # File to start handling from
+END_POSITION=0                  # File where to no longer handle files
 
 COPY_ONLY=1                     # Don't pack file, just copy data
 EXT_CURR=""                     # Current files extension
@@ -214,6 +216,9 @@ print_help () {
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
     echo "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one"
     echo "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful"
+    echo " "
+    echo "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files"
+    echo "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end"
     echo " "
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
 }
@@ -662,6 +667,10 @@ parse_values () {
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
             calculate_time "$VALUE"
             ENDTIME=$CALCTIME
+        elif [ "$HANDLER" == "Position" ] || [ "$HANDLER" == "P" ]; then
+            START_POSITION="$VALUE"
+        elif [ "$HANDLER" == "End" ] || [ "$HANDLER" == "E" ]; then
+            END_POSITION="$VALUE"
         elif [ "$HANDLER" == "duration" ] || [ "$HANDLER" == "d" ]; then
             calculate_time "$VALUE"
             DURATION_TIME=$CALCTIME
@@ -1356,6 +1365,9 @@ get_space_left () {
 #***************************************************************************************************************
 pack_file () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    [ "$START_POSITION" -gt "$CURRENTFILECOUNTER" ] && return
+    [ "$END_POSITION" -gt "0" ] && [ "$CURRENTFILECOUNTER" -ge "$END_POSITION" ] && return
 
     # if not SYS_INTERRUPTrupted and WORKMODE is for an existing dimensions
     X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
