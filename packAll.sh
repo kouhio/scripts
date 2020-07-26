@@ -1195,30 +1195,39 @@ check_alternative_conversion () {
     xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000))
     xNEW_FILESIZE=$((NEW_FILESIZE / 1000))
     xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
+    PRINT_ERROR_DATA=0
+
     if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-        handle_file_rename 0
-        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
         RETVAL=1
         ERROR_WHILE_MORPH=1
+        PRINT_ERROR_DATA=1
     elif [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1
             check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))"
-            echo "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and $(SAVESIZE) ${SIZETYPE} in $TIMERVALUE"
+            printf "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and $(SAVESIZE) ${SIZETYPE} in $TIMERVALUE"
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
-            printf "${Red}| FAILED CONVERSION! time:$xNEW_DURATION<$xORIGINAL_DURATION file:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
-            handle_file_rename 0
+            PRINT_ERROR_DATA=1
         fi
     else
-        handle_file_rename 0
-        printf "${Red} FAILED! time:$xNEW_DURATION<$xORIGINAL_DURATION size:$xNEW_FILESIZE>$xORIGINAL_SIZE${Color_Off}"
         RETVAL=1
         ERROR_WHILE_MORPH=1
+        PRINT_ERROR_DATA=1
     fi
-    printf "\n"
+
+    if [ "$PRINT_ERROR_DATA" -gt "0" ]; then
+        calculate_duration
+        handle_file_rename 0
+        printf "${Red} FAILED!"
+        [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:$xNEW_DURATION<$xORIGINAL_DURATION"
+        [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:$xNEW_FILESIZE>$xORIGINAL_SIZE"
+        printf " in $TIMERVALUE"
+    fi
+
+    printf "${Color_Off}\n"
 }
 
 #***************************************************************************************************************
