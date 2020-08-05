@@ -76,6 +76,10 @@ SAVESIZE=0                      # Calculated value of size saved
 
 ERROR=0
 ERROR_WHILE_MORPH=0
+
+# If this value is not set, external program is not accessing this and exit -function will be used normally
+[ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
+
 #***************************************************************************************************************
 # Define regular colors for echo
 #***************************************************************************************************************
@@ -123,6 +127,7 @@ check_valuetype () {
 print_total () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     check_valuetype "$TOTALSAVE"
     #TOTALSAVE=$((TOTALSAVE / 1000))
 
@@ -176,6 +181,14 @@ set_int () {
     echo " Main conversion interrupted in ${TIMERVALUE}!"
     remove_interrupted_files
     print_total
+    EXIT_EXT_VAL=1
+
+    if [ "$NO_EXIT_EXTERNAL" -ne "0" ]; then
+        check_valuetype "$GLOBAL_FILESAVE"
+        GLOB_ENDTIME=$(date -d@${LEN} -u +%T)
+        printf "Globally saved $SAVESIZE $SIZETYPE and removed time: $GLOB_ENDTIME"
+    fi
+
     exit 1
 }
 
@@ -1135,8 +1148,9 @@ handle_file_rename () {
             move_to_a_running_file
         fi
     else
+        calculate_duration
         if [ "$ERROR" -ne "0" ]; then
-            printf "${Red}Something went wrong, keeping original!${Color_Off}"
+            printf "${Red}Something went wrong, keeping original!${Color_Off} in $TIMERVALUE\n"
         fi
 
         delete_file "$FILE$CONV_TYPE"
@@ -1181,7 +1195,8 @@ handle_error_file () {
         mkdir "Error"
     fi
     mv "$FILE" "./Error"
-    printf "${Red}Something corrupted with $FILE${Color_Off}\n"
+    calculate_duration
+    printf "${Red}Something corrupted with $FILE${Color_Off} in $TIMERVALUE\n"
     RETVAL=1
 }
 
@@ -1206,7 +1221,7 @@ check_alternative_conversion () {
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1
             check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))"
-            printf "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and $(SAVESIZE) ${SIZETYPE} in $TIMERVALUE"
+            printf "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and ${SAVESIZE} ${SIZETYPE} in $TIMERVALUE"
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
@@ -1256,6 +1271,7 @@ check_file_conversion () {
         NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE")
         NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
+        GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + CUTTING_TIME))
         DURATION_CHECK=$((ORIGINAL_DURATION - DURATION_CUT - 2000))
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
         ORIGINAL_HOLDER=$ORIGINAL_SIZE
@@ -1273,6 +1289,7 @@ check_file_conversion () {
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
             TOTALSAVE=$((TOTALSAVE + ENDSIZE))
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
+            GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
             #ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
@@ -1286,7 +1303,8 @@ check_file_conversion () {
             check_alternative_conversion
         fi
     else
-        printf "${Red} No destination file!${Color_Off}\n"
+        calculate_duration
+        printf "${Red} No destination file!${Color_Off} in $TIMERVALUE\n"
         if [ ! -d "./Nodest" ]; then
             mkdir "Nodest"
         fi
@@ -1306,7 +1324,8 @@ handle_file_packing () {
     get_space_left
     if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ]; then
         echo "Not enough space left! File:$ORIGINAL_SIZE > harddrive:$SPACELEFT"
-        [ "$IGNORE_SPACE" -eq "0" ] && exit 1
+        [ "$IGNORE_SPACE" -eq "0" ] && [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
+        EXIT_EXT_VAL=1
         return
     fi
 
@@ -1457,6 +1476,7 @@ verify_necessary_programs() {
         [ "$av_missing" -ne 0 ] && printf "avconv "
         [ "$mi_missing" -ne 0 ] && printf "mediainfo "
         printf "\n"
+        EXIT_EXT_VAL=1
         exit 1
     fi
 }
@@ -1469,6 +1489,7 @@ verify_commandline_input() {
 
     if [ "$#" -le 0 ]; then
         print_help
+        EXIT_EXT_VAL=1
         exit 1
     fi
 }
@@ -1518,7 +1539,9 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 
     if [ "$CURRENTFILECOUNTER" -gt "1" ]; then
         print_total
+    else
+        GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     fi
 fi
 
-exit "$RETVAL"
+[ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"

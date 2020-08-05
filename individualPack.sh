@@ -12,6 +12,9 @@ FILE_ARRAY=()
 NEW_FILES=0
 FOUND=false
 VLC="playlist.xspf"
+GLOBAL_FILESAVE=0
+GLOBAL_TIMESAVE=0
+GLOBAL_FILECOUNT=0
 
 ##########################################################
 # Push string to target file
@@ -27,8 +30,10 @@ printSavedData () {
     printShit "ENDSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
     printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))"
     printShit "TOTALSIZE=\$((TOTALSIZE / 1000))"
+    printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))"
+    printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)"
+    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in $GLOBAL_FILECOUNT files"
     echo " " >> $FILE
-    printShit "echo Totally saved \$TOTALSIZE Mb"
 }
 
 ##########################################################
@@ -38,7 +43,7 @@ printTerminatorFunction () {
     echo -e "\ncleanup () {" >> "$FILE"
     echo -e "echo \"Terminated, quitting process!\"" >> "$FILE"
     printSavedData
-    echo -e "exit 0" >> "$FILE" >> "$FILE"
+    echo -e "exit 1" >> "$FILE" >> "$FILE"
     echo -e "}\n" >> "$FILE"
     echo -e "trap cleanup INT TERM\n" >> "$FILE"
     echo -e "#BEGIN" >> "$FILE"
@@ -87,7 +92,7 @@ rawurlencode() {
      esac
      encoded+="${o}"
   done
-  #echo "${encoded}"    # You can either set a return variable (FASTER) 
+  #echo "${encoded}"    # You can either set a return variable (FASTER)
   REPLY="${encoded}"   #+or echo the result (EASIER)... or both... :p
   VLC_FILENAME="${encoded}"
 }
@@ -141,11 +146,11 @@ addNewFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS || in_error_code=\$?" >> "$TMPFILE"
+                echo ". packAll.sh \"$f\" $OPTIONS" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS || in_error_code=\$?" >> "$TMPFILE"
+                echo ". packAll.sh \"$f\" ${SIZE}x $OPTIONS" >> "$TMPFILE"
             fi
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
@@ -229,7 +234,7 @@ parsePackData() {
             else
                 SIZE=`echo $var | cut -d x -f 1`
             fi
-        fi    
+        fi
     done
 }
 
@@ -249,8 +254,11 @@ verifyOldFile() {
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
-    printShit "in_error_code=0"
     printShit "STARTSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
+    printShit "GLOBAL_FILESAVE=0"
+    printShit "GLOBAL_TIMESAVE=0"
+    printShit "NO_EXIT_EXTERNAL=1"
+    printShit "EXIT_EXT_VAL=0"
     printTerminatorFunction
 }
 
@@ -279,11 +287,11 @@ goThroughAllFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "packAll.sh \"$f\" $OPTIONS  || in_error_code=\$?" >> "$FILE"
+                echo ". packAll.sh \"$f\" $OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "packAll.sh \"$f\" ${SIZE}x $OPTIONS  || in_error_code=\$?" >> "$FILE"
+                echo ". packAll.sh \"$f\" ${SIZE}x $OPTIONS" >> "$FILE"
             fi
 
             printVLCFile "$f"
@@ -304,7 +312,7 @@ goThroughAllFiles() {
 printEndData() {
     echo "#END" >> $FILE
     echo " " >> $FILE
-    printShit "if [ \"\$in_error_code\" -eq \"0\" ]; then"
+    printShit "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ]; then"
     printShit "    rm $FILE"
     printShit "    rm $VLC"
     printShit "fi"
@@ -321,9 +329,9 @@ if [ $FILE_UPDATED == false ]; then
     goThroughAllFiles
     printEndData
     printSavedData
-    echo "Added $NEW_FILES files to $FILE" 
+    echo "Added $NEW_FILES files to $FILE"
 else
-    echo "Added $NEW_FILES new files to $FILE" 
+    echo "Added $NEW_FILES new files to $FILE"
 fi
 
 chmod 777 $FILE
