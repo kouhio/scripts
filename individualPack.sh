@@ -32,7 +32,7 @@ printSavedData () {
     printShit "TOTALSIZE=\$((TOTALSIZE / 1000))"
     printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))"
     printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)"
-    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in $GLOBAL_FILECOUNT files"
+    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files"
     echo " " >> $FILE
 }
 

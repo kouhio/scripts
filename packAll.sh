@@ -370,6 +370,12 @@ massive_filecheck () {
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             check_valuetype "$OSZ"
             printf "${Yellow}Saved %-6.6s ${SIZETYPE} with splitting${Color_Off}\n" "$SAVESIZE"
+            GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
+            GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+            ORIGINAL_FILE_LEN=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
+            TIME_SHORTENED=$((ORIGINAL_FILE_LEN - MASSIVE_TIME_COMP))
+            TIME_SHORTENED=$((TIME_SHORTENED / 1000))
+            GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + TIME_SHORTENED))
         else
             printf "${Yellow}Finished${Color_Off}\n"
         fi
