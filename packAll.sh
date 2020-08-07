@@ -132,18 +132,17 @@ print_total () {
     #TOTALSAVE=$((TOTALSAVE / 1000))
 
     if [ "$PRINT_INFO" == 1 ]; then
-        calculate_time_taken "$TIMESAVED"
+        calculate_time_taken
         echo "Total in $CURRENTFILECOUNTER files, Size:$SAVESIZE Length:$TIMER_TOTAL_PRINT"
     else
         if [ "$TIMESAVED" -gt "0" ]; then
             TIMESAVED=$((TIMESAVED  / 1000))
-            calculate_time_taken "$TIMESAVED"
-            TIMESAVEPRINT=$TIMER_TOTAL_PRINT
+            calculate_time_given "$TIMESAVED"
         fi
         calculate_time_taken
 
         if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then
-            echo  "Totally saved $SAVESIZE ${SIZETYPE} $TIMESAVEPRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
+            echo  "Totally saved $SAVESIZE ${SIZETYPE} $TIMER_SECOND_PRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
         else
             echo "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"
         fi
@@ -364,6 +363,10 @@ massive_filecheck () {
     [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
+        TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
+        TIME_SHORTENED=$((TIME_SHORTENED / 1000))
+        GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + TIME_SHORTENED))
+
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
@@ -372,10 +375,6 @@ massive_filecheck () {
             printf "${Yellow}Saved %-6.6s ${SIZETYPE} with splitting${Color_Off}\n" "$SAVESIZE"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
             GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
-            ORIGINAL_FILE_LEN=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
-            TIME_SHORTENED=$((ORIGINAL_FILE_LEN - MASSIVE_TIME_COMP))
-            TIME_SHORTENED=$((TIME_SHORTENED / 1000))
-            GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + TIME_SHORTENED))
         else
             printf "${Yellow}Finished${Color_Off}\n"
         fi
@@ -585,7 +584,8 @@ combine_split_files() {
 
     calculate_duration
     calculate_time_taken
-    printf "${Green} Success in $TIMERVALUE ${Yellow}${RUNNING_FILENAME}${Color_Off}\n"
+    calculate_time_given "$TIME_SHORTENED"
+    printf "${Green} Success in $TIMERVALUE/$TIMER_TOTAL_PRINT ${Yellow}${RUNNING_FILENAME}${Color_Off} Shortened:$TIMER_SECOND_PRINT\n"
 }
 
 #***************************************************************************************************************
@@ -807,7 +807,9 @@ print_file_info () {
             Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
             LEN=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
             LEN=$((LEN / 1000))
-            calculate_time_taken $LEN
+            calculate_time_taken
+            calculate_time_given "$LEN"
+
             TIMESAVED=$((TIMESAVED + LEN))
             SIZE=$(du -k "$FILE" | cut -f1)
             TOTALSAVE=$((TOTALSAVE + SIZE))
@@ -815,9 +817,8 @@ print_file_info () {
             print_info
             printf ":: "
             short_name
-            LEN2=$(date -d@${LEN} -u +%T)
             check_valuetype "${SIZE}"
-            printf "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:%-6.6s ${SIZETYPE} Lenght:${LEN2}\n" "${SAVESIZE}"
+            printf "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:%-6.6s ${SIZETYPE} Lenght:${TIMER_SECOND_PRINT}\n" "${SAVESIZE}"
             if [ ! -z "$WRITEOUT" ]; then
                 echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
             fi
@@ -917,9 +918,11 @@ copy_hevc () {
     PROCESS_NOW=$(date +%T)
     printf "$PROCESS_NOW : $FILEprint FFMPEG copying (%04dx%04d) " "${X}" "${Y}"
     if [ "$MASSIVE_SPLIT" == 1 ]; then
-        printf "splitting file %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
+        printf "splitting file into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
-        printf "shortened by %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given "$CUTTING_TIME"
+        printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
     if [ "$WORKMODE" == "1" ]; then
@@ -951,7 +954,8 @@ convert_hevc () {
     PROCESS_NOW=$(date +%T)
     printf "$PROCESS_NOW : $FILEprint FFMPEG packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     if [ "$CUTTING_TIME" -gt 0 ]; then
-        printf "cut %05d sec (mode:$WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
+        printf "cut %-6.6s (mode:$WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
     #ffmpeg -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
@@ -1009,9 +1013,8 @@ pack_it () {
     PROCESS_NOW=$(date +%T)
     printf "$PROCESS_NOW : $FILEprint packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     if [ "$CUTTING_TIME" -gt 0 ]; then
-        TIMEWARP=$(date -d@${CUTTING_TIME} -u +%T)
-        printf "cutting $TIMEWARP (mode:$WORKMODE) "
-        #printf "cut %05d sec (mode:$WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given "$CUTTING_TIME"
+        printf "cutting $TIMER_SECOND_PRINT (mode:$WORKMODE) "
     fi
 
     if [ "$DURATION_TIME" -gt 0 ]; then
@@ -1053,9 +1056,11 @@ copy_it () {
     fi
 
     if [ "$MASSIVE_SPLIT" == 1 ]; then
-        printf "splitting file %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
+        printf "splitting file into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
-        printf "shortened by %05d sec (mode: $WORKMODE) " "$CUTTING_TIME"
+        calculate_time_given "$CUTTING_TIME"
+        printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
     if [ "$WORKMODE" == "1" ]; then
@@ -1337,6 +1342,7 @@ handle_file_packing () {
 
     Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
     CUTTING_TIME=$((BEGTIME + ENDTIME + DURATION_TIME))
+
     ORIGINAL_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
     if [[ "$ORIGINAL_DURATION" = *"."* ]]; then
         ORIGINAL_DURATION=$(grep -o "." <<< "$FILE" | wc -l)
@@ -1454,6 +1460,30 @@ calculate_time_taken () {
     else
         TIMER_TOTAL_PRINT=$(date -d@${SCRIPT_TOTAL_TIME} -u +%T)
     fi
+}
+
+#***************************************************************************************************************
+# Change given time in seconds to HH:MM:SS
+# 1 - time in seconds
+#***************************************************************************************************************
+calculate_time_given () {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    if [ -z "$1" ]; then
+        TIMER_SECOND_PRINT="0"
+    else
+        VAL_HAND="$1"
+        [ "$1" -lt "0" ] && VAL_HAND=$((VAL_HAND * -1))
+
+        if [ "$VAL_HAND" -lt "60" ]; then
+            TIMER_SECOND_PRINT="$VAL_HAND"
+        elif [ "$VAL_HAND" -lt "3600" ]; then
+            TIMER_SECOND_PRINT=$(date -d@${VAL_HAND} -u +%M:%S)
+        else
+            TIMER_SECOND_PRINT=$(date -d@${VAL_HAND} -u +%T)
+        fi
+    fi
+
 }
 
 #***************************************************************************************************************
