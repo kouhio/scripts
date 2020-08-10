@@ -22,6 +22,7 @@ EXT_CURR=""                     # Current files extension
 CONV_TYPE=".mp4"                # Target filetype
 CONV_CHECK="mp4"                # Target filetype extension handler
 MP3OUT=0                        # Extract mp3 data, if set
+AUDIO_PACK=0                    # Pack input file into target audio
 
 CALCTIME=0                      # Global variable to handle calculated time in seconds
 TIMERVALUE=0                    # Printed time value, which is calculated
@@ -219,6 +220,8 @@ print_help () {
     echo "r(epack)     -    to repack file with original dimensions"
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
+    echo "M(p3)        -    pack input audio file(s) into mp3 file"
+    echo "A(udio)=     -    convert audiofile to another audio filetype"
     echo "a(ll)        -    print all information"
     echo "p(rint)      -    print only file information (if set as 1, will print everything, 2 = lessthan, 3=biggerthan, 4=else )"
     echo "h(evc)       -    convert with avconv instead of ffmpeg"
@@ -668,9 +671,14 @@ parse_handlers () {
             IGNORE_SPACE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
             KEEPORG=1
+        elif [ "$1" == "Mp3" ] || [ "$1" == "M" ]; then
+            AUDIO_PACK=1
+            CONV_TYPE=".mp3"
+            CONV_CHECK="mp3"
         elif [ "$1" == "mp3" ] || [ "$1" == "m" ]; then
             MP3OUT=1
             CONV_TYPE=".mp3"
+            CONV_CHECK="mp3"
         elif [ "$1" == "all" ] || [ "$1" == "a" ]; then
             PRINT_ALL=1
         elif [ "$1" == "crop" ] || [ "$1" == "s" ]; then
@@ -716,6 +724,10 @@ parse_values () {
             calculate_time "$VALUE"
             DURATION_TIME=$CALCTIME
         elif [ "$HANDLER" == "target" ] || [ "$HANDLER" == "t" ]; then
+            CONV_TYPE=".$VALUE"
+            CONV_CHECK="$VALUE"
+        elif [ "$HANDLER" == "Audio" ] || [ "$HANDLER" == "A" ]; then
+            AUDIO_PACK=1
             CONV_TYPE=".$VALUE"
             CONV_CHECK="$VALUE"
         elif [ "$HANDLER" == "Combine" ] || [ "$HANDLER" == "C" ]; then
@@ -912,7 +924,7 @@ setup_file_packing () {
     fi
 
     if [ "$HEVC_CONV" == "0" ]; then
-        if [ "$MP3OUT" == 1 ]; then
+        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ]; then
             COMMAND_LINE+="-acodec libmp3lame "
         elif [ "$COPY_ONLY" == "0" ]; then
             COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -strict experimental -s $PACKSIZE "
@@ -924,6 +936,8 @@ setup_file_packing () {
             COMMAND_LINE+="-q:a 0 -map a "
         elif [ "$COPY_ONLY" == "0" ]; then
             COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "
+        elif [ "$AUDIO_PACK" == "1" ]; then
+            COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
         else
             COMMAND_LINE+="-c:v:1 copy "
         fi
@@ -947,15 +961,21 @@ simply_pack_file () {
         ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
     fi
 
-    if [ "$MP3OUT" == 1 ]; then
-        printf "$PROCESS_NOW : $FILEprint $APP_NAME extracting mp3 "
+    if [ "$AUDIO_PACK" == "1" ]; then
+        printf "$PROCESS_NOW : $FILEprint $APP_NAME packing $EXT_CURR to $CONV_CHECK "
+    elif [ "$MP3OUT" == 1 ]; then
+        printf "$PROCESS_NOW : $FILEprint $APP_NAME extracting $CONV_CHECK "
     elif [ "$COPY_ONLY" == "0" ]; then
         printf "$PROCESS_NOW : $FILEprint $APP_NAME packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     else
         printf "$PROCESS_NOW : $FILEprint $APP_NAME copying (%04dx%04d) " "${X}" "${Y}"
     fi
 
-    if [ "$MASSIVE_SPLIT" == 1 ]; then
+    if [ "$AUDIO_PACK" == "1" ]; then
+        ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
+        calculate_time_given $((ORIGINAL_DURATION / 1000))
+        printf " duration:%-6.6s " "$TIMER_SECOND_PRINT"
+    elif [ "$MASSIVE_SPLIT" == 1 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
         printf "splitting into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
@@ -1097,6 +1117,8 @@ handle_file_rename () {
 calculate_packsize () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    [ "$AUDIO_PACK" == 1 ] && return
+
     # Get original video dimensions
     XC=$(mediainfo '--Inform=Video;%Width%' "$FILE")
     YC=$(mediainfo '--Inform=Video;%Height%' "$FILE")
@@ -1195,7 +1217,11 @@ check_file_conversion () {
     #if destination file exists
     check_if_files_exist
     if [ "$FILE_EXISTS" == 1 ]; then
-        NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE")
+        if [ "$AUDIO_PACK" == "1" ]; then
+            NEW_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE$CONV_TYPE")
+        else
+            NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE")
+        fi
         NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
         GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + CUTTING_TIME))
@@ -1325,6 +1351,8 @@ pack_file () {
                 print_info
                 echo "$FILE is not found!"
             fi
+        elif [ "$AUDIO_PACK" == "1" ]; then
+            handle_file_packing
         elif [ -z "$X" ]; then
             handle_error_file
         elif [ "$WORKMODE" -gt 0 ] && [ "$X" -gt "$WIDTH" ]; then
