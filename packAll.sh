@@ -264,16 +264,21 @@ check_and_crop () {
             C2=$(echo "$CB" | cut -d : -f 2)
             C3=$(echo "$CB" | cut -d : -f 3)
             C4=$(echo "$CB" | cut -d : -f 4)
+
             if [ "$C1" -ge "0" ] && [ "$C2" -ge "0" ]; then
                 if [ "$XC" -ne "$C1" ] || [ "$YC" -ne "$C2" ] || [ "$C3" -gt "0" ] || [ "$C4" -gt "0" ]; then
-                    print_info
-                    short_name
-                    process_start_time=$(date +%s)
-                    PROCESS_NOW=$(date +%T)
-                    printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
-                    $APP_NAME -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-                    calculate_duration
-                    check_file_conversion
+                    if [ "$C1" -ge "320" ] && [ "$C2" -ge "240" ]; then
+                        print_info
+                        short_name
+                        process_start_time=$(date +%s)
+                        PROCESS_NOW=$(date +%T)
+                        printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
+                        $APP_NAME -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
+                        calculate_duration
+                        check_file_conversion
+                    else
+                        printf "${Yellow}$FILE ${Red}Cropping to ${C1}x${C2} ($C3 $C4) makes video too small! Skipping!${Color_Off}\n"
+                    fi
                 fi
             fi
         fi
