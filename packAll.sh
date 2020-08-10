@@ -77,6 +77,11 @@ SAVESIZE=0                      # Calculated value of size saved
 ERROR=0
 ERROR_WHILE_MORPH=0
 
+APP_NAME=ffmpeg                 # current application name to be used
+COMMAND_LINE=""                 # command line options to be set up later
+APP_SETUP=0                     # variable to see, if the setup has already been set
+
+
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
 
@@ -109,7 +114,7 @@ check_valuetype () {
         HAND_VAL=$((HAND_VAL * -1))
     fi
 
-    if [ "$HAND_VAL" -lt "10000" ]; then
+    if [ "$HAND_VAL" -lt "1000" ]; then
         SAVESIZE="$1"
         SIZETYPE="kb"
     elif [ "$HAND_VAL" -lt "1000000" ]; then
@@ -179,13 +184,14 @@ set_int () {
     calculate_duration
     echo " Main conversion interrupted in ${TIMERVALUE}!"
     remove_interrupted_files
-    print_total
     EXIT_EXT_VAL=1
 
     if [ "$NO_EXIT_EXTERNAL" -ne "0" ]; then
         check_valuetype "$GLOBAL_FILESAVE"
-        GLOB_ENDTIME=$(date -d@${LEN} -u +%T)
-        printf "Globally saved $SAVESIZE $SIZETYPE and removed time: $GLOB_ENDTIME"
+        calculate_time_given "$GLOBAL_TIMESAVE"
+        printf "Globally saved $SAVESIZE $SIZETYPE and removed time: $TIMER_SECOND_PRINT\n"
+    else
+        print_total
     fi
 
     exit 1
@@ -242,7 +248,12 @@ print_help () {
 check_and_crop () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    CROP_DATA=$(ffmpeg -i "$FILE" -t 1 -vf cropdetect -f null - 2>&1 | awk '/crop/ { print $NF }' | tail -1)
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
+        printf "${Red}Cannot crop files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
+        exit 1
+    fi
+
+    CROP_DATA=$($APP_NAME -i "$FILE" -t 1 -vf cropdetect -f null - 2>&1 | awk '/crop/ { print $NF }' | tail -1)
     if [ ! -z "$CROP_DATA" ]; then
         XC=$(mediainfo '--Inform=Video;%Width%' "$FILE")
         YC=$(mediainfo '--Inform=Video;%Height%' "$FILE")
@@ -260,7 +271,7 @@ check_and_crop () {
                     process_start_time=$(date +%s)
                     PROCESS_NOW=$(date +%T)
                     printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
-                    ffmpeg -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
+                    $APP_NAME -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
                     calculate_duration
                     check_file_conversion
                 fi
@@ -391,6 +402,11 @@ massive_filecheck () {
 #***************************************************************************************************************
 new_massive_file_split () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
+        printf "${Red}Cannot combine files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
+        exit 1
+    fi
 
     MASSIVE_TIME_CHECK=0
     SPLIT_COUNTER=0
@@ -549,7 +565,7 @@ combine_split_files() {
 
     ERROR=0
     printf "%-57.57s Combining $COMBINE_RUN_COUNT split files " " "
-    ffmpeg -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
+    $APP_NAME -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
     rm "packcombofile.txt"
@@ -660,6 +676,7 @@ parse_handlers () {
             PRINT_INFO=1
         elif [ "$1" == "hevc" ] || [ "$1" == "h" ]; then
             #IGNORE=1
+            APP_NAME="avconv"
             HEVC_CONV=0
         elif [ "$1" == "D" ]; then
             DEBUG_PRINT=1
@@ -861,7 +878,7 @@ calculate_duration () {
 short_name () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    NAMELIMITER=40
+    NAMELIMITER=46
 
     nameLen=${#FILE}
     extLen=${#EXT_CURR}
@@ -873,107 +890,78 @@ short_name () {
 }
 
 #***************************************************************************************************************
-# Extract mp3 by given parameters
+# Setup file packing variables
+# TODO: add all other variations, like mp3 stripping
 #***************************************************************************************************************
-extract_mp3 () {
+setup_file_packing () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then
+        COMMAND_LINE+="-ss $BEGTIME "
+    fi
+    #COMMAND_LINE+="-i $FILE "
+
+    if [ "$WORKMODE" == "2" ] || [ "$WORKMODE" == "3" ]; then
+        ENDO=$((DUR - ENDTIME - BEGTIME))
+        COMMAND_LINE+="-t $ENDO "
+    fi
+
+    if [ "$HEVC_CONV" == "0" ]; then
+        if [ "$MP3OUT" == 1 ]; then
+            COMMAND_LINE+="-acodec libmp3lame "
+        elif [ "$COPY_ONLY" == "0" ]; then
+            COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -strict experimental -s $PACKSIZE "
+        else
+            COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -c copy "
+        fi
+    else
+        if [ "$MP3OUT" == 1 ]; then
+            COMMAND_LINE+="-q:a 0 -map a "
+        elif [ "$COPY_ONLY" == "0" ]; then
+            COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "
+        else
+            COMMAND_LINE+="-c:v:1 copy "
+        fi
+    fi
+    APP_SETUP=1
+}
+
+#***************************************************************************************************************
+# Pack file by using enviromental variables
+#***************************************************************************************************************
+simply_pack_file () {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    [ "$APP_SETUP" == "0" ] && setup_file_packing
 
     short_name
     process_start_time=$(date +%s)
     PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint extracting mp3 "
 
     if [ "$DURATION_TIME" -gt 0 ]; then
         ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
     fi
 
-    if [ "$WORKMODE" == "1" ]; then
-        avconv -ss "$BEGTIME" -i "$FILE" -acodec libmp3lame "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "2" ]; then
-        ENDO=$((DUR - ENDTIME))
-        avconv -i "$FILE" -t $ENDO -acodec libmp3lame "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "3" ]; then
-        ENDO=$((DUR - ENDTIME - BEGTIME))
-        avconv -ss "$BEGTIME" -i "$FILE" -t $ENDO -acodec libmp3lame "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "4" ]; then
-        avconv -i "$FILE" -acodec libmp3lame "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    fi
-    if [ -f "$FILE$CONV_TYPE" ]; then
-        rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
-        echo "Successfully extracted mp3"
+    if [ "$MP3OUT" == 1 ]; then
+        printf "$PROCESS_NOW : $FILEprint $APP_NAME extracting mp3 "
+    elif [ "$COPY_ONLY" == "0" ]; then
+        printf "$PROCESS_NOW : $FILEprint $APP_NAME packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
     else
-        printf "${Red}Failed!${Color_Off}\n"
-        RETVAL=1
+        printf "$PROCESS_NOW : $FILEprint $APP_NAME copying (%04dx%04d) " "${X}" "${Y}"
     fi
-}
 
-#***************************************************************************************************************
-# Do a ffmpeg copy process
-#***************************************************************************************************************
-copy_hevc () {
-    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
-
-    short_name
-    process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint FFMPEG copying (%04dx%04d) " "${X}" "${Y}"
     if [ "$MASSIVE_SPLIT" == 1 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        printf "splitting file into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
+        printf "splitting into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
+    elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
+        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
+        printf "%-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     elif [ "$CUTTING_TIME" -gt 0 ]; then
         calculate_time_given "$CUTTING_TIME"
         printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
-    if [ "$WORKMODE" == "1" ]; then
-        #pack with skipping the beginning
-        ffmpeg -ss "$BEGTIME" -i "$FILE" -c:v:1 copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "2" ]; then
-        #pack with skipping the ending
-        ENDO=$((DUR - ENDTIME))
-        ffmpeg -i "$FILE" -t $ENDO -c:v:1 copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "3" ]; then
-        #pack with skipping from the beginning and the end
-        ENDO=$((DUR - ENDTIME - BEGTIME))
-        ffmpeg -ss "$BEGTIME" -i "$FILE" -t $ENDO -c:v:1 copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    else
-        #no time removal, so just pack it
-        ffmpeg -i "$FILE" -c:v:1 copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    fi
-    ERROR=$?
-}
-
-#***************************************************************************************************************
-# Pack file with ffmpeg
-#***************************************************************************************************************
-convert_hevc () {
-    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
-
-    short_name
-    process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint FFMPEG packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
-    if [ "$CUTTING_TIME" -gt 0 ]; then
-        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        printf "cut %-6.6s (mode:$WORKMODE) " "$TIMER_SECOND_PRINT"
-    fi
-
-    #ffmpeg -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    if [ "$WORKMODE" == "1" ]; then
-        #pack with skipping the beginning
-        ffmpeg -ss "$BEGTIME" -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "2" ]; then
-        #pack with skipping the ending
-        ENDO=$((DUR - ENDTIME))
-        ffmpeg -i "$FILE" -t $ENDO -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "3" ]; then
-        #pack with skipping from the beginning and the end
-        ENDO=$((DUR - ENDTIME - BEGTIME))
-        ffmpeg -ss "$BEGTIME" -i "$FILE" -t $ENDO -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    else
-        #no time removal, so just pack it
-        ffmpeg -i "$FILE" -bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    fi
+    $APP_NAME -i "$FILE" $COMMAND_LINE "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
 
@@ -983,13 +971,18 @@ convert_hevc () {
 burn_subs () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
+        printf "${Red}Cannot burn subs with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
+        exit 1
+    fi
+
     if [ -f "$FILE" ]; then
         if [ -f "$SUBFILE" ]; then
             short_name
             process_start_time=$(date +%s)
             PROCESS_NOW=$(date +%T)
             printf "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
-            ffmpeg -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
+            $APP_NAME -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
             ERROR=$?
             echo "Done"
         else
@@ -1000,88 +993,6 @@ burn_subs () {
         printf "${Red}File $FILE not found!${Color_Off}\n"
         RETVAL=1
     fi
-}
-
-#***************************************************************************************************************
-# Pack video file with avconv
-#***************************************************************************************************************
-pack_it () {
-    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
-
-    short_name
-    process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
-    if [ "$CUTTING_TIME" -gt 0 ]; then
-        calculate_time_given "$CUTTING_TIME"
-        printf "cutting $TIMER_SECOND_PRINT (mode:$WORKMODE) "
-    fi
-
-    if [ "$DURATION_TIME" -gt 0 ]; then
-        ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
-    fi
-
-    if [ "$WORKMODE" == "1" ]; then
-        #pack with skipping the beginning
-        avconv -ss "$BEGTIME" -i "$FILE" -map 0 -map_metadata 0:s:0 -strict experimental -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "2" ]; then
-        #pack with skipping the ending
-        ENDO=$((DUR - ENDTIME))
-        avconv -i "$FILE" -t $ENDO -map 0 -map_metadata 0:s:0-strict experimental -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "3" ]; then
-        #pack with skipping from the beginning and the end
-        ENDO=$((DUR - ENDTIME - BEGTIME))
-        avconv -ss "$BEGTIME" -i "$FILE" -t $ENDO -map 0 -map_metadata 0:s:0 -strict experimental -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    else
-        #no time removal, so just pack it
-        #avconv -i "$FILE" -map 0 -map_metadata 0:s:0 -strict experimental -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-        avconv -i "$FILE" -s "$PACKSIZE" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    fi
-    ERROR=$?
-}
-
-#***************************************************************************************************************
-# COPY_ONLY video to different format with avconv
-#***************************************************************************************************************
-copy_it () {
-    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
-
-    short_name
-    process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
-    printf "$PROCESS_NOW : $FILEprint "
-
-    if [ "$EXT_CURR" != "$CONV_CHECK" ]; then
-        printf "being transformed "
-    fi
-
-    if [ "$MASSIVE_SPLIT" == 1 ]; then
-        calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        printf "splitting file into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
-    elif [ "$CUTTING_TIME" -gt 0 ]; then
-        calculate_time_given "$CUTTING_TIME"
-        printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
-    fi
-
-    if [ "$WORKMODE" == "1" ]; then
-        #pack with skipping the beginning
-        avconv -ss "$BEGTIME" -i "$FILE" -map 0 -map_metadata 0:s:0 -c copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "2" ]; then
-        #pack with skipping the ending
-        ENDO=$((DUR - ENDTIME))
-        avconv -i "$FILE" -t $ENDO -map 0 -map_metadata 0:s:0 -c copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    elif [ "$WORKMODE" == "3" ]; then
-        #pack with skipping from the beginning and the end
-        ENDO=$((DUR - ENDTIME - BEGTIME))
-        avconv -ss "$BEGTIME" -i "$FILE" -t $ENDO -map 0 -map_metadata 0:s:0 -c copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-    else
-        #no time removal, so just pack it
-        if [ "$EXT_CURR" != "$CONV_CHECK" ]; then
-            #avconv -i "$FILE" -map 0 -map_metadata 0:s:0 -c copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-            avconv -i "$FILE" -c:a copy -c:v copy "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
-        fi
-    fi
-    ERROR=$?
 }
 
 #***************************************************************************************************************
@@ -1365,22 +1276,10 @@ handle_file_packing () {
         calculate_packsize
     fi
 
-    if [ "$MP3OUT" == 1 ]; then
-        extract_mp3
-    elif [ "$CROP" == 1 ]; then
+    if [ "$CROP" == 1 ]; then
         check_and_crop
     else
-        if [ "$HEVC_CONV" == 1 ]; then
-            if [ "$COPY_ONLY" == 0 ]; then
-                convert_hevc
-            else
-                copy_hevc
-            fi
-        elif [ "$COPY_ONLY" == 0 ]; then
-            pack_it
-        else
-            copy_it
-        fi
+        simply_pack_file
         calculate_duration
         check_file_conversion
     fi
