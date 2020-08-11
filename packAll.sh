@@ -437,6 +437,7 @@ new_massive_file_split () {
 
         for index in "${!array[@]}"
         do
+            APP_SETUP=0
             if [ "$SPLIT_P2P" -gt 0 ]; then
                 IFS="-"
                 array2=(${array[index]//-/$IFS})
@@ -765,6 +766,7 @@ parse_dimension () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
     if [ ! -z "$1" ]; then
+
         WIDTH=$(echo "$1" | cut -d x -f 1)
         HEIGHT=$(echo "$1" | cut -d x -f 2)
         COPY_ONLY=0
@@ -802,11 +804,10 @@ parse_data () {
             parse_file "$1"
         else
             xss=$(grep -o "x" <<< "$1" | wc -l)
-            DATA2=$(echo "$1" | cut -d x -f 2)
 
             [ "$WIDTH" -ne "0" ] && xss=0
 
-            if [ "$xss" == "0" ] || [ ! -z "$DATA2" ]; then
+            if [ "$xss" == "0" ] || [[ "$1" =~ "=" ]]; then
                 xss=$(grep -o "=" <<< "$1" | wc -l)
                 if [ "$xss" == "0" ]; then
                     parse_handlers "$1"
