@@ -171,6 +171,7 @@ addNewFiles() {
 updateExistingFile () {
     STARTSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
     REM_COUNT=0
+    LOOP_COUNT=0
     while IFS='' read -r line || [[ -n "$line" ]]; do
         if [ $FOUND == false ]; then
             echo "$line" >> $TMPFILE
@@ -198,6 +199,11 @@ updateExistingFile () {
                 REM_COUNT=$((REM_COUNT + 1))
             else
                 echo "$line" >> "$TMPFILE"
+                LOOP_COUNT=$((LOOP_COUNT + 1))
+                if [ "$LOOP_COUNT" -ge "9" ]; then
+                    printf "\n" >> $TMPFILE
+                    LOOP_COUNT=0
+                fi
             fi
         fi
     done < "$FILE"
@@ -279,7 +285,7 @@ renameLocalFiles() {
 goThroughAllFiles() {
     printVLCStart
     index=1
-    for f in *.$EXT
+    for f in *$EXT*
     do
         if [ -f "$f" ]; then
             X=`mediainfo '--Inform=Video;%Width%' "$f"`
