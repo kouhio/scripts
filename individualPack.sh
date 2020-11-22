@@ -135,7 +135,7 @@ addNewFiles() {
     echo -e "\n#NEW" >> $TMPFILE
     index=1
     printVLCStart
-    for f in *.$EXT
+    for f in *${EXT}*
     do
         if [ -f "$f" ]; then
             if verifyFileNotInList "$f" ; then
@@ -285,7 +285,7 @@ renameLocalFiles() {
 goThroughAllFiles() {
     printVLCStart
     index=1
-    for f in *$EXT*
+    for f in *${EXT}*
     do
         if [ -f "$f" ]; then
             X=`mediainfo '--Inform=Video;%Width%' "$f"`
