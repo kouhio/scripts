@@ -55,6 +55,7 @@ SEGMENT_PARSING=""              # Segment parsing handler
 
 DEBUG_PRINT=0                   # Print function name in this mode
 MASSIVE_SPLIT=0                 # Splitting one file into multiple files
+MASSIVE_TIME_SAVE=0             # Save each split total to this handler
 
 MASSIVE_TIME_CHECK=0            # Wanted total time of output files
 MASSIVE_TIME_COMP=0             # Actual total time of output files
@@ -186,6 +187,10 @@ set_int () {
     echo " Main conversion interrupted in ${TIMERVALUE}!"
     remove_interrupted_files
     EXIT_EXT_VAL=1
+
+    if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then
+        GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
+    fi
 
     if [ "$NO_EXIT_EXTERNAL" -ne "0" ]; then
         check_valuetype "$GLOBAL_FILESAVE"
@@ -384,7 +389,6 @@ massive_filecheck () {
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
         TIME_SHORTENED=$((TIME_SHORTENED / 1000))
-        GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + TIME_SHORTENED))
 
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             OSZ=$(du -k "$FILE" | cut -f1)
@@ -979,6 +983,7 @@ simply_pack_file () {
     elif [ "$MASSIVE_SPLIT" == 1 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
         printf "splitting into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
+        MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
         printf "%-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
@@ -1225,7 +1230,10 @@ check_file_conversion () {
         fi
         NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
-        GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + CUTTING_TIME))
+
+        if [ "$MASSIVE_SPLIT" == "0" ]; then
+            GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + CUTTING_TIME))
+        fi
         DURATION_CHECK=$((ORIGINAL_DURATION - DURATION_CUT - 2000))
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
         ORIGINAL_HOLDER=$ORIGINAL_SIZE
@@ -1511,6 +1519,10 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     else
         GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     fi
+fi
+
+if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then
+    GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
 fi
 
 [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"

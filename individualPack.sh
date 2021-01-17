@@ -138,6 +138,11 @@ addNewFiles() {
     for f in *${EXT}*
     do
         if [ -f "$f" ]; then
+            EXT_CURR="${f##*.}"
+            if [ "$EXT_CURR" == "part" ] || [ -f "${f}.part" ]; then
+                continue
+            fi
+
             if verifyFileNotInList "$f" ; then
                 continue
             fi
@@ -288,6 +293,11 @@ goThroughAllFiles() {
     for f in *${EXT}*
     do
         if [ -f "$f" ]; then
+            EXT_CURR="${f##*.}"
+            if [ "$EXT_CURR" == "part" ] || [ -f "${f}.part" ]; then
+                continue
+            fi
+
             X=`mediainfo '--Inform=Video;%Width%' "$f"`
             if [ -z $X ]; then
                 X=0
@@ -325,11 +335,25 @@ printEndData() {
 }
 
 ##########################################################
+# Rename characters that arent't supported by playlist
+##########################################################
+renameBadChars() {
+    rename "s/™//g" *
+    rename "s/'//g" *
+    rename "s/’//g" *
+    rename "s/%//g" *
+    rename "s/@//g" *
+    rename "s/–//g" *
+    rename "s/🎩//g" *
+}
+
+##########################################################
 # Main functionality
 ##########################################################
 parsePackData "$@"
 verifyOldFile
 if [ $FILE_UPDATED == false ]; then
+    renameBadChars
     printBaseData
     renameLocalFiles
     goThroughAllFiles
