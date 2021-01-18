@@ -143,7 +143,11 @@ print_total () {
         echo "Total in $CURRENTFILECOUNTER files, Size:$SAVESIZE Length:$TIMER_TOTAL_PRINT"
     else
         if [ "$TIMESAVED" -gt "0" ]; then
-            TIMESAVED=$((TIMESAVED  / 1000))
+            if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then
+                TIMESAVED=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
+            else
+                TIMESAVED=$((TIMESAVED  / 1000))
+            fi
             calculate_time_given "$TIMESAVED"
         fi
         calculate_time_taken
@@ -395,7 +399,9 @@ massive_filecheck () {
             delete_file "$FILE"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             check_valuetype "$OSZ"
-            printf "${Yellow}Saved %-6.6s ${SIZETYPE} with splitting${Color_Off}\n" "$SAVESIZE"
+            FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
+            calculate_time_given "$FINAL_TIMESAVE"
+            printf "${Yellow}Saved %-6.6s ${SIZETYPE} and $TIMER_SECOND_PRINT with splitting${Color_Off}\n" "$SAVESIZE"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
             GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
         else
@@ -701,6 +707,7 @@ parse_handlers () {
         else
             echo "Unknown handler $1"
             RETVAL=1
+            [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
         fi
     fi
 }
