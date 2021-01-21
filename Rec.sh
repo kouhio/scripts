@@ -32,11 +32,12 @@ get_sink_monitor() {
 # Record it raw, and convert to a wav
 #**********************************************************************************
 record_audio_stream() {
-    echo "Recording to $WAV ..."
+    echo "Recording to $WAV ... from $MONITOR"
 
     if [ -z "$1" ]; then
-        echo "Close this window to stop (with ctrl+c)"
-        parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+        echo "Close this window to stop (with ctrl+c) Monitoring"
+        parec -d "$MONITOR" | sox "$MONITOR" -t raw -r 44100 -Lb 16 -c 2 "$WAV"
+        #parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
     else
         echo "This process will terminate in $1"
         timeout "$1" parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"

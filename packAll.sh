@@ -82,6 +82,8 @@ ERROR_WHILE_MORPH=0
 APP_NAME=ffmpeg                 # current application name to be used
 COMMAND_LINE=""                 # command line options to be set up later
 APP_SETUP=0                     # variable to see, if the setup has already been set
+CURRENT_TIMESAVE=0              # Time saved during editing session
+SPLITTER_TIMESAVE=0             # Time saved during splitting
 
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -198,7 +200,8 @@ set_int () {
 
     if [ "$NO_EXIT_EXTERNAL" -ne "0" ]; then
         check_valuetype "$GLOBAL_FILESAVE"
-        calculate_time_given "$GLOBAL_TIMESAVE"
+        [ "$SPLITTER_TIMESAVE" -gt "0" ] && SPLITTER_TIMESAVE=$(((ORIGINAL_DURATION - SPLITTER_TIMESAVE) / 1000))
+        calculate_time_given "$((GLOBAL_TIMESAVE + CURRENT_TIMESAVE + SPLITTER_TIMESAVE))"
         printf "Globally saved $SAVESIZE $SIZETYPE and removed time: $TIMER_SECOND_PRINT\n"
     else
         print_total
@@ -392,6 +395,7 @@ massive_filecheck () {
 
     if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
         TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
+        SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
         TIME_SHORTENED=$((TIME_SHORTENED / 1000))
 
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
@@ -621,6 +625,7 @@ combine_split_files() {
     calculate_time_taken
     calculate_time_given "$TIME_SHORTENED"
     printf "${Green} Success in $TIMERVALUE/$TIMER_TOTAL_PRINT ${Yellow}${RUNNING_FILENAME}${Color_Off} Shortened:$TIMER_SECOND_PRINT\n"
+    FILE="$LE_ORG_FILE"
 }
 
 #***************************************************************************************************************

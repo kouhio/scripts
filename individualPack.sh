@@ -135,6 +135,8 @@ addNewFiles() {
     echo -e "\n#NEW" >> $TMPFILE
     index=1
     printVLCStart
+    shopt -s nocaseglob
+
     for f in *${EXT}*
     do
         if [ -f "$f" ]; then
@@ -166,6 +168,8 @@ addNewFiles() {
             fi
         fi
     done
+
+    shopt -u nocaseglob
     printVLCEnd
 }
 
@@ -290,6 +294,8 @@ renameLocalFiles() {
 goThroughAllFiles() {
     printVLCStart
     index=1
+    shopt -s nocaseglob
+
     for f in *${EXT}*
     do
         if [ -f "$f" ]; then
@@ -319,6 +325,8 @@ goThroughAllFiles() {
             fi
         fi
     done
+
+    shopt -u nocaseglob
     printVLCEnd
 }
 
