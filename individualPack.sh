@@ -15,6 +15,7 @@ VLC="playlist.xspf"
 GLOBAL_FILESAVE=0
 GLOBAL_TIMESAVE=0
 GLOBAL_FILECOUNT=0
+TOTAL_FILES=0
 
 ##########################################################
 # Push string to target file
@@ -41,9 +42,9 @@ printSavedData () {
 ##########################################################
 printTerminatorFunction () {
     echo -e "\ncleanup () {" >> "$FILE"
-    echo -e "echo \"Terminated, quitting process!\"" >> "$FILE"
+    echo -e "  echo \"Terminated, quitting process!\"" >> "$FILE"
     printSavedData
-    echo -e "exit 1" >> "$FILE" >> "$FILE"
+    echo -e "  exit 1" >> "$FILE" >> "$FILE"
     echo -e "}\n" >> "$FILE"
     echo -e "trap cleanup INT TERM\n" >> "$FILE"
     echo -e "#BEGIN" >> "$FILE"
@@ -153,14 +154,15 @@ addNewFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo ". packAll.sh \"$f\" $OPTIONS" >> "$TMPFILE"
+                echo "PACK \"$f\" $OPTIONS" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo ". packAll.sh \"$f\" ${SIZE}x $OPTIONS" >> "$TMPFILE"
+                echo "PACK \"$f\" ${SIZE}x $OPTIONS" >> "$TMPFILE"
             fi
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
+            TOTAL_FILES=$((TOTAL_FILES + 1))
             index=$((index + 1))
             if [ $index -ge 11 ]; then
                 index=1
@@ -202,12 +204,14 @@ updateExistingFile () {
         file=`echo "$line" | cut -d'"' -f 2`
         if [ -f "$file" ]; then
             FILE_ARRAY+=("$file")
-            if [ "${line:0:4}" == "rm \"" ]; then
+            if [ "${line:0:4}" == "rm \"" ] || [ "${line:5:4}" == "rm \"" ]; then
                 #echo "rm \"$file\""  >> "$TMPFILE"
+                #echo "removing $file"
                 rm "$file"
                 REM_COUNT=$((REM_COUNT + 1))
             else
                 echo "$line" >> "$TMPFILE"
+                TOTAL_FILES=$((TOTAL_FILES + 1))
                 LOOP_COUNT=$((LOOP_COUNT + 1))
                 if [ "$LOOP_COUNT" -ge "9" ]; then
                     printf "\n" >> $TMPFILE
@@ -274,6 +278,21 @@ printBaseData() {
     printShit "GLOBAL_TIMESAVE=0"
     printShit "NO_EXIT_EXTERNAL=1"
     printShit "EXIT_EXT_VAL=0"
+    printShit "COUNTED_ITEMS=0"
+
+    printShit ""
+    printShit "PACK () {"
+    printShit "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
+    printShit "  [ ! -f \"\$1\" ] && return"
+    printShit "  if [ \$1 == \"rm\" ]; then"
+    printShit "    echo \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: Removing \$2\""
+    printShit "    rm \"\$2\""
+    printShit "  else"
+    printShit "    echo -en \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: \""
+    printShit "    . packAll.sh \$@"
+    printShit "  fi"
+    printShit "}"
+
     printTerminatorFunction
 }
 
@@ -309,15 +328,16 @@ goThroughAllFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo ". packAll.sh \"$f\" $OPTIONS" >> "$FILE"
+                echo "PACK \"$f\" $OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo ". packAll.sh \"$f\" ${SIZE}x $OPTIONS" >> "$FILE"
+                echo "PACK \"$f\" ${SIZE}x $OPTIONS" >> "$FILE"
             fi
 
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
+            TOTAL_FILES=$((TOTAL_FILES + 1))
             index=$((index + 1))
             if [ $index -ge 11 ]; then
                 index=1
@@ -355,6 +375,27 @@ renameBadChars() {
     rename "s/🎩//g" *
 }
 
+
+##########################################################
+# Update max filecount to the script
+##########################################################
+updateFileCount() {
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [[ $line =~ "MAX_ITEMS=" ]]; then
+            continue
+        fi
+
+        if [[ $line =~ "#BEGIN" ]]; then
+            echo "MAX_ITEMS=$TOTAL_FILES" >> $TMPFILE
+        fi
+
+        echo "$line" >> $TMPFILE
+    done < "$FILE"
+
+    rm "$FILE"
+    mv "$TMPFILE" "$FILE"
+}
+
 ##########################################################
 # Main functionality
 ##########################################################
@@ -371,5 +412,7 @@ if [ $FILE_UPDATED == false ]; then
 else
     echo "Added $NEW_FILES new files to $FILE"
 fi
+
+updateFileCount
 
 chmod 777 $FILE
