@@ -279,17 +279,21 @@ printBaseData() {
     printShit "NO_EXIT_EXTERNAL=1"
     printShit "EXIT_EXT_VAL=0"
     printShit "COUNTED_ITEMS=0"
+    printShit "ERROR=0"
 
     printShit ""
     printShit "PACK () {"
+    printShit "  INPUTFILE=\"\$1\""
+    printShit "  shift 1"
     printShit "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
-    printShit "  [ ! -f \"\$1\" ] && return"
-    printShit "  if [ \$1 == \"rm\" ]; then"
-    printShit "    echo \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: Removing \$2\""
-    printShit "    rm \"\$2\""
+    printShit "  [ ! -f \"\$INPUTFILE\" ] && return"
+    printShit "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
+    printShit "    echo \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: Removing \$1\""
+    printShit "    rm \"\$1\""
     printShit "  else"
     printShit "    echo -en \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: \""
-    printShit "    . packAll.sh \$@"
+    printShit "    . packAll.sh \"\$INPUTFILE\" \$@"
+    printShit "    [ \$ERROR -eq 0 ] && ERROR=\$?"
     printShit "  fi"
     printShit "}"
 
@@ -356,9 +360,9 @@ goThroughAllFiles() {
 printEndData() {
     echo "#END" >> $FILE
     echo " " >> $FILE
-    printShit "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ]; then"
-    printShit "    rm $FILE"
-    printShit "    rm $VLC"
+    printShit "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ] && [ \"\$ERROR\" -eq \"0\" ]; then"
+    printShit "  rm $FILE"
+    printShit "  rm $VLC"
     printShit "fi"
 }
 
