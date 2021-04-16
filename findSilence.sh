@@ -94,7 +94,7 @@ parse_arguments () {
                 shift 2
                 ;;
             -f)
-                FILE="$2"
+                FILE="${PWD}/${2}"
                 shift 2
                 ;;
             -t)
@@ -152,10 +152,10 @@ write_silencedata () {
 
     if [ -z $FILE ]; then
         Color.sh red
-        echo "$PWD -> $DATA1"
+        echo "$PWD/$2 -> $DATA1"
         Color.sh
     else
-        echo "$PWD / $1 -> $DATA1" >> $FILE
+        echo "$PWD/$2 -> $DATA1" >> $FILE
     fi
 }
 
@@ -459,7 +459,7 @@ check_file () {
                 if [ $SPLIT == 1 ]; then
                     split_file_by_silence "$SILENCEDATA" "$1"
                 else
-                    write_silencedata "$SILENCEDATA"
+                    write_silencedata "$SILENCEDATA" "$1"
                 fi
             fi
         fi
@@ -482,7 +482,7 @@ check_file () {
                 if [ $SPLIT == 1 ]; then
                     split_file_by_silence "$SILENCEDATA" "$1"
                 else
-                    write_silencedata "$SILENCEDATA"
+                    write_silencedata "$SILENCEDATA" "$1"
                 fi
             fi
         fi
