@@ -147,15 +147,18 @@ write_silencedata () {
     DATA=$(echo "$SILENCEDATA" | grep "silence_duration:") # | awk '{print $2}')
     DATA1=`echo $DATA | cut -d \| -f 2`
     if [ -z "$DATA1" ]; then
-        DATA1="$SILENCEDATA"
+        DATA1=$(echo "$SILENCEDATA" | awk '{print $24 $25}')
+        if [ -z "$DATA1" ]; then
+            DATA1="$SILENCEDATA"
+        fi
     fi
 
-    if [ -z $FILE ]; then
+    if [ -z "$FILE" ]; then
         Color.sh red
-        echo "$PWD/$2 -> $DATA1"
+        echo -e "$PWD/$2\n    -> $DATA1"
         Color.sh
     else
-        echo "$PWD/$2 -> $DATA1" >> $FILE
+        echo -e "$PWD/$2\n    -> $DATA1" >> "$FILE"
     fi
 }
 
@@ -230,7 +233,7 @@ split_to_file () {
 
     if [ "$ORG_EXT" == "mp3" ]; then
         echo "Extracting mp3 from $1! | Start: $2 Duration: $3, Min: $MIN_DURATION"
-        ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+        ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" # -v quiet >/dev/null 2>&1 || error_code=$?
     else
         echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
@@ -311,7 +314,10 @@ split_file_by_silence () {
         fi
     done
 
-    if [ $END != "0" ]; then
+    if [ $START != 0 ] && [ $FILENUMBER == 1 ] && [ $END = 0 ]; then
+        #there is only one file and silence at the end, remove silence
+        split_to_file "$2" "0" "$START" "$FILENUMBER"
+    elif [ $END != "0" ]; then
         # The is no silence at the end of the file, so the last file is created here
         DURATION_2=$(bc <<< "$TOTAL_LENGTH - $END")
         if  (( $(echo "$DURATION_2 >= $MIN_DURATION" |bc -l) )); then
@@ -446,31 +452,6 @@ split_file_by_input_file () {
     fi
 }
 
-#**************************************************************************************************************
-# Check if given file has silence within given parameters and either split or add to output list
-# 1 - Sourcefile
-#**************************************************************************************************************
-check_file () {
-    EXT="${1##*.}"
-    if [ "mp3" == "$EXT" ] || [ $EXT == "wav" ]; then
-        if [ -f "$1" ]; then
-            SILENCEDATA=`ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence" `
-            if [ ! -z "$SILENCEDATA" ]; then
-                if [ $SPLIT == 1 ]; then
-                    split_file_by_silence "$SILENCEDATA" "$1"
-                else
-                    write_silencedata "$SILENCEDATA" "$1"
-                fi
-            fi
-        fi
-    fi
-}
-
-
-
-
-#**************************************************************************************************************
-# Check if given file has silence within given parameters and either split or add to output list
 # 1 - Sourcefile
 #**************************************************************************************************************
 check_file () {
