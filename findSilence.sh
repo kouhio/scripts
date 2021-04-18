@@ -139,26 +139,36 @@ parse_arguments () {
 }
 
 #**************************************************************************************************************
+# Find all items with silence and push into string
+# 1 - input string
+#**************************************************************************************************************
+print_info () {
+    IFS=" "
+    array=(${1//,/$IFS})
+
+    OUTPUT_DATA=""
+    for index in "${!array[@]}"
+    do
+        if [[ "${array[index]}" =~ "silence_" ]]; then
+            OUTPUT_DATA+="${array[index]} ${array[index+1]} "
+        fi
+    done
+    OUTPUT_DATA=$(echo "$OUTPUT_DATA" | tr '\n' ' ')
+}
+
+#**************************************************************************************************************
 # Write list of files with silence or print data of found files with silence
 # 1 - Found silencedata
 #**************************************************************************************************************
 write_silencedata () {
-    SILENCEDATA="$1"
-    DATA=$(echo "$SILENCEDATA" | grep "silence_duration:") # | awk '{print $2}')
-    DATA1=`echo $DATA | cut -d \| -f 2`
-    if [ -z "$DATA1" ]; then
-        DATA1=$(echo "$SILENCEDATA" | awk '{print $24 $25}')
-        if [ -z "$DATA1" ]; then
-            DATA1="$SILENCEDATA"
-        fi
-    fi
+    print_info "$1"
 
     if [ -z "$FILE" ]; then
         Color.sh red
-        echo -e "$PWD/$2\n    -> $DATA1"
+        echo -e "$PWD/$2 -> $OUTPUT_DATA"
         Color.sh
     else
-        echo -e "$PWD/$2\n    -> $DATA1" >> "$FILE"
+        echo -e "$PWD/$2\n    -> $OUTPUT_DATA" >> "$FILE"
     fi
 }
 
