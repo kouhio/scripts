@@ -189,6 +189,7 @@ remove_interrupted_files () {
 set_int () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    shopt -u nocaseglob
     calculate_duration
     echo " Main conversion interrupted in ${TIMERVALUE}!"
     remove_interrupted_files
@@ -800,11 +801,12 @@ parse_file () {
         FILE="$1"
         FileStrLen=${#FILE}
         if [ ! -f "$FILE" ]; then
-            if [ "$FileStrLen" -lt 7 ]; then
-                FILECOUNT=$(ls -l *"$FILE" 2>/dev/null | grep -v ^l | wc -l)
-            else
+            shopt -s nocaseglob
+            FILECOUNT=$(ls -l *"$FILE" 2>/dev/null | grep -v ^l | wc -l)
+            if [ "$FILECOUNT" == 0 ]; then
                 MULTIFILECOUNT=$(ls -l *"$FILE"* 2>/dev/null | grep -v ^l | wc -l)
             fi
+            shopt -u nocaseglob
         fi
     fi
 }
@@ -1504,13 +1506,16 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         burn_subs
     elif [ "$FILECOUNT" -gt 1 ] || [ "$FileStrLen" -lt 5 ]; then
         EXT_CURR="$FILE"
+        shopt -s nocaseglob
         for f in *.$EXT_CURR
             do
                 FILE="$f"
                 CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
                 pack_file
             done
+        shopt -u nocaseglob
     elif [ "$MULTIFILECOUNT" -gt 1 ]; then
+        shopt -s nocaseglob
         for f in *$FILE*
             do
                 if [ -f "$f" ]; then
@@ -1520,6 +1525,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
                     pack_file
                 fi
             done
+        shopt -u nocaseglob
     else
         FILECOUNT=1
         EXT_CURR="${FILE##*.}"
