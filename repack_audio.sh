@@ -9,8 +9,9 @@ if [ "$1" == "-h" ]; then
     printf "Repack audio files to mp3 vbr\nNOTICE! Without additional flags, will delete original file after successful repack!\n\n"
     printf "Options:\n1 - input extension (mp3 default)\n"
     printf "2 - if set, will print paths of successfully packed audio to given file\n"
-    printf "3 - delete/keep\n    delete - will delete files that were not packed because size grew\n"
+    printf "3 - delete/keep/ignore\n    delete - will delete files that were not packed because size grew\n"
     printf "    keep - will keep original file and rename it to NAME.old\n"
+    printf "    ignore - keep new file, even if it's bigger than original"
 
     exit 1
 fi
@@ -39,7 +40,7 @@ do
     error=$?
     if [ "$error" == 0 ]; then
         OUTPUTSIZE=$(du -k "${file}.new.${OUTPUT}" | cut -f1)
-        if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ]; then
+        if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$OPTION" != "ignore" ]; then
             printf "new size bigger than original $OUTPUTSIZE > $INPUTSIZE\n"
             DIDNTSAVE=$((DIDNTSAVE + 1))
             rm "${file}.new.${OUTPUT}"
