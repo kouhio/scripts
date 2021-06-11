@@ -79,7 +79,7 @@ SAVESIZE=0                      # Calculated value of size saved
 ERROR=0
 ERROR_WHILE_MORPH=0
 
-APP_NAME=ffmpeg                 # current application name to be used
+APP_NAME=/usr/bin/ffmpeg        # current application name to be used
 COMMAND_LINE=""                 # command line options to be set up later
 APP_SETUP=0                     # variable to see, if the setup has already been set
 CURRENT_TIMESAVE=0              # Time saved during editing session
@@ -426,9 +426,13 @@ massive_filecheck () {
 new_massive_file_split () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
-        printf "${Red}Cannot combine files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
-        exit 1
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
+        if [[ "$APP_NAME" =~ "ffmpeg" ]]; then
+            GOGO=1
+        else
+            printf "${Red}Cannot combine files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
+            exit 1
+        fi
     fi
 
     MASSIVE_TIME_CHECK=0
@@ -1450,12 +1454,14 @@ verify_necessary_programs() {
     ff_missing=0
     av_missing=0
     mi_missing=0
+    ren_missing=0
 
     hash ffmpeg 2>/dev/null || ff_missing=$?
     hash avconv 2>/dev/null || av_missing=$?
     hash mediainfo 2>/dev/null || mi_missing=$?
+    hash rename 2>/dev/null || ren_missing=$?
 
-    error_code=$((ff_missing + mi_missing))
+    error_code=$((ff_missing + mi_missing + ren_missing))
 
     if [ "$av_missing" -ne 0 ]; then
         HEVC_CONV=1
@@ -1466,6 +1472,7 @@ verify_necessary_programs() {
         [ "$ff_missing" -ne 0 ] && printf "ffmpeg "
         [ "$av_missing" -ne 0 ] && printf "avconv "
         [ "$mi_missing" -ne 0 ] && printf "mediainfo "
+	[ "$ren_missing" -ne 0 ] && printf "rename "
         printf "\n"
         EXIT_EXT_VAL=1
         exit 1

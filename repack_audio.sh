@@ -16,6 +16,8 @@ if [ "$1" == "-h" ]; then
     exit 1
 fi
 
+#TODO: capture signal, delete middlefile
+
 [ ! -z "$1" ] && INPUT="$1"
 [ ! -z "$2" ] && TARGET="$2"
 [ ! -z "$3" ] && OPTION="$3"
