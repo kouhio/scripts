@@ -10,6 +10,9 @@ set_int () {
     exit 1
 }
 
+TARGET=".."
+[ ! -z "$1" ] && TARGET="$1"
+
 trap set_int SIGINT SIGTERM
 
 SUCS=0
@@ -48,7 +51,7 @@ for D in *; do
                     cnt=`ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l`
                     if [ $cnt -gt "0" ]; then
                         SUCS=$((SUCS + cnt))
-                        mv *${array[index]} ..
+                        mv *${array[index]} "$TARGET"
                         echo "Found ${array[index]} in $D (*${array[index]})"
                     fi
                 done
