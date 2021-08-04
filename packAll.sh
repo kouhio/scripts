@@ -863,6 +863,7 @@ print_file_info () {
 
             Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
             LEN=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
+            LEN=${LEN%.*}
             LEN=$((LEN / 1000))
             calculate_time_taken
             calculate_time_given "$LEN"
