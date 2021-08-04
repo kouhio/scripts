@@ -16,6 +16,7 @@ GLOBAL_FILESAVE=0
 GLOBAL_TIMESAVE=0
 GLOBAL_FILECOUNT=0
 TOTAL_FILES=0
+INPUTSTR=""
 
 ##########################################################
 # Push string to target file
@@ -237,6 +238,7 @@ updateExistingFile () {
 # 1 - the whole array of data variables
 ##########################################################
 parsePackData() {
+    INPUTCOUNT=1
     for var in "$@"
     do
         CNT=$((CNT + 1))
@@ -248,6 +250,8 @@ parsePackData() {
             IGNORE_SIZE=true
         else
             xss=$(grep -o "x" <<< "$var" | wc -l)
+            INPUTSTR+=" \"\$${INPUTCOUNT}\""
+            INPUTCOUNT=$((INPUTCOUNT + 1))
             if [ $xss == "0" ]; then
                 OPTIONS+="$var "
             else
@@ -291,7 +295,8 @@ printBaseData() {
     printShit "    rm \"\$1\""
     printShit "  elif [ -f \"\$INPUTFILE\" ]; then"
     printShit "    echo -en \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: \""
-    printShit "    . packAll.sh \"\$INPUTFILE\" \$@"
+    #printShit "    . packAll.sh \"\$INPUTFILE\" \$@"
+    printShit "    . packAll.sh \"\$INPUTFILE\"$INPUTSTR"
     printShit "    [ \$ERROR -eq 0 ] && ERROR=\$?"
     printShit "  fi"
     printShit "}"
