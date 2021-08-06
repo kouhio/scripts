@@ -445,6 +445,7 @@ new_massive_file_split () {
         EXT_CURR="${FILE##*.}"
         LEN=$(mediainfo '--Inform=Video;%Duration%' "$FILE")
         XSS=$(mediainfo '--Inform=Video;%Width%' "$FILE")
+        LEN=${LEN%.*}
         LEN=$((LEN / 1000))
 
         SPLIT_P2P=$(grep -o "-" <<< "$1" | wc -l)
@@ -537,8 +538,12 @@ new_massive_file_split () {
         done
         massive_filecheck
 
-        if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$RETVAL" -eq "0" ]; then
-            combine_split_files
+        if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
+            if [ "$RETVAL" -eq "0" ]; then
+                combine_split_files
+            else
+                remove_combine_files
+            fi
         fi
 
     else
@@ -577,6 +582,27 @@ make_or_remove_split_files() {
                 echo "file '${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
             fi
         fi
+        COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
+        RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+    done
+}
+
+#***************************************************************************************************************
+# In case of failure, remove files meant to be combined
+#***************************************************************************************************************
+remove_combine_files() {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    RUNNING_FILE_NUMBER=1
+
+    while true; do
+        make_running_name
+
+        if [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+            break
+        fi
+        rm "${TARGET_DIR}/$RUNNING_FILENAME"
+
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
     done
@@ -1126,6 +1152,7 @@ handle_file_rename () {
         fi
 
         delete_file "$FILE$CONV_TYPE"
+
         if [ "$EXT_CURR" == "$CONV_CHECK" ] && [ "$COPY_ONLY" == "0" ]; then
             if [ ! -d "./Failed" ]; then
                 mkdir "Failed"

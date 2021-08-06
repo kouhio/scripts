@@ -155,11 +155,11 @@ addNewFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "PACK \"$f\" $OPTIONS" >> "$TMPFILE"
+                echo "PACK \"$f\"$OPTIONS" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "PACK \"$f\" ${SIZE}x $OPTIONS" >> "$TMPFILE"
+                echo "PACK \"$f\" ${SIZE}x$OPTIONS" >> "$TMPFILE"
             fi
             printVLCFile "$f"
             NEW_FILES=$((NEW_FILES + 1))
@@ -253,7 +253,7 @@ parsePackData() {
             INPUTSTR+=" \"\$${INPUTCOUNT}\""
             INPUTCOUNT=$((INPUTCOUNT + 1))
             if [ $xss == "0" ]; then
-                OPTIONS+="$var "
+                OPTIONS+=" $var"
             else
                 SIZE=`echo $var | cut -d x -f 1`
             fi
@@ -336,11 +336,11 @@ goThroughAllFiles() {
                 X=0
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "PACK \"$f\" $OPTIONS" >> "$FILE"
+                echo "PACK \"$f\"$OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             else
-                echo "PACK \"$f\" ${SIZE}x $OPTIONS" >> "$FILE"
+                echo "PACK \"$f\" ${SIZE}x$OPTIONS" >> "$FILE"
             fi
 
             printVLCFile "$f"
