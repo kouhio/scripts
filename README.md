@@ -28,6 +28,8 @@ packAll.sh              - Script to re-package, scale and split video files
 
 Moveall.sh              - Move given files from sub-directories and delete rest of the directory
 
+clearAudio.sh           - Remove given audio from given videos, uses audfprint
+
 
 Code manipulation scripts:
 
