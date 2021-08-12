@@ -141,8 +141,8 @@ print_total () {
     #TOTALSAVE=$((TOTALSAVE / 1000))
 
     if [ "$PRINT_INFO" == 1 ]; then
-        calculate_time_taken
-        echo "Total in $CURRENTFILECOUNTER files, Size:$SAVESIZE Length:$TIMER_TOTAL_PRINT"
+        TIMESAVED=$(date -d@${TIMESAVED} -u +%T)
+        echo "Total in $CURRENTFILECOUNTER files, Size:$SAVESIZE Length:$TIMESAVED"
     else
         if [ "$TIMESAVED" -gt "0" ]; then
             if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then
