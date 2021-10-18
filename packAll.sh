@@ -985,7 +985,7 @@ setup_file_packing () {
         if [ "$MP3OUT" == 1 ]; then
             COMMAND_LINE+="-q:a 0 -map a "
         elif [ "$COPY_ONLY" == "0" ]; then
-            COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 "
+            COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
         elif [ "$AUDIO_PACK" == "1" ]; then
             COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
         else
