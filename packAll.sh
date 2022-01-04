@@ -646,9 +646,18 @@ combine_split_files() {
                 RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
             done
         fi
-        mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+
+        if [ -z "$NEWNAME" ]; then
+            mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
+        else
+            mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${NEWNAME}${CONV_TYPE}"
+        fi
     else
-        mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${LE_ORG_FILE}"
+        if [ -z "$NEWNAME" ]; then
+            mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${LE_ORG_FILE}"
+        else
+            mv "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}/${NEWNAME}${CONV_TYPE}"
+        fi
         RUNNING_FILENAME="${LE_ORG_FILE}"
     fi
 
