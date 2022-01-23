@@ -23,6 +23,7 @@ CONV_TYPE=".mp4"                # Target filetype
 CONV_CHECK="mp4"                # Target filetype extension handler
 MP3OUT=0                        # Extract mp3 data, if set
 AUDIO_PACK=0                    # Pack input file into target audio
+WAV_OUT=0                       # extract wav from video
 
 CALCTIME=0                      # Global variable to handle calculated time in seconds
 TIMERVALUE=0                    # Printed time value, which is calculated
@@ -234,6 +235,7 @@ print_help () {
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
     echo "M(p3)        -    pack input audio file(s) into mp3 file"
+    echo "w(av)=       -    extract wav from input file"
     echo "A(udio)=     -    convert audiofile to another audio filetype"
     echo "a(ll)        -    print all information"
     echo "p(rint)      -    print only file information (if set as 1, will print everything, 2 = lessthan, 3=biggerthan, 4=else )"
@@ -727,11 +729,19 @@ parse_handlers () {
             IGNORE_SPACE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
             KEEPORG=1
+        elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then
+            KEEPORG=1
+            AUDIO_PACK=1
+            CONV_TYPE=".wav"
+            CONV_CHECK="wav"
+            WAV_OUT=1
         elif [ "$1" == "Mp3" ] || [ "$1" == "M" ]; then
+            KEEPORG=1
             AUDIO_PACK=1
             CONV_TYPE=".mp3"
             CONV_CHECK="mp3"
         elif [ "$1" == "mp3" ] || [ "$1" == "m" ]; then
+            KEEPORG=1
             MP3OUT=1
             CONV_TYPE=".mp3"
             CONV_CHECK="mp3"
@@ -983,20 +993,28 @@ setup_file_packing () {
     fi
 
     if [ "$HEVC_CONV" == "0" ]; then
-        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ]; then
-            COMMAND_LINE+="-acodec libmp3lame "
+        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ] || [ "$WAV_OUT" == "1" ]; then
+            if [ "$CONV_CHECK" == "wav" ]; then
+                COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
+            else
+                COMMAND_LINE+="-acodec libmp3lame "
+            fi
         elif [ "$COPY_ONLY" == "0" ]; then
             COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -strict experimental -s $PACKSIZE "
         else
             COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -c copy "
         fi
     else
-        if [ "$MP3OUT" == 1 ]; then
-            COMMAND_LINE+="-q:a 0 -map a "
+        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ] || [ "$WAV_OUT" == "1" ]; then
+            if [ "$CONV_CHECK" == "wav" ]; then
+                COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
+            elif [ "$AUDIO_PACK" == "1" ]; then
+                COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
+            else
+                COMMAND_LINE+="-q:a 0 -map a "
+            fi
         elif [ "$COPY_ONLY" == "0" ]; then
             COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
-        elif [ "$AUDIO_PACK" == "1" ]; then
-            COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
         else
             COMMAND_LINE+="-c:v:1 copy "
         fi
