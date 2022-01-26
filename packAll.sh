@@ -992,8 +992,10 @@ setup_file_packing () {
         COMMAND_LINE+="-t $ENDO "
     fi
 
+    AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
+
     if [ "$HEVC_CONV" == "0" ]; then
-        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ] || [ "$WAV_OUT" == "1" ]; then
+        if [ "$AUDIOSTUFF" -gt "0" ]; then
             if [ "$CONV_CHECK" == "wav" ]; then
                 COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
             else
@@ -1004,20 +1006,18 @@ setup_file_packing () {
         else
             COMMAND_LINE+="-map 0 -map_metadata 0:s:0 -c copy "
         fi
-    else
-        if [ "$MP3OUT" == 1 ] || [ "$AUDIO_PACK" == "1" ] || [ "$WAV_OUT" == "1" ]; then
-            if [ "$CONV_CHECK" == "wav" ]; then
-                COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
-            elif [ "$AUDIO_PACK" == "1" ]; then
-                COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
-            else
-                COMMAND_LINE+="-q:a 0 -map a "
-            fi
-        elif [ "$COPY_ONLY" == "0" ]; then
-            COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
+    elif [ "$AUDIOSTUFF" -gt "0" ]; then
+        if [ "$CONV_CHECK" == "wav" ]; then
+            COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
+        elif [ "$AUDIO_PACK" == "1" ]; then
+            COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
         else
-            COMMAND_LINE+="-c:v:1 copy "
+            COMMAND_LINE+="-q:a 0 -map a "
         fi
+    elif [ "$COPY_ONLY" == "0" ]; then
+        COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
+    else
+        COMMAND_LINE+="-c:v:1 copy "
     fi
     APP_SETUP=1
 }
