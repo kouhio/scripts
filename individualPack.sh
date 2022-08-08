@@ -22,7 +22,7 @@ INPUTSTR=""
 # Push string to target file
 ##########################################################
 printShit () {
-    if [ -z "$1" ]; then
+    if [ -z "$2" ]; then
         echo "$@" >> "$FILE"
     else
         echo "  $@" >> "$FILE"
