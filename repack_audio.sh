@@ -7,7 +7,7 @@ OPTION=""
 
 if [ "$1" == "-h" ]; then
     printf "Repack audio files to mp3 vbr\nNOTICE! Without additional flags, will delete original file after successful repack!\n\n"
-    printf "Options:\n1 - input extension (mp3 default)\n"
+    printf "Options:\n1 - input extension (mp3 default)\n    or flac.cue -file, which will extract tracks and then turn them to flac before compression\n"
     printf "2 - if set, will print paths of successfully packed audio to given file\n"
     printf "3 - delete/keep/ignore\n    delete - will delete files that were not packed because size grew\n"
     printf "    keep - will keep original file and rename it to NAME.old\n"
@@ -18,9 +18,26 @@ fi
 
 #TODO: capture signal, delete middlefile
 
+# Extract audio from a cue first
+#TODO: shnsplit -f filename.cue -t %n-%t -o flac filename.flac
+
 [ ! -z "$1" ] && INPUT="$1"
 [ ! -z "$2" ] && TARGET="$2"
 [ ! -z "$3" ] && OPTION="$3"
+
+if [ -f "$INPUT" ]; then
+    EXT="${INPUT##*.}"
+    FILE="${INPUT%.*}"
+
+    if [ "$EXT" == "cue" ]; then
+        error=0
+        shnsplit -f "$INPUT" -t %n-%t flac "${FILE}.flac" || error=$?
+        if [ "$error" -eq "0" ]; then
+            [ "$OPTION" == "delete" ] && rm "${INPUT}"
+        fi
+        INPUT="flac"
+    fi
+fi
 
 TOTALSAVE=0
 SUCCESS=0
