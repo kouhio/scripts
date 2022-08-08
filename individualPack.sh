@@ -22,19 +22,23 @@ INPUTSTR=""
 # Push string to target file
 ##########################################################
 printShit () {
-    echo "$@" >> "$FILE"
+    if [ -z "$1" ]; then
+        echo "$@" >> "$FILE"
+    else
+        echo "  $@" >> "$FILE"
+    fi
 }
 
 ##########################################################
 # End of process output
 ##########################################################
 printSavedData () {
-    printShit "ENDSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
-    printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))"
-    printShit "TOTALSIZE=\$((TOTALSIZE / 1000))"
-    printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))"
-    printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)"
-    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files"
+    printShit "ENDSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`" "$1"
+    printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))" "$1"
+    printShit "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
+    printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
+    printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)" "$1"
+    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files" "$1"
     echo " " >> $FILE
 }
 
@@ -44,7 +48,7 @@ printSavedData () {
 printTerminatorFunction () {
     echo -e "\ncleanup () {" >> "$FILE"
     echo -e "  echo \"Terminated, quitting process!\"" >> "$FILE"
-    printSavedData
+    printSavedData "1"
     echo -e "  exit 1" >> "$FILE" >> "$FILE"
     echo -e "}\n" >> "$FILE"
     echo -e "trap cleanup INT TERM\n" >> "$FILE"
@@ -291,10 +295,10 @@ printBaseData() {
     printShit "  shift 1"
     printShit "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
     printShit "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
-    printShit "    echo \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: Removing \$1\""
+    printShit "    printf \"%03d/%03d :: Removing \$1\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     printShit "    rm \"\$1\""
     printShit "  elif [ -f \"\$INPUTFILE\" ]; then"
-    printShit "    echo -en \"\${COUNTED_ITEMS}/\${MAX_ITEMS} :: \""
+    printShit "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     #printShit "    . packAll.sh \"\$INPUTFILE\" \$@"
     printShit "    . packAll.sh \"\$INPUTFILE\"$INPUTSTR"
     printShit "    [ \$ERROR -eq 0 ] && ERROR=\$?"
@@ -339,6 +343,8 @@ goThroughAllFiles() {
                 echo "PACK \"$f\"$OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
+            elif [ $SIZE == 0 ]; then
+                echo "PACK \"$f\" $OPTIONS" >> "$FILE"
             else
                 echo "PACK \"$f\" ${SIZE}x$OPTIONS" >> "$FILE"
             fi
@@ -385,6 +391,7 @@ renameBadChars() {
     rename "s/🌶️//g" *
     rename "s/▶//g" *
     rename "s/-//g" *
+    rename "s/▶️ //g" *
 }
 
 
