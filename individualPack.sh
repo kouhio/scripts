@@ -159,6 +159,8 @@ addNewFiles() {
                 X=0
                 IGNORE_SIZE=true
             fi
+            [ "$SIZE" == "0" ] && IGNORE_SIZE=true
+
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
                 echo "PACK \"$f\"$OPTIONS" >> "$TMPFILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
@@ -261,6 +263,7 @@ parsePackData() {
                 OPTIONS+=" $var"
             else
                 SIZE=`echo $var | cut -d x -f 1`
+                [ -z "$SIZE" ] && IGNORE_SIZE=true
             fi
         fi
     done
@@ -341,6 +344,8 @@ goThroughAllFiles() {
                 X=0
                 IGNORE_SIZE=true
             fi
+            [ "$SIZE" == "0" ] && IGNORE_SIZE=true
+
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
                 echo "PACK \"$f\"$OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
