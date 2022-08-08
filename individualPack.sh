@@ -157,6 +157,7 @@ addNewFiles() {
             X=`mediainfo '--Inform=Video;%Width%' "$f"`
             if [ -z $X ]; then
                 X=0
+                IGNORE_SIZE=true
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
                 echo "PACK \"$f\"$OPTIONS" >> "$TMPFILE"
@@ -338,6 +339,7 @@ goThroughAllFiles() {
             X=`mediainfo '--Inform=Video;%Width%' "$f"`
             if [ -z $X ]; then
                 X=0
+                IGNORE_SIZE=true
             fi
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
                 echo "PACK \"$f\"$OPTIONS" >> "$FILE"
