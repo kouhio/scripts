@@ -57,6 +57,7 @@ SEGMENT_PARSING=""              # Segment parsing handler
 DEBUG_PRINT=0                   # Print function name in this mode
 MASSIVE_SPLIT=0                 # Splitting one file into multiple files
 MASSIVE_TIME_SAVE=0             # Save each split total to this handler
+MASSIVE_COUNTER=0               # Counter of multisplit items handled
 
 MASSIVE_TIME_CHECK=0            # Wanted total time of output files
 MASSIVE_TIME_COMP=0             # Actual total time of output files
@@ -86,6 +87,8 @@ APP_SETUP=0                     # variable to see, if the setup has already been
 CURRENT_TIMESAVE=0              # Time saved during editing session
 SPLITTER_TIMESAVE=0             # Time saved during splitting
 
+COMBINELIST=()                  # combine file list
+COMBINEFILE=0                   # variable for combining files handler
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
@@ -220,7 +223,7 @@ trap set_int SIGINT SIGTERM
 print_help () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    echo "No input file! first input is always filename (filename, file type or part of filename)"
+    echo "No input file! first input is always 'combine' or filename (filename, file type or part of filename)"
     echo " "
     echo "To set dimensions NxM (where N is width, M is height, height is automatically calculated to retain aspect ratio)"
     echo " "
@@ -255,6 +258,9 @@ print_help () {
     echo " "
     echo "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files"
     echo "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end"
+    echo " "
+    echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
+    echo "             -    If any input is given as 'delete', deletes all sources, if combining is successful"
     echo " "
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
 }
@@ -456,6 +462,7 @@ new_massive_file_split () {
         DO_THE_SPLITS="$1"
         array=(${DO_THE_SPLITS//,/$IFS})
         SPLIT_MAX=${#array[@]}
+        MASSIVE_COUNTER=0
 
         for index in "${!array[@]}"
         do
@@ -537,6 +544,8 @@ new_massive_file_split () {
                     pack_file
                fi
             fi
+
+            MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
         done
         massive_filecheck
 
@@ -668,6 +677,51 @@ combine_split_files() {
     calculate_time_given "$TIME_SHORTENED"
     printf "${Green} Success in $TIMERVALUE/$TIMER_TOTAL_PRINT ${Yellow}${RUNNING_FILENAME}${Color_Off} Shortened:$TIMER_SECOND_PRINT\n"
     FILE="$LE_ORG_FILE"
+}
+
+#***************************************************************************************************************
+# Combine given input files to one file
+#***************************************************************************************************************
+combineFiles () {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    FILESCOUNT=0
+    DELETESOURCEFILES=0
+
+    for file in "${COMBINELIST[@]}"; do
+        [ -f "$file" ] && echo "file '$file'" >> "packcombofile.txt" && FILESCOUNT=$((FILESCOUNT + 1))
+        [ "$file" == "delete" ] && DELETESOURCEFILES=1
+        [ "$FILESCOUNT" -gt "0" ] && NEWNAME="$file"
+    done
+
+    if [ "$FILESCOUNT" -gt "1" ];  then
+        [ -z "$NEWNAME" ] && NEWNAME="target_combo"
+        ERROR=0
+        $APP_NAME -f concat -safe 0 -i "packcombofile.txt" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
+        ERROR=$?
+
+        rm "packcombofile.txt"
+
+        if [ "$ERROR" -eq "0" ]; then
+            if [ "$DELETESOURCEFILES" == "1" ]; then
+                for file in "${COMBINELIST}"; do
+                    [ -f "$file" ] && rm "$file"
+                done
+                printf "${Green}Combined $FILESCOUNT files to ${TARGET_DIR}/${NEWNAME}_${CONV_TYPE},${Color_Off} deleted all sourcefiles\n"
+            else
+                printf "${Green}Combined $FILESCOUNT files to ${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}${Color_Off}\n"
+            fi
+
+            exit 0
+        else
+            printf "${Red}Failed to combine $FILESCOUNT as ${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}${Color_Off}\n"
+            exit 1
+        fi
+    else
+        [ -f "packcombofile.txt" ] && rm "packcombofile.txt"
+        printf "${Red}No input files given to combine! Filecount:$FILESCOUNT${Color_Off}\n"
+        exit 1
+    fi
 }
 
 #***************************************************************************************************************
@@ -1038,6 +1092,10 @@ simply_pack_file () {
         ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
     fi
 
+    if [ "$MASSIVE_SPLIT" == 1 ] && [ "$NO_EXIT_EXTERNAL" == "1" ] && [ "$MASSIVE_COUNTER" -gt "0" ]; then
+        printf "           "
+    fi
+
     if [ "$AUDIO_PACK" == "1" ]; then
         printf "$PROCESS_NOW : $FILEprint $APP_NAME packing $EXT_CURR to $CONV_CHECK "
     elif [ "$MP3OUT" == 1 ]; then
@@ -1054,7 +1112,7 @@ simply_pack_file () {
         printf " duration:%-6.6s " "$TIMER_SECOND_PRINT"
     elif [ "$MASSIVE_SPLIT" == 1 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        printf "splitting into %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
+        printf "splitting to %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
         MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
@@ -1527,7 +1585,7 @@ verify_necessary_programs() {
         [ "$ff_missing" -ne 0 ] && printf "ffmpeg "
         [ "$av_missing" -ne 0 ] && printf "avconv "
         [ "$mi_missing" -ne 0 ] && printf "mediainfo "
-	[ "$ren_missing" -ne 0 ] && printf "rename "
+        [ "$ren_missing" -ne 0 ] && printf "rename "
         printf "\n"
         EXIT_EXT_VAL=1
         exit 1
@@ -1554,13 +1612,23 @@ verify_commandline_input() {
 verify_necessary_programs
 verify_commandline_input "$@"
 
+[ "$1" == "combine" ] && COMBINEFILE=1
+
 for var in "$@"
 do
-    parse_data "$var"
-    CHECKRUN=$((CHECKRUN + 1))
+    if [ "$COMBINEFILE" == "1" ]; then
+        if [ "$var" != "combine" ]; then
+            COMBINELIST+=("$var")
+        fi
+    else
+        parse_data "$var"
+        CHECKRUN=$((CHECKRUN + 1))
+    fi
 done
 
-if [ "$CHECKRUN" == "0" ]; then
+if [ "$COMBINEFILE" == "1" ]; then
+    combineFiles
+elif [ "$CHECKRUN" == "0" ]; then
         print_help
         RETVAL=1
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
