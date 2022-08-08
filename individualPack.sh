@@ -299,7 +299,7 @@ printBaseData() {
     printShit "  shift 1"
     printShit "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
     printShit "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
-    printShit "    printf \"%03d/%03d :: Removing \$1\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printShit "    printf \"%03d/%03d :: Removing \$1\"\\n \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     printShit "    rm \"\$1\""
     printShit "  elif [ -f \"\$INPUTFILE\" ]; then"
     printShit "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
