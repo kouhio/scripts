@@ -2,7 +2,7 @@
 
 # Move all files with given extensions from sub-directories to current directory
 
-extensions="mp4 mkv avi wmv webm flv m4v"
+extensions="mp4 mkv avi wmv webm flv m4v mpg"
 skiplist="mp3 part wav"
 
 #If interrupted, make sure no external compressions are continued

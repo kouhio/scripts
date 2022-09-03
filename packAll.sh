@@ -816,7 +816,8 @@ parse_handlers () {
         else
             echo "Unknown handler $1"
             RETVAL=1
-            [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
+            #[ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
+            exit "$RETVAL"
         fi
     fi
 }
