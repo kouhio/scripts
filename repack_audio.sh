@@ -3,23 +3,44 @@
 INPUT="mp3"
 OUTPUT="mp3"
 TARGET=""
+NEXT=""
 OPTION=""
+DELETE=0
+KEEP=0
+IGNORE=0
 
 if [ "$1" == "-h" ]; then
     printf "Repack audio files to mp3 vbr\nNOTICE! Without additional flags, will delete original file after successful repack!\n\n"
-    printf "Options:\n1 - input extension (mp3 default)\n    or flac.cue -file, which will extract tracks and then turn them to flac before compression\n"
-    printf "2 - if set, will print paths of successfully packed audio to given file\n"
-    printf "3 - delete/keep/ignore\n    delete - will delete files that were not packed because size grew\n"
+    printf "Options:\n1 - input extension (mp3 default) or flac.cue -file, which will extract tracks and then turn them to flac before compression\n"
+    printf "    delete - will delete files that were not packed because size grew\n"
     printf "    keep - will keep original file and rename it to NAME.old\n"
-    printf "    ignore - keep new file, even if it's bigger than original"
-
+    printf "    ignore - keep new file, even if it's bigger than original\n"
+    printf "    target audio-type (separated with space, default mp3)\n"
+    printf "    any other given value will print paths of successfully packed audio to given input filename\n"
     exit 1
 fi
 
-#TODO: capture signal, delete middlefile
+set_int () {
+    echo "Interrupted, removing temp ${file}.new.${OUTPUT}"
+    if [ -f "${file}.new.${OUTPUT}" ]; then
+        rm "${file}.new.${OUTPUT}"
+    fi
+    exit 1
+}
 
-# Extract audio from a cue first
-#TODO: shnsplit -f filename.cue -t %n-%t -o flac filename.flac
+trap set_int SIGINT SIGTERM
+
+for i in "${@}"; do
+    if [ "$i" == "delete" ]; then DELETE=1
+    elif [ "$i" == "ignore" ]; then IGNORE=1
+    elif [ "$i" == "keep" ]; then KEEP=1
+    elif [ "$i" == "target" ]; then NEXT="next"
+    elif [ "$NEXT" == "next" ]; then
+        OUTPUT="$i"
+        NEXT=""
+    else TARGET="$i"
+    fi
+done
 
 [ ! -z "$1" ] && INPUT="$1"
 [ ! -z "$2" ] && TARGET="$2"
@@ -31,9 +52,14 @@ if [ -f "$INPUT" ]; then
 
     if [ "$EXT" == "cue" ]; then
         error=0
-        shnsplit -f "$INPUT" -t %n-%t flac "${FILE}.flac" || error=$?
+        SOURCE="${FILE}.flac"
+        echo "shnsplit -f ${INPUT} -t %n-%t -o flac ${SOURCE}"
+        shnsplit -f "${INPUT}" -t %n-%t -o flac "${SOURCE}"
+        error=$?
         if [ "$error" -eq "0" ]; then
-            [ "$OPTION" == "delete" ] && rm "${INPUT}"
+            [ "$DELETE" == "1" ] && rm "${INPUT}"
+        else
+            exit 1
         fi
         INPUT="flac"
     fi
@@ -45,12 +71,19 @@ FAILED=0
 SKIPPED=0
 DIDNTSAVE=0
 
-find . -type f -iname "*.${INPUT}" | while read file
+shopt -s nocaseglob
+
+#find . -type f -iname "*.${INPUT}" | while read file
+for file in *.$INPUT
 do
     INFO=$(mediainfo "${file}")
+    FILE="${file%.*}"
     if [[ "$INFO" =~ "Variable" ]]; then
-        SKIPPED=$((SKIPPED + 1))
-        continue
+        if [ "$INPUT" == "mp3" ] && [ "$OUTPUT" == "mp3"]; then
+            SKIPPED=$((SKIPPED + 1))
+            echo "Skipping $file because already variable bitrate"
+            continue
+        fi
     fi
     printf "Starting to pack '${file##*/}' to $OUTPUT : "
     error=0
@@ -59,15 +92,15 @@ do
     error=$?
     if [ "$error" == 0 ]; then
         OUTPUTSIZE=$(du -k "${file}.new.${OUTPUT}" | cut -f1)
-        if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$OPTION" != "ignore" ]; then
+        if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$IGNORE" == "0" ]; then
             printf "new size bigger than original $OUTPUTSIZE > $INPUTSIZE\n"
             DIDNTSAVE=$((DIDNTSAVE + 1))
             rm "${file}.new.${OUTPUT}"
-            [ "$OPTION" == "delete" ] && rm "${file}"
+            [ "$DELETE" == "1" ] && rm "${file}"
         else
-           [ "$OPTION" != "keep" ] && rm "${file}"
-           [ "$OPTION" == "keep" ] && mv "${file}" "${file}.old"
-           mv "${file}.new.${OUTPUT}" "${file}"
+           [ "$KEEP" == "0" ] && rm "${file}"
+           [ "$KEEP" == "1" ] && mv "${file}" "${file}.old"
+           mv "${file}.new.${OUTPUT}" "${FILE}.${OUTPUT}"
 
            printf "repacked succesfully, saved $((INPUTSIZE - OUTPUTSIZE)) total:$TOTALSAVE\n"
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
@@ -81,6 +114,7 @@ do
     fi
 done
 
+shopt -u nocaseglob
 TOTALSAVE=$((TOTALSAVE / 1000))
 printf "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb\n"
 
