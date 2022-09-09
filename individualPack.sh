@@ -12,11 +12,15 @@ FILE_ARRAY=()
 NEW_FILES=0
 FOUND=false
 VLC="playlist.xspf"
+[ -f "$VLC" ] && rm "$VLC"
 GLOBAL_FILESAVE=0
 GLOBAL_TIMESAVE=0
 GLOBAL_FILECOUNT=0
 TOTAL_FILES=0
 INPUTSTR=""
+REN_FILES=0
+RENLIST=()
+KEEP_PLAYLIST=0
 
 ##########################################################
 # Push string to target file
@@ -73,9 +77,11 @@ verifyFileNotInList() {
 # VLC playlist start information
 ##########################################################
 printVLCStart() {
-    echo -e "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > $VLC
-    echo -e "<playlist xmlns=\"http://xspf.org/ns/0/\" xmlns:vlc=\"http://www.videolan.org/vlc/playlist/ns/0/\" version=\"1\">" >> $VLC
-    echo -e "\t<title>Playlist</title>\n\t<trackList>" >> $VLC
+    if [ ! -f "$VLC" ]; then
+        echo -e "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > $VLC
+        echo -e "<playlist xmlns=\"http://xspf.org/ns/0/\" xmlns:vlc=\"http://www.videolan.org/vlc/playlist/ns/0/\" version=\"1\">" >> $VLC
+        echo -e "\t<title>Playlist</title>\n\t<trackList>" >> $VLC
+    fi
 }
 
 ##########################################################
@@ -181,6 +187,16 @@ addNewFiles() {
 }
 
 ##########################################################
+# get unused name
+##########################################################
+renfile() {
+    GUNTHER=1
+    while [ -f "renfile_$GUNTHER.mp4" ]; do
+        GUNTHER=$((GUNTHER + 1))
+    done
+}
+
+##########################################################
 # If file previously exists, verify existing files,
 # remove wanted files and add new files to list
 ##########################################################
@@ -199,6 +215,16 @@ updateExistingFile () {
         fi
 
         if [[ $line =~ "#END" ]]; then
+            if [ "$REN_FILES" -gt "0" ]; then
+                echo -e "\n#RENAMED" >> $TMPFILE
+                printVLCStart
+                for index in "${RENLIST[@]}"; do
+                    echo "PACK \"renfile_$GUNTHER.mp4\" $OPTIONS" >> "$TMPFILE"
+                    printVLCFile "renfile_$GUNTHER.mp4"
+                    TOTAL_FILES=$((TOTAL_FILES + 1))
+                    LOOP_COUNT=$((LOOP_COUNT + 1))
+                done
+            fi
             FOUND=false
             addNewFiles
             echo "$line" >> $TMPFILE
@@ -214,8 +240,18 @@ updateExistingFile () {
                 #echo "removing $file"
                 rm "$file"
                 REM_COUNT=$((REM_COUNT + 1))
+            elif [ "${line:0:4}" == "mv \"" ] || [ "${line:5:4}" == "mv \"" ]; then
+                renfile
+                mv "$file" "renfile_$GUNTHER.mp4"
+                RENLIST+=("renfile_$GUNTHER.mp4")
+                FILE_ARRAY+=("renfile_$GUNTHER.mp4")
+                REN_FILES=$((REN_FILES + 1))
             else
                 echo "$line" >> "$TMPFILE"
+                if [ "$KEEP_PLAYLIST" == "1" ]; then
+                    printVLCStart
+                    printVLCFile "$file"
+                fi
                 TOTAL_FILES=$((TOTAL_FILES + 1))
                 LOOP_COUNT=$((LOOP_COUNT + 1))
                 if [ "$LOOP_COUNT" -ge "9" ]; then
@@ -257,7 +293,11 @@ parsePackData() {
             INPUTSTR+=" \"\$${INPUTCOUNT}\""
             INPUTCOUNT=$((INPUTCOUNT + 1))
             if [ $xss == "0" ]; then
-                OPTIONS+=" $var"
+                if [ "$var" == "keep" ]; then
+                    KEEP_PLAYLIST=1
+                else
+                    OPTIONS+=" $var"
+                fi
             else
                 SIZE=`echo $var | cut -d x -f 1`
                 [ -z "$SIZE" ] && IGNORE_SIZE=true
@@ -428,9 +468,9 @@ if [ $FILE_UPDATED == false ]; then
     goThroughAllFiles
     printEndData
     printSavedData
-    echo "Added $NEW_FILES files to $FILE"
+    echo "Added $NEW_FILES files to $FILE, renamed $REN_FILES"
 else
-    echo "Added $NEW_FILES new files to $FILE"
+    echo "Added $NEW_FILES new files to $FILE, renamed $REN_FILES"
 fi
 
 updateFileCount
