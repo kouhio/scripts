@@ -21,6 +21,7 @@ INPUTSTR=""
 REN_FILES=0
 RENLIST=()
 KEEP_PLAYLIST=0
+KEPT_FILES=0
 
 ##########################################################
 # Push string to target file
@@ -115,12 +116,13 @@ rawurlencode() {
 ##########################################################
 printVLCFile() {
     rawurlencode "$1"
+    RUNID=$((NEW_FILES + KEPT_FILES))
     echo -e "\t\t<track>" >> $VLC
     echo -e "\t\t\t<location>${VLC_FILENAME}</location>" >> $VLC
     #echo -e "\t\t\t<title>$1</title>" >> $VLC
     #echo -e "\t\t\t<duration>5000</duration>" >> $VLC
     echo -e "\t\t\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">" >> $VLC
-    echo -e "\t\t\t\t<vlc:id>$NEW_FILES</vlc:id>" >> $VLC
+    echo -e "\t\t\t\t<vlc:id>$RUNID</vlc:id>" >> $VLC
     echo -e "\t\t\t</extension>" >> $VLC
     echo -e "\t\t</track>" >> $VLC
 }
@@ -187,13 +189,20 @@ addNewFiles() {
 }
 
 ##########################################################
-# get unused name
+# clear all unknown chars from filename, quite messy
+# 1 - filename
 ##########################################################
 renfile() {
     GUNTHER=1
-    while [ -f "renfile_$GUNTHER.mp4" ]; do
-        GUNTHER=$((GUNTHER + 1))
-    done
+    CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')
+    CLEARNAME="$CLEARNAME.mp4"
+    if [ -f "$CLEARNAME" ]; then
+        CLEARNAME="${CLEARNAME}_$GUNTHER.mp4"
+        while [ -f "$CLEARNAME" ]; do
+            GUNTHER=$((GUNTHER + 1))
+            CLEARNAME="${CLEARNAME}_$GUNTHER.mp4"
+        done
+    fi
 }
 
 ##########################################################
@@ -219,8 +228,9 @@ updateExistingFile () {
                 echo -e "\n#RENAMED" >> $TMPFILE
                 printVLCStart
                 for index in "${RENLIST[@]}"; do
-                    echo "PACK \"renfile_$GUNTHER.mp4\" $OPTIONS" >> "$TMPFILE"
-                    printVLCFile "renfile_$GUNTHER.mp4"
+                    echo "PACK \"$index\" $OPTIONS" >> "$TMPFILE"
+                    printVLCFile "index"
+                    NEW_FILES=$((NEW_FILES + 1))
                     TOTAL_FILES=$((TOTAL_FILES + 1))
                     LOOP_COUNT=$((LOOP_COUNT + 1))
                 done
@@ -241,16 +251,17 @@ updateExistingFile () {
                 rm "$file"
                 REM_COUNT=$((REM_COUNT + 1))
             elif [ "${line:0:4}" == "mv \"" ] || [ "${line:5:4}" == "mv \"" ]; then
-                renfile
-                mv "$file" "renfile_$GUNTHER.mp4"
-                RENLIST+=("renfile_$GUNTHER.mp4")
-                FILE_ARRAY+=("renfile_$GUNTHER.mp4")
+                renfile "$file"
+                mv "$file" "$CLEARNAME"
+                RENLIST+=("$CLEARNAME")
+                FILE_ARRAY+=("$CLEARNAME")
                 REN_FILES=$((REN_FILES + 1))
             else
                 echo "$line" >> "$TMPFILE"
                 if [ "$KEEP_PLAYLIST" == "1" ]; then
                     printVLCStart
                     printVLCFile "$file"
+                    KEPT_FILES=$((KEPT_FILES + 1))
                 fi
                 TOTAL_FILES=$((TOTAL_FILES + 1))
                 LOOP_COUNT=$((LOOP_COUNT + 1))
@@ -339,6 +350,11 @@ printBaseData() {
     printShit "    [ ! -f \"\$1\" ] && return 0"
     printShit "    printf \"%03d/%03d :: Removing \$1\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     printShit "    rm \"\$1\""
+    printShit "  elif [ \"\$INPUTFILE\" == \"mv\" ]; then"
+    printShit "    [ ! -f \"\$1\" ] && return 0"
+    printShit "    CLEARNAME=\$(echo \"\$1\" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')"
+    printShit "    printf \"%03d/%03d :: Renaming '\$1' to '\$CLEARNAME'\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printShit "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
     printShit "  elif [ -f \"\$INPUTFILE\" ]; then"
     printShit "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     printShit "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
@@ -468,9 +484,9 @@ if [ $FILE_UPDATED == false ]; then
     goThroughAllFiles
     printEndData
     printSavedData
-    echo "Added $NEW_FILES files to $FILE, renamed $REN_FILES"
+    echo "Added $NEW_FILES files to $FILE, renamed $REN_FILES, kept $KEPT_FILES"
 else
-    echo "Added $NEW_FILES new files to $FILE, renamed $REN_FILES"
+    echo "Added $NEW_FILES new files to $FILE, renamed $REN_FILES, kept $KEPT_FILES"
 fi
 
 updateFileCount
