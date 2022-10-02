@@ -903,6 +903,10 @@ parse_file () {
     if [ ! -z "$1" ]; then
         CONTINUE_PROCESS=1
         FILE="$1"
+
+        filename="${FILE%.*}"
+        [ -f "${filename}.mp4" ] && FILE="${filename}.mp4"
+
         FileStrLen=${#FILE}
         if [ ! -f "$FILE" ]; then
             shopt -s nocaseglob
