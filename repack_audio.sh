@@ -4,7 +4,6 @@ INPUT="mp3"
 OUTPUT="mp3"
 TARGET=""
 NEXT=""
-OPTION=""
 DELETE=0
 KEEP=0
 IGNORE=0
@@ -12,7 +11,7 @@ IGNORE=0
 if [ "$1" == "-h" ]; then
     printf "Repack audio files to mp3 vbr\nNOTICE! Without additional flags, will delete original file after successful repack!\n\n"
     printf "Options:\n1 - input extension (mp3 default) or flac.cue -file, which will extract tracks and then turn them to flac before compression\n"
-    printf "    delete - will delete files that were not packed because size grew\n"
+    printf "    delete - will delete files that were not packed because size grew and keep new, or in case of cue, will delete cue and flac source\n"
     printf "    keep - will keep original file and rename it to NAME.old\n"
     printf "    ignore - keep new file, even if it's bigger than original\n"
     printf "    target audio-type (separated with space, default mp3)\n"
@@ -30,21 +29,18 @@ set_int () {
 
 trap set_int SIGINT SIGTERM
 
+loop=0
 for i in "${@}"; do
-    if [ "$i" == "delete" ]; then DELETE=1
-    elif [ "$i" == "ignore" ]; then IGNORE=1
-    elif [ "$i" == "keep" ]; then KEEP=1
-    elif [ "$i" == "target" ]; then NEXT="next"
-    elif [ "$NEXT" == "next" ]; then
-        OUTPUT="$i"
-        NEXT=""
-    else TARGET="$i"
+    if   [ "$loop" == "0" ];    then INPUT="$i"
+    elif [ "$i" == "delete" ];  then DELETE=1
+    elif [ "$i" == "ignore" ];  then IGNORE=1
+    elif [ "$i" == "keep" ];    then KEEP=1
+    elif [ "$i" == "target" ];  then NEXT="next"
+    elif [ "$NEXT" == "next" ]; then OUTPUT="$i" && NEXT=""
+    elif [ "$loop" -gt "0" ];   then TARGET="$i"
     fi
+    loop=$((loop + 1))
 done
-
-[ ! -z "$1" ] && INPUT="$1"
-[ ! -z "$2" ] && TARGET="$2"
-[ ! -z "$3" ] && OPTION="$3"
 
 if [ -f "$INPUT" ]; then
     EXT="${INPUT##*.}"
@@ -57,7 +53,7 @@ if [ -f "$INPUT" ]; then
         shnsplit -f "${INPUT}" -t %n-%t -o flac "${SOURCE}"
         error=$?
         if [ "$error" -eq "0" ]; then
-            [ "$DELETE" == "1" ] && rm "${INPUT}"
+            [ "$DELETE" == "1" ] && rm "${INPUT}" && rm "${SOURCE}"
         else
             exit 1
         fi
@@ -73,9 +69,7 @@ DIDNTSAVE=0
 
 shopt -s nocaseglob
 
-#find . -type f -iname "*.${INPUT}" | while read file
-for file in *.$INPUT
-do
+for file in *.$INPUT; do
     INFO=$(mediainfo "${file}")
     FILE="${file%.*}"
     if [[ "$INFO" =~ "Variable" ]]; then
@@ -95,8 +89,8 @@ do
         if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$IGNORE" == "0" ]; then
             printf "new size bigger than original $OUTPUTSIZE > $INPUTSIZE\n"
             DIDNTSAVE=$((DIDNTSAVE + 1))
-            rm "${file}.new.${OUTPUT}"
-            [ "$DELETE" == "1" ] && rm "${file}"
+            [ "$DELETE" == "0" ] && rm "${file}.new.${OUTPUT}"
+            [ "$DELETE" == "1" ] && rm "${file}" && mv "${file}.new.${OUTPUT}" "${file}"
         else
            [ "$KEEP" == "0" ] && rm "${file}"
            [ "$KEEP" == "1" ] && mv "${file}" "${file}.old"
