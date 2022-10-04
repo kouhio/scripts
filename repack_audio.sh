@@ -79,7 +79,7 @@ do
     INFO=$(mediainfo "${file}")
     FILE="${file%.*}"
     if [[ "$INFO" =~ "Variable" ]]; then
-        if [ "$INPUT" == "mp3" ] && [ "$OUTPUT" == "mp3"]; then
+        if [ "$INPUT" == "mp3" ] && [ "$OUTPUT" == "mp3" ]; then
             SKIPPED=$((SKIPPED + 1))
             echo "Skipping $file because already variable bitrate"
             continue

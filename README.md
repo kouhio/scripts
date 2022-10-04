@@ -6,6 +6,8 @@ Color.sh                - Change terminal output coloring
 
 VimScript.sh            - Open files with vim with special conditions
 
+eachDir.sh              - Run given input command & parameters in all subdirectories
+
 
 Audio Manipulation scripts:
 
