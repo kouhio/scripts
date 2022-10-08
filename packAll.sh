@@ -30,6 +30,7 @@ TIMERVALUE=0                    # Printed time value, which is calculated
 REPACK=0                        # Repack file instead of changing dimensions
 IGNORE=0                        # Ignore bigger target file size
 IGNORE_SPACE=0                  # Ignore space warning and proceed to next file
+IGNORE_SPACE_SIZE=0             # Ignore too little space warning
 TIMESAVED=0                     # Time cut out from modifying videos
 
 CHECKRUN=0                      # Verificator of necessary inputs
@@ -234,6 +235,7 @@ print_help () {
     echo " "
     echo "i(gnore)     -    to ignore size (both too big, or too small)"
     echo "I(gnore)     -    to ignore space check exit (not the space check) and continue to next file"
+    echo "F(orce)      -    to ignore space check and pack file instead"
     echo "r(epack)     -    to repack file with original dimensions"
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
@@ -781,6 +783,8 @@ parse_handlers () {
             IGNORE=1
         elif [ "$1" == "Ignore" ] || [ "$1" == "I" ]; then
             IGNORE_SPACE=1
+        elif [ "$1" == "Force" ] || [ "$1" == "F" ]; then
+            IGNORE_SPACE_SIZE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
             KEEPORG=1
         elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then
@@ -1420,7 +1424,7 @@ handle_file_packing () {
 
     ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
     get_space_left
-    if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ]; then
+    if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ] && [ "$IGNORE_SPACE_SIZE" -eq "0" ]; then
         echo "Not enough space left! File:$ORIGINAL_SIZE > harddrive:$SPACELEFT"
         [ "$IGNORE_SPACE" -eq "0" ] && [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
         EXIT_EXT_VAL=1
