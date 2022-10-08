@@ -28,6 +28,7 @@ WAV_OUT=0                       # extract wav from video
 CALCTIME=0                      # Global variable to handle calculated time in seconds
 TIMERVALUE=0                    # Printed time value, which is calculated
 REPACK=0                        # Repack file instead of changing dimensions
+REPACK_GIVEN=0                  # Repack value holder
 IGNORE=0                        # Ignore bigger target file size
 IGNORE_SPACE=0                  # Ignore space warning and proceed to next file
 IGNORE_SPACE_SIZE=0             # Ignore too little space warning
@@ -778,6 +779,7 @@ parse_handlers () {
     if [ ! -z "$1" ]; then
         if [ "$1" == "repack" ] || [ "$1" == "r" ]; then
             REPACK=1
+            REPACK_GIVEN=1
             COPY_ONLY=0
         elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then
             IGNORE=1
@@ -1509,10 +1511,11 @@ pack_file () {
         elif [ "$PRINT_ALL" == 1 ]; then
             print_info
             echo "$FILE width:$X skipping"
-        elif [ "$X" -le "$WIDTH" ] && [ "$FILECOUNT" == 1 ]; then
+        elif [ "$X" -le "$WIDTH" ]; then
             if [ "$EXT_CURR" != "$CONV_TYPE" ]; then
                 REPACK=1
                 handle_file_packing
+                REPACK="$REPACK_GIVEN"
             else
                 printf "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
                 RETVAL=1
