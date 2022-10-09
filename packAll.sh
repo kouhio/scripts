@@ -1508,18 +1508,18 @@ pack_file () {
             handle_error_file
         elif [ "$WORKMODE" -gt 0 ] && [ "$X" -gt "$WIDTH" ]; then
             handle_file_packing
-        elif [ "$PRINT_ALL" == 1 ]; then
-            print_info
-            echo "$FILE width:$X skipping"
         elif [ "$X" -le "$WIDTH" ]; then
-            if [ "$EXT_CURR" != "$CONV_TYPE" ]; then
+            if [ ".$EXT_CURR" != "$CONV_TYPE" ]; then
                 REPACK=1
                 handle_file_packing
                 REPACK="$REPACK_GIVEN"
-            else
+            elif [ "$PRINT_ALL" == 1 ]; then
                 printf "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
                 RETVAL=1
             fi
+        elif [ "$PRINT_ALL" == 1 ]; then
+            print_info
+            echo "$FILE width:$X skipping"
         fi
     fi
 }
