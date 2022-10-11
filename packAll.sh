@@ -593,7 +593,7 @@ make_or_remove_split_files() {
             if [ "$TARGET_DIR" == "." ]; then
                 echo "file 'temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
             else
-                echo "file '${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "packcombofile.txt"
+                echo "file 'temp_${RUNNING_FILE_NUMBER}$CONV_TYPE'" >> "${TARGET_DIR}/packcombofile.txt"
             fi
         fi
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
@@ -630,13 +630,17 @@ combine_split_files() {
 
     process_start_time=$(date +%s)
     make_or_remove_split_files 1
+    CURRDIR="$PWD"
+    cd "$TARGET_DIR"
 
     ERROR=0
     printf "%-57.57s Combining $COMBINE_RUN_COUNT split files " " "
-    $APP_NAME -f concat -i "packcombofile.txt" -c copy "${TARGET_DIR}/tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
+    $APP_NAME -f concat -i "packcombofile.txt" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
-    rm "packcombofile.txt"
+    cd "$CURRDIR"
+
+    rm "${TARGET_DIR}/packcombofile.txt"
     if [ "$ERROR" -eq "0" ]; then
         LE_ORG_FILE="$FILE"
         FILE="temp.mp4"
