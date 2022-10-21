@@ -30,7 +30,7 @@ printShit () {
     if [ -z "$2" ]; then
         echo "$@" >> "$FILE"
     else
-        echo "  $@" >> "$FILE"
+        echo "  $1" >> "$FILE"
     fi
 }
 

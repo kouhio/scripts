@@ -21,6 +21,8 @@ Rec.sh                  - Record computer audio stream to wav
 
 repack_audio.sh         - Re-encode any audio to mp3
 
+splitAudio.sh           - autosplit all same type audiofiles with findSilence.sh
+
 
 Video manipulation scripts:
 
