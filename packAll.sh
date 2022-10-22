@@ -39,6 +39,7 @@ CONTINUE_PROCESS=0              # If something went wrong, or file was split int
 
 WIDTH=0                         # Width of the video
 #HEIGHT=0                        # Height of the current video
+DIMENSION_PARSED=0              # Handler to tell if the dimension was already parsed
 
 SKIPBEG=0                       # Beginning time of the video
 SKIPEND=0                       # Ending time of the video
@@ -227,7 +228,7 @@ print_help () {
 
     echo "No input file! first input is always 'combine' or filename (filename, file type or part of filename)"
     echo " "
-    echo "To set dimensions NxM (where N is width, M is height, height is automatically calculated to retain aspect ratio)"
+    echo "To set dimensions Nx (where N is width, height is automatically calculated to retain aspect ratio)"
     echo " "
     echo "b(eg)=       -    time to remove from beginning (either seconds or X:Y:Z)"
     echo "e(nd)=       -    time to remove from end (calculated from the end) (either seconds or X:Y:Z)"
@@ -237,7 +238,7 @@ print_help () {
     echo "i(gnore)     -    to ignore size (both too big, or too small)"
     echo "I(gnore)     -    to ignore space check exit (not the space check) and continue to next file"
     echo "F(orce)      -    to ignore space check and pack file instead"
-    echo "r(epack)     -    to repack file with original dimensions"
+    echo "r(epack)     -    to repack file with original dimensions (if target width has been given, will repack only videos smaller than new given size)"
     echo "k(eep)       -    to keep the original file after succesful conversion"
     echo "m(p3)        -    to extract mp3 from the file"
     echo "M(p3)        -    pack input audio file(s) into mp3 file"
@@ -901,6 +902,7 @@ parse_dimension () {
         WIDTH=$(echo "$1" | cut -d x -f 1)
         HEIGHT=$(echo "$1" | cut -d x -f 2)
         COPY_ONLY=0
+        DIMENSION_PARSED=1
     fi
 }
 
@@ -939,9 +941,8 @@ parse_data () {
         if [ "$CHECKRUN" == 0 ]; then
             parse_file "$1"
         else
-            xss=$(grep -o "x" <<< "$1" | wc -l)
-
-            [ "$WIDTH" -ne "0" ] && xss=0
+            xss=0
+            [ "$DIMENSION_PARSED" -eq "0" ] && xss=$(grep -o "x" <<< "$1" | wc -l)
 
             if [ "$xss" == "0" ] || [[ "$1" =~ "=" ]]; then
                 xss=$(grep -o "=" <<< "$1" | wc -l)
@@ -1450,8 +1451,15 @@ handle_file_packing () {
         print_info
     fi
 
-    if [ "$REPACK" == 1 ]; then
-        XP=$(mediainfo '--Inform=Video;%Width%' "$FILE")
+    XP=$(mediainfo '--Inform=Video;%Width%' "$FILE")
+    if [ "$REPACK" == 1 ] && [ "$DIMENSION_PARSED" == 0 ]; then
+        if [ "$HEVC_CONV" == 1 ]; then
+            PACKSIZE="${XP}:${Y}"
+        else
+            PACKSIZE="${XP}x${Y}"
+        fi
+        COPY_ONLY=0
+    elif [ "$REPACK" == 1 ] && [ "$XP" -le "$WIDTH" ]; then
         if [ "$HEVC_CONV" == 1 ]; then
             PACKSIZE="${XP}:${Y}"
         else
@@ -1513,7 +1521,7 @@ pack_file () {
         elif [ "$WORKMODE" -gt 0 ] && [ "$X" -gt "$WIDTH" ]; then
             handle_file_packing
         elif [ "$X" -le "$WIDTH" ]; then
-            if [ ".$EXT_CURR" != "$CONV_TYPE" ]; then
+            if [ ".$EXT_CURR" != "$CONV_TYPE" ] || [ "$REPACK" ]; then
                 REPACK=1
                 handle_file_packing
                 REPACK="$REPACK_GIVEN"
