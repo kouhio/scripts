@@ -1521,7 +1521,7 @@ pack_file () {
         elif [ "$WORKMODE" -gt 0 ] && [ "$X" -gt "$WIDTH" ]; then
             handle_file_packing
         elif [ "$X" -le "$WIDTH" ]; then
-            if [ ".$EXT_CURR" != "$CONV_TYPE" ] || [ "$REPACK" ]; then
+            if [ ".$EXT_CURR" != "$CONV_TYPE" ] || [ "$REPACK" == 1 ]; then
                 REPACK=1
                 handle_file_packing
                 REPACK="$REPACK_GIVEN"
