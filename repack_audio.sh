@@ -20,10 +20,14 @@ if [ "$1" == "-h" ]; then
 fi
 
 set_int () {
+    shopt -u nocaseglob
     echo "Interrupted, removing temp ${file}.new.${OUTPUT}"
     if [ -f "${file}.new.${OUTPUT}" ]; then
         rm "${file}.new.${OUTPUT}"
     fi
+    GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
+    TOTALSAVE=$((TOTALSAVE / 1000))
+    printf "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb\n"
     exit 1
 }
 
@@ -31,7 +35,8 @@ trap set_int SIGINT SIGTERM
 
 loop=0
 for i in "${@}"; do
-    if   [ "$loop" == "0" ];    then INPUT="$i"
+    if   [ "$i" == "repack_audio.sh" ]; then continue
+    elif [ "$loop" == "0" ];    then INPUT="$i"
     elif [ "$i" == "delete" ];  then DELETE=1
     elif [ "$i" == "ignore" ];  then IGNORE=1
     elif [ "$i" == "keep" ];    then KEEP=1
@@ -96,8 +101,8 @@ for file in *.$INPUT; do
            [ "$KEEP" == "1" ] && mv "${file}" "${file}.old"
            mv "${file}.new.${OUTPUT}" "${FILE}.${OUTPUT}"
 
-           printf "repacked succesfully, saved $((INPUTSIZE - OUTPUTSIZE)) total:$TOTALSAVE\n"
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
+           printf "repacked succesfully, saved $((INPUTSIZE - OUTPUTSIZE)) total:$TOTALSAVE\n"
            SUCCESS=$((SUCCESS + 1))
            [ ! -z "$TARGET" ] && echo "$file" >> $TARGET
         fi
@@ -109,6 +114,7 @@ for file in *.$INPUT; do
 done
 
 shopt -u nocaseglob
+GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
 TOTALSAVE=$((TOTALSAVE / 1000))
 printf "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb\n"
 
