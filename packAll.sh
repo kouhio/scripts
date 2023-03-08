@@ -269,6 +269,23 @@ print_help () {
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
 }
 
+#*************************************************************************************************************
+# Find image position in a video
+# 1 - Video file
+# 2 - Image file
+# 3 - first or last
+#**************************************************************************************************************
+find_image_pos () {
+    [ "$DEBUG_PRINT" == 1 ] && echo -en "Seeking time from '$1' by '$2'"
+    IMAGEPOS=$(ffmpeg -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
+    IMAGETIME=$(echo $IMAGEPOS |grep "blackframe" -m 1)
+    if [ -z "$3" ]; then IMAGETIME="${IMAGEPOS#*pts_time:}"
+    else IMAGETIME="${IMAGEPOS##*pts_time:}"; fi
+    #IMAGETIME="${IMAGETIME%% *}"
+    IMAGETIME="${IMAGETIME%%.*}"
+    [ "$DEBUG_PRINT" == 1 ] && echo " image at :$IMAGETIME"
+}
+
 #**************************************************************************************************************
 # Crop out black borders (this needs more work, kind of hazard at the moment.
 # TODO: Needs to verify dimensional changes, so it won't cut too much
@@ -484,7 +501,7 @@ new_massive_file_split () {
 
                 calculate_time "${array2[0]}"
                 BEGTIME=$CALCTIME
-                calculate_time "${array2[1]}"
+                calculate_time "${array2[1]}" "1"
                 ENDTIME=$CALCTIME
 
                 if [ -z "$XSS" ] || [ -z "$WIDTH" ]; then
@@ -517,7 +534,7 @@ new_massive_file_split () {
 
                 calculate_time "${array[index]}"
                 SPLIT_POINT=$CALCTIME
-                calculate_time "${array[index + 1]}"
+                calculate_time "${array[index + 1]}" "1"
                 SPLIT_POINT2=$CALCTIME
                 if [ "$SPLIT_POINT2" -le "$SPLIT_POINT" ] && [ $SPLIT_POINT2 != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
                     ERROR_WHILE_SPLITTING=1
@@ -745,31 +762,36 @@ calculate_time () {
             return
         fi
 
-        t1=$(echo "$1" | cut -d : -f 1)
-        t2=$(echo "$1" | cut -d : -f 2)
-        t3=$(echo "$1" | cut -d : -f 3)
-
-        occ=$(grep -o ":" <<< "$1" | wc -l)
-
-        check_zero "$t1"
-        t1=$ZERORETVAL
-        check_zero "$t2"
-        t2=$ZERORETVAL
-        check_zero "$t3"
-        t3=$ZERORETVAL
-
-        if [ "$occ" == "0" ]; then
-            calc_time=$1
-        elif [ "$occ" == "1" ]; then
-            t1=$((t1 * 60))
-            calc_time=$((t1 + t2))
+        if [ -f "$1" ]; then
+            find_image_pos "$FILE" "$1" "$2"
+            CALCTIME="$IMAGETIME"
         else
-            t1=$((t1 * 3600))
-            t2=$((t2 * 60))
-            calc_time=$((t1 + t2 + t3))
-        fi
+            t1=$(echo "$1" | cut -d : -f 1)
+            t2=$(echo "$1" | cut -d : -f 2)
+            t3=$(echo "$1" | cut -d : -f 3)
 
-        CALCTIME=$calc_time
+            occ=$(grep -o ":" <<< "$1" | wc -l)
+
+            check_zero "$t1"
+            t1=$ZERORETVAL
+            check_zero "$t2"
+            t2=$ZERORETVAL
+            check_zero "$t3"
+            t3=$ZERORETVAL
+
+            if [ "$occ" == "0" ]; then
+                calc_time=$1
+            elif [ "$occ" == "1" ]; then
+                t1=$((t1 * 60))
+                calc_time=$((t1 + t2))
+            else
+                t1=$((t1 * 3600))
+                t2=$((t2 * 60))
+                calc_time=$((t1 + t2 + t3))
+            fi
+
+            CALCTIME=$calc_time
+        fi
     else
         CALCTIME=0
     fi
@@ -843,11 +865,12 @@ parse_values () {
     if [ ! -z "$1" ]; then
         HANDLER=$(echo "$1" | cut -d = -f 1)
         VALUE=$(echo "$1" | cut -d = -f 2)
+
         if [ "$HANDLER" == "beg" ] || [ "$HANDLER" == "b" ]; then
             calculate_time "$VALUE"
             BEGTIME=$CALCTIME
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
-            calculate_time "$VALUE"
+            calculate_time "$VALUE" "1"
             ENDTIME=$CALCTIME
         elif [ "$HANDLER" == "Position" ] || [ "$HANDLER" == "P" ]; then
             START_POSITION="$VALUE"
