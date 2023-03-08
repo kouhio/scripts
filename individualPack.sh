@@ -194,7 +194,8 @@ addNewFiles() {
 ##########################################################
 renfile() {
     GUNTHER=1
-    CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')
+    CLEARNAME=$(echo "$1" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
+    #CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r ' | tr '[:upper:]' '[:lower:]')
     CLEARNAME="$CLEARNAME.mp4"
     if [ -f "$CLEARNAME" ]; then
         CLEARNAME="${CLEARNAME}_$GUNTHER.mp4"
@@ -229,7 +230,7 @@ updateExistingFile () {
                 printVLCStart
                 for index in "${RENLIST[@]}"; do
                     echo "PACK \"$index\" $OPTIONS" >> "$TMPFILE"
-                    printVLCFile "index"
+                    printVLCFile "$index"
                     NEW_FILES=$((NEW_FILES + 1))
                     TOTAL_FILES=$((TOTAL_FILES + 1))
                     LOOP_COUNT=$((LOOP_COUNT + 1))
