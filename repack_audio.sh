@@ -80,11 +80,11 @@ for file in *.$INPUT; do
     if [[ "$INFO" =~ "Variable" ]]; then
         if [ "$INPUT" == "mp3" ] && [ "$OUTPUT" == "mp3" ]; then
             SKIPPED=$((SKIPPED + 1))
-            echo "Skipping $file because already variable bitrate"
+            echo "  - Skipping $file because already variable bitrate"
             continue
         fi
     fi
-    printf "Starting to pack '${file##*/}' to $OUTPUT : "
+    printf "  - Starting to pack '${file##*/}' to $OUTPUT : "
     error=0
     INPUTSIZE=$(du -k "$file" | cut -f1)
     lame -V 0 -h "${file}" "${file}.new.${OUTPUT}" >/dev/null 2>&1

@@ -30,6 +30,8 @@ init () {
     CURRENT_NAME=""     # trackname found from the file
     TARGET_DIR=""       # Directory where to put the output files
     INFO_FROM_FILE=""   # Split data from file instead of silence
+    NAMECOUNT=0         # Number of tracks in the namefile
+    LASTFILENO=0        # Last separated audio item number
 }
 
 #**************************************************************************************************************
@@ -116,10 +118,14 @@ parse_arguments () {
             -S)
                 INFO_FROM_FILE="$2"
                 NAMEPATH="$2"
+                NAMECOUNT=$(cat "$NAMEPATH" |wc -l)
+                NAMECOUNT=$((NAMECOUNT - 1))
                 shift 2
                 ;;
             -F)
                 NAMEPATH="$2"
+                NAMECOUNT=$(cat "$NAMEPATH" |wc -l)
+                NAMECOUNT=$((NAMECOUNT - 1))
                 shift 2
                 ;;
             -T)
@@ -267,6 +273,7 @@ split_to_file () {
         Color.sh
         ERROR=1
         exit 1
+    else LASTFILENO="$4"
     fi
 }
 
@@ -336,9 +343,13 @@ split_file_by_silence () {
     fi
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ]  && [ "$FILENUMBER" -gt "1" ]; then
-        echo "everythings fine, deleting original"
-        rm "$2"
-        [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
+        if [ "$NAMECOUNT" -gt "0"  ] && [ "$NAMECOUNT" -ne "$LASTFILENO" ]; then
+            echo "Expected count $NAMECOUNT doesn't equal split count $LASTFILENO (FNo:$FILENUMBER), keeping original files!"
+        else
+            echo "everythings fine, deleting original. Expected $NAMECOUNT files, Got $LASTFILENO (Fno:$FILENUMBER)"
+            rm "$2"
+            [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
+        fi
     fi
 }
 
