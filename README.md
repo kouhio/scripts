@@ -23,6 +23,8 @@ repack_audio.sh         - Re-encode any audio to mp3
 
 splitAudio.sh           - autosplit all same type audiofiles with findSilence.sh
 
+readSpotify.sh          - Read album info and tracks from Sporify url to a given file
+
 
 Video manipulation scripts:
 
