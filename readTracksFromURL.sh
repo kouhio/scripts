@@ -72,7 +72,9 @@ elif [[ "$SOURCE" =~ "discogs" ]]; then
             if [[ "$index" =~ "\"Track\",\"title\":" ]]; then
                 ITEM=($(echo $index |grep -o -P '(?<=\"Track\",\"title\":\").*?(?=\",\"position\":\")'))
                 POS=($(echo $index |grep -o -P '(?<=\",\"position\":\").*?(?=\",\"durationInSeconds\":)'))
-                [ "$POS" -ne "$POSITION" ] && echo "Item position mismatch '$ITEM' Read:$POS Current:$POSITION"
+                if [[ ! "$POS" =~ [A-Za-z] ]]; then
+                    [ "$POS" -ne "$POSITION" ] && echo "Item position mismatch '$ITEM' Read:$POS Current:$POSITION"
+                fi
                 tracks+=($ITEM)
                 POSITION=$((POSITION + 1))
             fi
