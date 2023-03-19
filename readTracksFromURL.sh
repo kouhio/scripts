@@ -1,27 +1,45 @@
 #/bin/bash!
 
-[ -z "$1" ] && echo "no URL given!" && exit 1
-#[ -z "$2" ] && echo "no output file given!" && exit 1
+FIX=1
 
-if [ ! -z "$2" ]; then
-    if [[ "$2" =~ ".txt" ]]; then OUTPUT_FILE="$2"
-    else OUTPUT_FILE="${2}.txt"; fi
-fi
+help () {
+    echo "Album info fetcher script"
+    echo "Options to use:"
+    echo "nofix         - keep original characters from source (default: change chars)"
+    echo "any URL       - source of the site to read data from"
+    echo "any filename  - First unknown item is read as a filename, if not given, will just print data out"
+    exit
+}
 
-LIST=$(wget "$1" -qO -)
+for i in $@; do
+    if [[ "$i" =~ "http" ]]; then SOURCE="$i"
+    elif [[ "$i" =~ "nofix" ]]; then FIX=0
+    elif [[ "$i" =~ "-h" ]]; then help
+    elif [ -z "$OUTPUT_FILE" ]; then
+        if [[ "$i" =~ ".txt" ]]; then OUTPUT_FILE="$i"
+        else OUTPUT_FILE="${i}.txt"; fi
+    else
+        echo "Unknown setting $i"
+        exit 1
+    fi
+done
+
+[ -z "$SOURCE" ] && echo "No source URL given!" && exit 1
+echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT"
+LIST=$(wget "$SOURCE" -qO -)
 tracks=()
 
-if [[ "$1" =~ "spotify" ]]; then
+if [[ "$SOURCE" =~ "spotify" ]]; then
     LIST+="\n\n<end>\n"
 
     ALBUM_INFO=$(echo "$LIST" |grep -o -P '(?<=<title>).*(?=</title>)')
     ALBUM="${ALBUM_INFO%%-*}"
     ALBUM=${ALBUM//:/ }
-    ALBUM=$(echo "$ALBUM" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
+    [ "$FIX" -eq "1" ] && ALBUM=$(echo "$ALBUM" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     BAND="${ALBUM_INFO##*Album by }"
     BAND="${BAND%%|*}"
     BAND=${BAND//:/ }
-    BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
+    [ "$FIX" -eq "1" ] && BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     YEAR=$(echo "$LIST" |grep -o -P '(?<=music:release_date\" content=\").*(?=\"/><meta name=\"music:song")')
     YEAR="${YEAR%%-*}"
 
@@ -35,13 +53,13 @@ if [[ "$1" =~ "spotify" ]]; then
             tracks+=($(echo "$index" |grep -o -P '(?<=\"track ).*(?=\">)'))
         fi
     done
-elif [[ "$1" =~ "discogs" ]]; then
+elif [[ "$SOURCE" =~ "discogs" ]]; then
     BAND=$(echo $LIST |grep -o -P '(?<=\"artist\":\").*?(?=\",\"year\")')
+    [ "$FIX" -eq "1" ] && BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     YEAR=$(echo $LIST |grep -o -P '(?<=\"year\":).*?(?=,\"ids\")')
     ALBUM=$(echo $LIST |grep -o -P '(?<=\"title\":\").*?(?=\",\"artist\")')
     ALBUM=$(echo "$ALBUM" |head -1)
-
-#    "Track","title":"Steamroller","position":"1",
+    [ "$FIX" -eq "1" ] && ALBUM=$(echo "$ALBUM" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
 
     LIST=$(echo "$LIST" |grep "\"Track\"")
     IFS="{"
@@ -61,7 +79,7 @@ elif [[ "$1" =~ "discogs" ]]; then
         fi
     done
 else
-    echo "No handling (yet) for '${1}'"
+    echo "No handling (yet) for '${SOURCE}'"
     exit 1
 fi
 
