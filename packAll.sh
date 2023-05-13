@@ -86,12 +86,17 @@ ERROR_WHILE_MORPH=0
 
 APP_NAME=/usr/bin/ffmpeg        # current application name to be used
 COMMAND_LINE=""                 # command line options to be set up later
+COMMAND_ADD=""                  # command line options, that will be set up each time
 APP_SETUP=0                     # variable to see, if the setup has already been set
 CURRENT_TIMESAVE=0              # Time saved during editing session
 SPLITTER_TIMESAVE=0             # Time saved during splitting
 
 COMBINELIST=()                  # combine file list
 COMBINEFILE=0                   # variable for combining files handler
+
+AUDIOTRACK=""                   # Audiotrack number
+VIDEOTRACK=""                   # Videotrack number
+LANGUAGE="en"                   # Wanted audiotrack language
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
@@ -266,6 +271,9 @@ print_help () {
     echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
     echo "             -    If any input is given as 'delete', deletes all sources, if combining is successful"
     echo " "
+    echo "vt           -    Wanted videotrack from input file, if multiple, separate each with :"
+    echo "at           -    Wanted audiotrack from input file, if multiple, separate each with :"
+    echo "l(anguage)   -    Wanted output audio language with two letters, default:en"
     echo "example:     ${0} \"FILENAME\" 640x h b=1:33 c=0:11-1:23,1:0:3-1:6:13"
 }
 
@@ -276,6 +284,7 @@ print_help () {
 # 3 - first or last
 #**************************************************************************************************************
 find_image_pos () {
+    [[ ! "$APP_NAME" =~ "ffmpeg" ]] && echo "Can't seek images without ffmpeg!" && exit 1
     [ "$DEBUG_PRINT" == 1 ] && echo -en "Seeking time from '$1' by '$2'"
     IMAGEPOS=$(ffmpeg -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
     IMAGETIME=$(echo $IMAGEPOS |grep "blackframe" -m 1)
@@ -293,7 +302,7 @@ find_image_pos () {
 check_and_crop () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_NAME" =~ "ffmpeg" ]]; then
         printf "${Red}Cannot crop files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
         exit 1
     fi
@@ -872,6 +881,12 @@ parse_values () {
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
             calculate_time "$VALUE" "1"
             ENDTIME=$CALCTIME
+        elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "" ]; then
+            LANGUAGE="$VALUE"
+        elif [ "$HANDLER" == "videotrack" ] || [ "$HANDLER" == "vt" ]; then
+            VIDEOTRACK="$VALUE"
+        elif [ "$HANDLER" == "audiotrack" ] || [ "$HANDLER" == "at" ]; then
+            AUDIOTRACK="$VALUE"
         elif [ "$HANDLER" == "Position" ] || [ "$HANDLER" == "P" ]; then
             START_POSITION="$VALUE"
         elif [ "$HANDLER" == "End" ] || [ "$HANDLER" == "E" ]; then
@@ -1108,11 +1123,55 @@ setup_file_packing () {
             COMMAND_LINE+="-q:a 0 -map a "
         fi
     elif [ "$COPY_ONLY" == "0" ]; then
-        COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -map 0:0 -map 0:1 -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
+        COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
     else
         COMMAND_LINE+="-c:v:1 copy "
     fi
+
+    if [ ! -z "$AUDIOTRACK" ]; then
+        IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
+        for audio in "${audio_array[@]}"; do
+            COMMAND_LINE+="-map 0:a:$audio "
+        done
+    fi
+
+    if [ ! -z "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
+        IFS=':' read -r -a video_array <<< "$AUDIOTRACK"
+        for video in "${video_array[@]}"; do
+            COMMAND_LINE+="-map 0:v:$video "
+        done
+    fi
+
     APP_SETUP=1
+}
+
+#***************************************************************************************************************
+# Find correct mapping positions for video on audio, if no streams have been set
+#***************************************************************************************************************
+setup_add_packing () {
+    COMMAND_ADD=""
+    if [ "$AUDIOSTUFF" -eq "0" ]; then
+        if [ -z "$VIDEOTRACK" ]; then
+            VIDEOID=$(mediainfo '--Inform=Video;%ID%' "$FILE")
+            VIDEOID=$((VIDEOID - 1))
+            COMMAND_ADD+="-map 0:$VIDEOID "
+        fi
+
+        if [ -z "$AUDIOTRACK" ]; then
+            AUDIO_OPTIONS=$(mediainfo '--Inform=Audio;%Language%' "$FILE")
+            AUDIOID=1
+            AUDIOFOUND=0
+
+            while [ ! -z "${#AUDIO_OPTIONS}" ]; do
+                [ "${AUDIO_OPTIONS:0:2}" == "$LANGUAGE" ] && AUDIOFOUND=1 && break
+                AUDIO_OPTIONS="${AUDIO_OPTIONS:2}"
+                AUDIOID=$(($AUDIOID + 1))
+            done
+
+            [ "$AUDIOFOUND" -eq "1" ] && COMMAND_ADD+="-map 0:$AUDIOID "
+            [ "$AUDIOFOUND" -eq "0" ] && COMMAND_ADD+="-map 0:1 "
+        fi
+    fi
 }
 
 #***************************************************************************************************************
@@ -1122,6 +1181,7 @@ simply_pack_file () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
     [ "$APP_SETUP" == "0" ] && setup_file_packing
+    setup_add_packing
 
     short_name
     process_start_time=$(date +%s)
@@ -1161,7 +1221,7 @@ simply_pack_file () {
         printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
-    $APP_NAME -i "$FILE" $COMMAND_LINE "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
+    $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
 
@@ -1171,7 +1231,7 @@ simply_pack_file () {
 burn_subs () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ "$APP_NAME" != "ffmpeg" ]; then
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_NAME" =~ "ffmpeg" ]]; then
         printf "${Red}Cannot burn subs with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
         exit 1
     fi
