@@ -1163,6 +1163,7 @@ setup_add_packing () {
             AUDIOFOUND=0
 
             while [ ! -z "${#AUDIO_OPTIONS}" ]; do
+                [ "${#AUDIO_OPTIONS}" -lt 2 ] && break
                 [ "${AUDIO_OPTIONS:0:2}" == "$LANGUAGE" ] && AUDIOFOUND=1 && break
                 AUDIO_OPTIONS="${AUDIO_OPTIONS:2}"
                 AUDIOID=$(($AUDIOID + 1))
