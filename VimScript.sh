@@ -1,5 +1,9 @@
 #!/bin/bash
 
+NOW=$(date +%s)
+REMOVE=0
+VIM="/usr/bin/vim"
+
 #####################################################
 # Find tags file, if it exists
 #####################################################
@@ -25,7 +29,7 @@ if [ -z "$1" ]; then
     echo "No input files!"
     exit 1
 elif [ "$1" == "-h" ]; then
-    echo "Open files with vim, open at given row"
+    echo "Open files with ${VIM}, open at given row"
     echo "-h for this"
     exit
 fi
@@ -68,18 +72,34 @@ get_rownumber () {
         ROW=${array[1]}
     else
         FILE="$1"
+        ROW=""
+    fi
+
+    if [ -f "/home/kola154/tmp/starttime.txt" ]; then
+        STARTED=$(cat "/home/kola154/tmp/starttime.txt")
+        DIFFERENCE=$((NOW - STARTED))
+        # If it's less than 2min from start, then we have rebooted
+        if [ "$DIFFERENCE" -lt "120" ]; then REMOVE=1; fi
     fi
 
     if [[ "$FILE" == *"/"* ]]; then
         FILENAME="${FILE##*/}"
         FILEPATH="${FILE%/*}"
         if [ -f "${FILEPATH}/.${FILENAME}.swp" ]; then
+            if [ "$REMOVE" -eq "1" ]; then
+                rm "${FILEPATH}/.${FILENAME}.swp"
+            else
+                IS_OPEN=1
+                return
+            fi
+        fi
+    elif [ -f ".${FILE}.swp" ]; then
+        if [ "$REMOVE" -eq "1" ]; then
+            rm ".${FILE}.swp"
+        else
             IS_OPEN=1
             return
         fi
-    elif [ -f ".${FILE}.swp" ]; then
-        IS_OPEN=1
-        return
     fi
 
     EXTENSION="${FILE##*.}"
@@ -88,10 +108,16 @@ get_rownumber () {
         return
     fi
 
-    # Add files to array
     if [ -f "$FILE" ]; then
+        TYPE=$(file -i "$FILE" | grep "text")
+
+        # File is binary, skip it
+        [ -z "$TYPE" ] && return 1
+
+        # Add file to array
         FILES+="$FILE "
     fi
+
     COUNT=$((COUNT + 1))
 }
 
@@ -106,28 +132,35 @@ if [ "$#" -gt 1 ]; then
     # If has 2 inputs, but one file, then it's a row number or parameter
     if [ "$IS_ONE" -eq 1 ] && [ "$IS_OPEN" -eq 0 ] && [ "$IS_SWAP" -eq 0 ]; then
         if [ -z "$TAG_PATH" ]; then
-            vim $@
+            ${VIM} $@
         else
-            vim -c "$TAG_PATH" $@
+            ${VIM} -c "$TAG_PATH" $@
         fi
     elif [ -z "$FILES" ]; then
         if [ "$IS_OPEN" -eq 0 ] && [ "$IS_SWAP" -eq 0 ]; then
             if [ -z "$TAG_PATH" ]; then
-                vim $@
+                ${VIM} $@
             else
-                vim -c "$TAG_PATH" $@
+                ${VIM} -c "$TAG_PATH" $@
             fi
         else
             echo "All files are already open/swap files!"
         fi
     else
         if [ -z "$TAG_PATH" ]; then
-            vim $VI_PARAMS $FILES
+            ${VIM} $VI_PARAMS $FILES
         else
-            vim -c "$TAG_PATH" $VI_PARAMS $FILES
+            ${VIM} -c "$TAG_PATH" $VI_PARAMS $FILES
         fi
     fi
 else # One input given, see if it has row number
+    if [ -f "${1%:*}" ]; then
+        TYPE=$(file -i "${1%:*}" | grep "text")
+        [ -z "$TYPE" ] && echo "File '$1' is binary, not opening!" && exit 1
+    elif [[ "$1" =~ ":" ]]; then
+        echo "File doesn't exit, can't open editpoint!" && exit 1
+    fi
+
     # Get file and rownumnber split
     get_rownumber "$1" "1"
 
@@ -139,15 +172,15 @@ else # One input given, see if it has row number
     if [ "$IS_OPEN" -eq 0 ]; then
         if [ -z "$ROW" ]; then
             if [ -z "$TAG_PATH" ]; then
-                vim $1
+                ${VIM} $1
             else
-                vim -c "$TAG_PATH" $1
+                ${VIM} -c "$TAG_PATH" $1
             fi
         else
             if [ -z "$TAG_PATH" ]; then
-                vim "$FILE" "+$ROW"
+                ${VIM} "$FILE" "+$ROW"
             else
-                vim -c "$TAG_PATH" "$FILE" "+$ROW"
+                ${VIM} -c "$TAG_PATH" "$FILE" "+$ROW"
             fi
         fi
     else
