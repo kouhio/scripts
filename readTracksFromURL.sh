@@ -25,11 +25,13 @@ for i in $@; do
 done
 
 [ -z "$SOURCE" ] && echo "No source URL given!" && exit 1
-echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT"
-LIST=$(wget "$SOURCE" -qO -)
+[[ "$SOURCE" =~ "https" ]] && SOURCE="${SOURCE/https/http}"
+echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT_FILE 'wget url $SOURCE -qO -'"
+LIST=$(wget url $SOURCE -qO -)
 tracks=()
 
 if [[ "$SOURCE" =~ "spotify" ]]; then
+    echo -en "Parsing Spotify"
     LIST+="\n\n<end>\n"
 
     ALBUM_INFO=$(echo "$LIST" |grep -o -P '(?<=<title>).*(?=</title>)')
@@ -49,11 +51,15 @@ if [[ "$SOURCE" =~ "spotify" ]]; then
     read -ra array <<< "$LIST"
 
     for index in "${array[@]}"; do
-        if [[ "$index" =~ "aria-label=\"track" ]]; then
-            tracks+=($(echo "$index" |grep -o -P '(?<=\"track ).*(?=\">)'))
+        if [[ "$index" =~ "aria-label=" ]]; then
+            [[ "$index" =~ "Save to Your Library" ]] && continue
+            #tracks+=($(echo "$index" |grep -o -P '(?<=\"track ).*(?=\">)'))
+            NEW_ITEM=($(echo "$index" |grep -o -P '(?<=aria-label=\").*(?=\" data-testid=\")'))
+            [ ! -z "$NEW_ITEM" ] && tracks+=("$NEW_ITEM")
         fi
     done
 elif [[ "$SOURCE" =~ "discogs" ]]; then
+    echo -en "Parsing discogs"
     BAND=$(echo $LIST |grep -o -P '(?<=\"artist\":\").*?(?=\",\"year\")')
     [ "$FIX" -eq "1" ] && BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     YEAR=$(echo $LIST |grep -o -P '(?<=\"year\":).*?(?=,\"ids\")')
@@ -86,6 +92,7 @@ else
 fi
 
 if [ ! -z "$OUTPUT_FILE" ]; then
+    echo " -> Found $BAND - $YEAR - $ALBUM with ${#tracks[@]} tracks"
     echo "D:$BAND - $YEAR - $ALBUM" > "$OUTPUT_FILE"
     for index in "${tracks[@]}"; do
         echo "$index" >> "$OUTPUT_FILE"
