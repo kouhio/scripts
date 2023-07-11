@@ -33,12 +33,13 @@ trap set_interrupt SIGINT SIGTERM
 
 for d in */ ; do
     error=0
-    echo "$d"
     cd "$d" || error=1
 
     if [ "$error" == "0" ]; then
-        echo "Running in $d"
+        echo -en "\nRunning in $d\n"
         source $@
+    else
+        echo -en "\nFailed to enter $d\n"
     fi
 
     cd "$startPath"
