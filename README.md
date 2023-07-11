@@ -6,7 +6,11 @@ Color.sh                - Change terminal output coloring
 
 VimScript.sh            - Open files with vim with special conditions
 
-eachDir.sh              - Run given input command & parameters in all subdirectories
+GIT.sh                  - Alternative git-command handler for bash
+
+HELP.sh                 - Miscellaneous help topics
+
+sound.sh                - An alternative for a beeper
 
 
 Audio Manipulation scripts:
@@ -46,3 +50,14 @@ ReplaceStringTodo.sh    - Replace given string in multiple files to either //TOD
 emptyCPP.sh             - Create empty header and cpp files with basic setup
 
 grepMultiples.sh        - Grep given string in files against other files to find duplicates and report
+
+
+Commandline manipulation scripts:
+
+eachDir.sh              - Run given input command & parameters in all subdirectories
+
+AllDirs.sh              - Run given command in each directory and their subdirectories
+
+Repeat.sh               - Repeat given command until break is called
+
+Time.sh                 - Calculate time to run given commandline process
