@@ -1029,7 +1029,7 @@ print_file_info () {
             printf ":: "
             short_name
             check_valuetype "${SIZE}"
-            printf "${FILECOUNTPRINTER}${FILEprint} X:${X} Y:${Y} Size:%-6.6s ${SIZETYPE} Lenght:${TIMER_SECOND_PRINT}\n" "${SAVESIZE}"
+            printf "${FILECOUNTPRINTER}${FILEprint} X:%04d Y:%04d Size:%-6.6s ${SIZETYPE} Lenght:${TIMER_SECOND_PRINT}\n" "${X}" "${Y}" "${SAVESIZE}"
             if [ ! -z "$WRITEOUT" ]; then
                 echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
             fi
