@@ -31,6 +31,26 @@ set_int () {
     exit 1
 }
 
+handle_cue () {
+    EXT="${1##*.}"
+    FILE="${1%.*}"
+
+    if [ "$EXT" == "cue" ]; then
+        error=0
+        SOURCE="${FILE}.flac"
+        echo "shnsplit -f ${1} -t %n-%t -o flac ${SOURCE}"
+        shnsplit -f "${1}" -t %n-%t -o flac "${SOURCE}"
+        error=$?
+        if [ "$error" -eq "0" ]; then
+            if [ "$DELETE" == "1" ]; then rm "${1}" && rm "${SOURCE}";
+            else mkdir "old" && mv "${1}" "${SOURCE}" "old"; fi
+        else
+            exit 1
+        fi
+        INPUT="flac"
+    fi
+}
+
 trap set_int SIGINT SIGTERM
 
 loop=0
@@ -47,23 +67,14 @@ for i in "${@}"; do
     loop=$((loop + 1))
 done
 
-if [ -f "$INPUT" ]; then
-    EXT="${INPUT##*.}"
-    FILE="${INPUT%.*}"
+#TODO: if input is *cue, then also handle it correctly, also once handled .cue remove original cue and flac before packing
 
-    if [ "$EXT" == "cue" ]; then
-        error=0
-        SOURCE="${FILE}.flac"
-        echo "shnsplit -f ${INPUT} -t %n-%t -o flac ${SOURCE}"
-        shnsplit -f "${INPUT}" -t %n-%t -o flac "${SOURCE}"
-        error=$?
-        if [ "$error" -eq "0" ]; then
-            [ "$DELETE" == "1" ] && rm "${INPUT}" && rm "${SOURCE}"
-        else
-            exit 1
-        fi
-        INPUT="flac"
-    fi
+if [ -f "$INPUT" ]; then
+    handle_cue "$INPUT"
+elif [[ "$INPUT" =~ "cue" ]]; then
+    for file in *.$INPUT; do
+        handle_cue "$file"
+    done
 fi
 
 TOTALSAVE=0
