@@ -196,14 +196,19 @@ renfile() {
     GUNTHER=1
     CLEARNAME=$(echo "$1" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     #CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r ' | tr '[:upper:]' '[:lower:]')
-    CLEARNAME="$CLEARNAME.mp4"
-    if [ -f "$CLEARNAME" ]; then
-        CLEARNAME="${CLEARNAME}_$GUNTHER.mp4"
-        while [ -f "$CLEARNAME" ]; do
+    CLEARNAME="${CLEARNAME/.mp4/}"
+    [[ "$CLEARNAME" =~ "_1" ]] && CLEARNAME="${CLEARNAME/_1/}"
+
+    if [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; then
+        CLEARNAME="${CLEARNAME}_$GUNTHER"
+
+        while [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; do
             GUNTHER=$((GUNTHER + 1))
-            CLEARNAME="${CLEARNAME}_$GUNTHER.mp4"
+            CLEARNAME="${CLEARNAME}_$GUNTHER"
         done
     fi
+
+    CLEARNAME="${CLEARNAME}.mp4"
 }
 
 ##########################################################
@@ -393,21 +398,24 @@ goThroughAllFiles() {
                 continue
             fi
 
-            X=`mediainfo '--Inform=Video;%Width%' "$f"`
+            renfile "$f"
+            mv "$f" "$CLEARNAME"
+
+            X=`mediainfo '--Inform=Video;%Width%' "$CLEARNAME"`
             [ -z $X ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"
 
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
-                echo "PACK \"$f\"$OPTIONS" >> "$FILE"
+                echo "PACK \"$CLEARNAME\"$OPTIONS" >> "$FILE"
             elif [ $X -le $SIZE ] && [ $IGNORE_SIZE == true ]; then
                 continue
             elif [ $SIZE == 0 ]; then
-                echo "PACK \"$f\" $OPTIONS" >> "$FILE"
+                echo "PACK \"$CLEARNAME\" $OPTIONS" >> "$FILE"
             else
-                echo "PACK \"$f\" ${SIZE}x$OPTIONS" >> "$FILE"
+                echo "PACK \"$CLEARNAME\" ${SIZE}x$OPTIONS" >> "$FILE"
             fi
 
-            printVLCFile "$f"
+            printVLCFile "$CLEARNAME"
             NEW_FILES=$((NEW_FILES + 1))
             TOTAL_FILES=$((TOTAL_FILES + 1))
             index=$((index + 1))
@@ -438,18 +446,12 @@ printEndData() {
 # Rename characters that arent't supported by playlist
 ##########################################################
 renameBadChars() {
-    rename "s/™//g" *
     rename "s/'//g" *
     rename "s/’//g" *
     rename "s/%//g" *
     rename "s/@//g" *
     rename "s/–//g" *
-    rename "s/🎩//g" *
-    rename "s/🐇//g" *
-    rename "s/🌶️//g" *
-    rename "s/▶//g" *
     rename "s/-//g" *
-    rename "s/▶️ //g" *
 }
 
 
@@ -481,7 +483,7 @@ verifyOldFile
 if [ $FILE_UPDATED == false ]; then
     renameBadChars
     printBaseData
-    renameLocalFiles
+    #renameLocalFiles
     goThroughAllFiles
     printEndData
     printSavedData
