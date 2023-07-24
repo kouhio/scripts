@@ -196,19 +196,22 @@ renfile() {
     GUNTHER=1
     CLEARNAME=$(echo "$1" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     #CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r ' | tr '[:upper:]' '[:lower:]')
-    CLEARNAME="${CLEARNAME/.mp4/}"
+    [[ "$1" =~ ".mp4" ]] && CLEARNAME="${CLEARNAME/.mp4/}"
     [[ "$CLEARNAME" =~ "_1" ]] && CLEARNAME="${CLEARNAME/_1/}"
 
-    if [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; then
-        CLEARNAME="${CLEARNAME}_$GUNTHER"
-
-        while [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; do
-            GUNTHER=$((GUNTHER + 1))
+    if [ "$1" != "$CLEARNAME" ] && [ "$1" != "${CLEARNAME}.mp4" ]; then
+        if [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; then
             CLEARNAME="${CLEARNAME}_$GUNTHER"
-        done
+
+            while [ -f "$CLEARNAME" ] || [ -f "${CLEARNAME}.mp4" ]; do
+                GUNTHER=$((GUNTHER + 1))
+                CLEARNAME="${CLEARNAME}_$GUNTHER"
+            done
+        fi
     fi
 
-    CLEARNAME="${CLEARNAME}.mp4"
+    [[ "$1" =~ ".mp4" ]] && CLEARNAME="${CLEARNAME}.mp4"
+    [ "$1" != "$CLEARNAME" ] && mv "$1" "$CLEARNAME"
 }
 
 ##########################################################
@@ -258,7 +261,6 @@ updateExistingFile () {
                 REM_COUNT=$((REM_COUNT + 1))
             elif [ "${line:0:4}" == "mv \"" ] || [ "${line:5:4}" == "mv \"" ]; then
                 renfile "$file"
-                mv "$file" "$CLEARNAME"
                 RENLIST+=("$CLEARNAME")
                 FILE_ARRAY+=("$CLEARNAME")
                 REN_FILES=$((REN_FILES + 1))
@@ -399,7 +401,6 @@ goThroughAllFiles() {
             fi
 
             renfile "$f"
-            mv "$f" "$CLEARNAME"
 
             X=`mediainfo '--Inform=Video;%Width%' "$CLEARNAME"`
             [ -z $X ] && X=0
