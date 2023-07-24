@@ -66,6 +66,7 @@ MASSIVE_TIME_CHECK=0            # Wanted total time of output files
 MASSIVE_TIME_COMP=0             # Actual total time of output files
 SPLIT_MAX=0                     # Number of files input is to be split into
 SPLIT_AND_COMBINE=0             # If set, will combine a new file from splitted files
+MASSIVE_FILE_HANDLE=0           # If set, will not raise the global filecount more than once
 
 SUBFILE=""                      # Path to subtitle file to be burned into target video
 WRITEOUT=""                     # Target filename for file info printing
@@ -446,7 +447,8 @@ massive_filecheck () {
             calculate_time_given "$FINAL_TIMESAVE"
             printf "${Yellow}Saved %-6.6s ${SIZETYPE} and $TIMER_SECOND_PRINT with splitting${Color_Off}\n" "$SAVESIZE"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
-            GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+            [ "$MASSIVE_FILE_HANDLE" -le "1" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+            [ "$MASSIVE_FILE_HANDLE" -eq "1" ] && MASSIVE_FILE_HANDLE=2
         else
             printf "${Yellow}Finished${Color_Off}\n"
         fi
@@ -463,6 +465,8 @@ massive_filecheck () {
 #***************************************************************************************************************
 new_massive_file_split () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    MASSIVE_FILE_HANDLE=1
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
         if [[ "$APP_NAME" =~ "ffmpeg" ]]; then
@@ -591,6 +595,7 @@ new_massive_file_split () {
         echo "File '$FILE' not found, cannot split!"
     fi
     CONTINUE_PROCESS=0
+    MASSIVE_FILE_HANDLE=0
 }
 
 #***************************************************************************************************************
@@ -1482,7 +1487,8 @@ check_file_conversion () {
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
             TOTALSAVE=$((TOTALSAVE + ENDSIZE))
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
-            GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+            [ "$MASSIVE_FILE_HANDLE" -le "1" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+            [ "$MASSIVE_FILE_HANDLE" -eq "1" ] && MASSIVE_FILE_HANDLE=2
             #ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
             if [ "$MASSIVE_SPLIT" == 1 ]; then
