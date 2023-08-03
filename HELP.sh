@@ -30,7 +30,9 @@ printVim () {
     echo -e "ctrl+v -> paint all rows / test -> c -> write new text to replace painted text -> esc\n"
     echo -e "search for rows longer than LEN                        \\%>LENv.\\+"
     echo -e "search for rows less than LEN                          ^.\\{,LEN}$/"
-    echo -e "search for rows not ending in STRING                   ^.*\\(STRING\\)\\@<!$"
+    echo -e "search for rows not ending in STRING                   ^.*\\(STRING\\)\\@<!$\n"
+    echo -e "duplicate each line                                    :g/^/norm yyp"
+    echo -e "join each other row                                    :%norm J"
 }
 
 printGit () {
