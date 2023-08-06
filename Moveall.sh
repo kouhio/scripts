@@ -30,7 +30,7 @@ for D in *; do
     if [ -d "${D}" ] && [ $size -gt "0" ]; then
         cd "$D"
             SUCS=0
-            cnt=`ls -l *.part 2>/dev/null | grep -v ^l | wc -l`
+            cnt=$(ls -l *.part 2>/dev/null | grep -v ^l | wc -l)
             if [ $cnt -lt "1" ]; then
                 IS_DIR=0
                 for DIRE in *; do
@@ -48,7 +48,7 @@ for D in *; do
 
                 for index in "${!array[@]}"
                 do
-                    cnt=`ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l`
+                    cnt=$(ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l)
                     if [ $cnt -gt "0" ]; then
                         SUCS=$((SUCS + cnt))
                         mv *${array[index]} "$TARGET"
@@ -59,7 +59,7 @@ for D in *; do
                 if [ $SUCS -gt "0" ]; then
                     for index in "${!array2[@]}"
                     do
-                        cnt=`ls -l *.${array2[index]} 2>/dev/null | grep -v ^l | wc -l`
+                        cnt=$(ls -l *.${array2[index]} 2>/dev/null | grep -v ^l | wc -l)
                         if [ $cnt -gt "0" ]; then
                             echo "Found files not to be deleted, not removing directory $D"
                             SUCS=0

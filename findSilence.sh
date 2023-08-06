@@ -288,7 +288,7 @@ split_file_by_silence () {
     START=0
     END=0
     FILENUMBER=1
-    TOTAL_LENGTH=`ffprobe -i "$2" -show_entries format=duration -v quiet -of csv="p=0"`
+    TOTAL_LENGTH=$(ffprobe -i "$2" -show_entries format=duration -v quiet -of csv="p=0")
 
     if [ $MIN_DURATION -le 0 ]; then
         MIN_DURATION="$DURATION"
@@ -419,7 +419,7 @@ split_file_by_input_file () {
     START=0
     END=0
     FILENUMBER=1
-    TOTAL_LENGTH=`ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0"`
+    TOTAL_LENGTH=$(ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0")
 
     if [ $MIN_DURATION -le 0 ]; then
         MIN_DURATION="$DURATION"
@@ -479,7 +479,7 @@ check_file () {
     EXT="${1##*.}"
     if [ "mp3" == "$EXT" ] || [ $EXT == "wav" ]; then
         if [ -f "$1" ]; then
-            SILENCEDATA=`ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence" `
+            SILENCEDATA=$(ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence")
             if [ ! -z "$SILENCEDATA" ]; then
                 if [ $SPLIT == 1 ]; then
                     split_file_by_silence "$SILENCEDATA" "$1"

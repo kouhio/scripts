@@ -43,7 +43,7 @@ set_int () {
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE / 1000))
     ENDTIMER=$(date -d@${GLOBAL_TIMESAVE} -u +%T)
 
-    echo -e "${Y}*** Totally saved $TOTALSIZE Mb and saved time: ${TOTAL_SAVETIME}s in $I_COUNTER files *** ${O}"
+    echo -e "${Y}*** Totally saved $TOTALSIZE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files *** ${O}"
 
     [ -z "$1" ] && exit 1
 }
@@ -61,7 +61,7 @@ get_info_and_cut () {
 
     LENNY=$((LENNY / 1000))
     TNOW=$(date +%T)
-    printf "$TNOW : Seeking audio from %80s %5ds" "$1" "${LENNY}"
+    printf "$TNOW : Seeking audio from %-60s %s " "${1:0:60}" "$(date -d@${LENNY} -u +%T)"
     I_OUTPUT=$(python3 ~/dev/audfprint/audfprint.py match --dbase tembase "$1" --find-time-range)
 
     NEW_LINE=$'\x0A';
@@ -79,7 +79,7 @@ get_info_and_cut () {
     I_LENGTH="${data_array[1]%.*}"
     I_START="${data_array[5]%.*}"
 
-    I_START=$((I_START + 1))
+    #I_START=$((I_START + 1))
     #I_LENGTH=$((I_LENGTH - 1))
     POS=$((I_LENGTH + I_START))
     I_ENDO=$((LENNY - POS))
@@ -87,7 +87,7 @@ get_info_and_cut () {
     PART_OF_LEN=$((LENNY_AUD / 5))
 
     if [ ! -z "$I_LENGTH" ]; then
-        [ "$I_LENGTH" -le 3 ] && echo -e "${Y} -> Skipping less than 3s: $I_COUNTER :: start:$I_START len:$I_LENGTH len:$LENNY"${O} && return 0
+        [ "$I_LENGTH" -le 3 ] && echo -e "${Y} -> Skipping less than 3s start:$I_START len:$I_LENGTH len:$LENNY"${O} && return 0
         [ "$I_LENGTH" -lt "$PART_OF_LEN" ] && echo -e ${Y}" -> skipping too short: length short $I_LENGTH/$PART_OF_LEN pos:$I_START"${O} && return 0
     else
         return 0
@@ -119,7 +119,7 @@ get_info_and_cut () {
        #echo "C=0-$I_START,$CUTSTR-${LENNY}"
        #packAll.sh "$1" C=0-${I_START},${CUTSTR}-0,D
        #error=$?
-        printf "${Y} -> Removing from middle %4ss-%4ss${O}" "${I_START}" "${ENDPOINT}"
+        printf "${Y} -> Removing from middle %s-%-s (%ds)${O}" "$(date -d@${I_START} -u +%T)" "$(date -d@${ENDPOINT} -u +%T)" "$((ENDPOINT-I_START))"
         CUTSTR="e=$CALCULATOR"
         packAll.sh "$1" k n=temp $CUTSTR >/dev/null 2>&1
         CUTSTR="b=$POS"
@@ -161,8 +161,13 @@ trap set_int SIGINT SIGTERM
 
 shopt -s nocaseglob
 
+FILECNT=$(ls -l *.${1} 2>/dev/null | grep -v ^l | wc -l)
+CURRCNT=1
+
 for f in *.${1}; do
+    printf "%03d/%03d " "$CURRCNT" "$FILECNT"
     get_info_and_cut "$f" "$3" "$2"
+    CURRCNT=$((CURRCNT + 1))
 done
 
 shopt -u nocaseglob

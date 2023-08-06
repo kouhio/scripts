@@ -95,7 +95,7 @@ for file in *.$INPUT; do
             continue
         fi
     fi
-    printf "  - Starting to pack '${file##*/}' to $OUTPUT : "
+    printf "  - Starting to pack %-40s to $OUTPUT : " "${file##*/}"
     error=0
     INPUTSIZE=$(du -k "$file" | cut -f1)
     lame -V 0 -h "${file}" "${file}.new.${OUTPUT}" >/dev/null 2>&1
@@ -113,7 +113,7 @@ for file in *.$INPUT; do
            mv "${file}.new.${OUTPUT}" "${FILE}.${OUTPUT}"
 
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
-           printf "repacked succesfully, saved $((INPUTSIZE - OUTPUTSIZE)) total:$TOTALSAVE\n"
+           printf "repacked succesfully, saved %-6d total:$TOTALSAVE\n" "$((INPUTSIZE - OUTPUTSIZE))"
            SUCCESS=$((SUCCESS + 1))
            [ ! -z "$TARGET" ] && echo "$file" >> $TARGET
         fi

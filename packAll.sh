@@ -466,6 +466,7 @@ massive_filecheck () {
 new_massive_file_split () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    IGNORE=1
     MASSIVE_FILE_HANDLE=1
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then

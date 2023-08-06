@@ -17,7 +17,7 @@ init() {
     cnt=0
     depth=0
 
-    START=`pwd`
+    START=$(pwd)
     CURR=$START
 }
 
@@ -44,7 +44,7 @@ process_directory() {
             cd "$D"
             if [ $? == "0" ]; then
                 echo Entering directory $D
-                cnt=`ls -l *.mp3 | grep -v ^l | wc -l` >/dev/null 2>&1
+                cnt=$(ls -l *.mp3 | grep -v ^l | wc -l) >/dev/null 2>&1
                 if [ $cnt -gt "0" ]; then
                     check_files
                 else

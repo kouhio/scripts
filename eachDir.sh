@@ -2,14 +2,14 @@
 
 [ -z "$1" ] && echo "No command given" && exit 1
 
-startSize=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+startSize=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
 startTime=$(date +%s)
 startPath="$PWD"
 GLOBAL_FILESAVE=0
 
 set_interrupt () {
     [ -z "$1" ] && echo -en "Interrupted! "
-    endSize=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+    endSize=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
     totalSize=$((endSize - startSize))
     endTime=$(date +%s)
     totalTime=$((endTime - startTime))

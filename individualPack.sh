@@ -38,7 +38,7 @@ printShit () {
 # End of process output
 ##########################################################
 printSavedData () {
-    printShit "ENDSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`" "$1"
+    printShit "ENDSIZE=\)df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\)" "$1"
     printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))" "$1"
     printShit "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
     printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
@@ -134,7 +134,7 @@ printVLCEnd() {
     echo -e "\t</trackList>" >> $VLC
     echo -e "\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">" >> $VLC
 
-    for i in `seq 0 $NEW_FILES`
+    for i in )seq 0 $NEW_FILES)
     do
         echo -e "\t\t<vlc:item tid=\"$i\"/>" >> $VLC
     done
@@ -162,7 +162,7 @@ addNewFiles() {
             if verifyFileNotInList "$f" ; then
                 continue
             fi
-            X=`mediainfo '--Inform=Video;%Width%' "$f"`
+            X=$(mediainfo '--Inform=Video;%Width%' "$f")
             [ -z $X ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"
 
@@ -219,7 +219,7 @@ renfile() {
 # remove wanted files and add new files to list
 ##########################################################
 updateExistingFile () {
-    STARTSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+    STARTSIZE=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
     REM_COUNT=0
     LOOP_COUNT=0
     while IFS='' read -r line || [[ -n "$line" ]]; do
@@ -251,7 +251,7 @@ updateExistingFile () {
 
         if [ $FOUND == false ]; then continue ; fi
 
-        file=`echo "$line" | cut -d'"' -f 2`
+        file=$(echo "$line" | cut -d'"' -f 2)
         if [ -f "$file" ]; then
             FILE_ARRAY+=("$file")
             if [ "${line:0:4}" == "rm \"" ] || [ "${line:5:4}" == "rm \"" ]; then
@@ -285,7 +285,7 @@ updateExistingFile () {
     mv "$TMPFILE" "$FILE"
 
     if [ $REM_COUNT -gt 0 ]; then
-        ENDSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+        ENDSIZE=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
         TOTALSIZE=$((ENDSIZE - STARTSIZE))
         TOTALSIZE=$((TOTALSIZE / 1000))
         echo "Removed $REM_COUNT files worth of $TOTALSIZE Mb"
@@ -318,7 +318,7 @@ parsePackData() {
                     OPTIONS+=" $var"
                 fi
             else
-                SIZE=`echo $var | cut -d x -f 1`
+                SIZE=$(echo $var | cut -d x -f 1)
                 [ -z "$SIZE" ] && IGNORE_SIZE=true
             fi
         fi
@@ -341,7 +341,7 @@ verifyOldFile() {
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
-    printShit "STARTSIZE=\`df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\`"
+    printShit "STARTSIZE=\)df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\)"
     printShit "GLOBAL_FILESAVE=0"
     printShit "GLOBAL_TIMESAVE=0"
     printShit "NO_EXIT_EXTERNAL=1"
@@ -402,7 +402,7 @@ goThroughAllFiles() {
 
             renfile "$f"
 
-            X=`mediainfo '--Inform=Video;%Width%' "$CLEARNAME"`
+            X=$(mediainfo '--Inform=Video;%Width%' "$CLEARNAME")
             [ -z $X ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"
 
