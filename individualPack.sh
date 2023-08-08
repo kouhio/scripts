@@ -340,7 +340,7 @@ verifyOldFile() {
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
-    printShit "STARTSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\)"
+    printShit "STARTSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')"
     printShit "GLOBAL_FILESAVE=0"
     printShit "GLOBAL_TIMESAVE=0"
     printShit "NO_EXIT_EXTERNAL=1"
