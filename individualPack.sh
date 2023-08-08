@@ -134,8 +134,7 @@ printVLCEnd() {
     echo -e "\t</trackList>" >> $VLC
     echo -e "\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">" >> $VLC
 
-    for i in )seq 0 $NEW_FILES)
-    do
+    for i in $(seq 0 $NEW_FILES); do
         echo -e "\t\t<vlc:item tid=\"$i\"/>" >> $VLC
     done
     echo -e "\t</extension>" >> $VLC

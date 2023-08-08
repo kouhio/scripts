@@ -46,6 +46,7 @@ set_int () {
     echo -e "${Y}*** Totally saved $TOTALSIZE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files *** ${O}"
 
     [ -z "$1" ] && exit 1
+    exit 0
 }
 
 ################################################################
@@ -90,6 +91,7 @@ get_info_and_cut () {
         [ "$I_LENGTH" -le 3 ] && echo -e "${Y} -> Skipping less than 3s start:$I_START len:$I_LENGTH len:$LENNY"${O} && return 0
         [ "$I_LENGTH" -lt "$PART_OF_LEN" ] && echo -e ${Y}" -> skipping too short: length short $I_LENGTH/$PART_OF_LEN pos:$I_START"${O} && return 0
     else
+        echo -e ${Y}"-> Skipping, not found."${O}
         return 0
     fi
 
@@ -104,12 +106,12 @@ get_info_and_cut () {
     # Start is at the beginning, skip too short intro alltogether
     if [ "$I_START" -lt "10" ]; then
         CUTSTR="b=$POS"
-        [ -z "$2" ] && echo -en ${Y}" -> Removing front ${POS}s"${O} && packAll.sh "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
+        [ -z "$2" ] && echo -en ${Y}" -> Removing front ${POS}s"${O} && packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
 
     # No end position, so cut the whole end
     elif [ "$I_ENDO" -lt "10" ]; then
         CUTSTR="e=$POS"
-        [ -z "$2" ] && echo -en ${Y}" -> Removing end ${POS}s"${O} && packAll.sh "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
+        [ -z "$2" ] && echo -en ${Y}" -> Removing end ${POS}s"${O} && packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
 
     # Comparison audio in the middle of the video, remove it from there
     elif [ -z "$2" ]; then
@@ -119,11 +121,11 @@ get_info_and_cut () {
        #echo "C=0-$I_START,$CUTSTR-${LENNY}"
        #packAll.sh "$1" C=0-${I_START},${CUTSTR}-0,D
        #error=$?
-        printf "${Y} -> Removing from middle %s-%-s (%ds)${O}" "$(date -d@${I_START} -u +%T)" "$(date -d@${ENDPOINT} -u +%T)" "$((ENDPOINT-I_START))"
+        printf "${Y}-> Removing from middle %s-%-s (%ds)${O}" "$(date -d@${I_START} -u +%T)" "$(date -d@${ENDPOINT} -u +%T)" "$((ENDPOINT-I_START))"
         CUTSTR="e=$CALCULATOR"
-        packAll.sh "$1" k n=temp $CUTSTR >/dev/null 2>&1
+        packAll.sh "$1" k i n=temp $CUTSTR >/dev/null 2>&1
         CUTSTR="b=$POS"
-        packAll.sh "$1" k n=temp $CUTSTR >/dev/null 2>&1
+        packAll.sh "$1" k i n=temp $CUTSTR >/dev/null 2>&1
 
         echo "file 'temp_01.mp4'" >> combo.txt
         echo "file 'temp_02.mp4'" >> combo.txt
@@ -140,16 +142,18 @@ get_info_and_cut () {
         rm combo.txt temp_01.mp4 temp_02.mp4
 
         if [ "$error" -eq "0" ]; then
-            echo -e ${G}" -> combining successfull, saved ${I_LENGTH}s"${O}
+            echo -e ${G}"-> combining successfull, saved ${I_LENGTH}s"${O}
             rm "$1"
             mv "pack_$1" "$1"
             TOTAL_SAVETIME=$((TOTAL_SAVETIME + I_LENGTH))
             I_COUNTER=$((I_COUNTER + 1))
         else
-            echo -e ${R}" -> combining failed!"${O}
+            echo -e ${R}"-> combining failed!"${O}
         fi
 
         #CUTSTR="C=0-$I_START,$POS-0,D"
+    else
+        echo "No time found!"
     fi
 
     [ $ERROR -eq 0 ] && ERROR=$?
@@ -172,5 +176,4 @@ done
 
 shopt -u nocaseglob
 
-[ -f "tembase" ] && rm tembase
 set_int 1

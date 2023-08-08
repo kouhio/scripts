@@ -99,6 +99,8 @@ AUDIOTRACK=""                   # Audiotrack number
 VIDEOTRACK=""                   # Videotrack number
 LANGUAGE="en"                   # Wanted audiotrack language
 
+TOTAL_ERR_CNT=0                 # Number of errors occured
+
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
 
@@ -1402,13 +1404,9 @@ check_alternative_conversion () {
     xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000))
     xNEW_FILESIZE=$((NEW_FILESIZE / 1000))
     xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
-    PRINT_ERROR_DATA=0
+    PRINT_ERROR_DATA=""
 
-    if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-        RETVAL=1
-        ERROR_WHILE_MORPH=1
-        PRINT_ERROR_DATA=1
-    elif [ "$COPY_ONLY" != 0 ]; then
+    if [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1
@@ -1417,24 +1415,32 @@ check_alternative_conversion () {
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
-            PRINT_ERROR_DATA=1
+            PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"
         fi
+    elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then
+        RETVAL=1
+        ERROR_WHILE_MORPH=1
+        PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
     else
         RETVAL=1
         ERROR_WHILE_MORPH=1
-        PRINT_ERROR_DATA=1
+        PRINT_ERROR_DATA="Unknown"
     fi
 
-    if [ "$PRINT_ERROR_DATA" -gt "0" ]; then
+    if [ ! -z "$PRINT_ERROR_DATA" ]; then
         calculate_duration
         handle_file_rename 0
         printf "${Red} FAILED!"
-        [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:$xNEW_DURATION<$xORIGINAL_DURATION"
-        [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:$xNEW_FILESIZE>$xORIGINAL_SIZE"
+        [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:$xNEW_DURATION>$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
+        [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:$xNEW_FILESIZE>$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
+        [ ! -z "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA"
         printf " in $TIMERVALUE"
+        TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
     fi
 
     printf "${Color_Off}\n"
+
+    [ "$TOTAL_ERR_CNT" -gt "3" ] && printf "\nToo many errors ($TOTAL_ERR_CNT), aborting!\n" && exit 1
 }
 
 #***************************************************************************************************************
