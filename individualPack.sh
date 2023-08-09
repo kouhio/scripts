@@ -38,7 +38,7 @@ printShit () {
 # End of process output
 ##########################################################
 printSavedData () {
-    printShit "ENDSIZE=\)df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g'\)" "$1"
+    printShit "ENDSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')" "$1"
     printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))" "$1"
     printShit "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
     printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
