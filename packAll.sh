@@ -98,6 +98,7 @@ COMBINEFILE=0                   # variable for combining files handler
 AUDIOTRACK=""                   # Audiotrack number
 VIDEOTRACK=""                   # Videotrack number
 LANGUAGE="en"                   # Wanted audiotrack language
+SPLITTING_ERROR=0               # Is set when splitting fails
 
 TOTAL_ERR_CNT=0                 # Number of errors occured
 
@@ -435,7 +436,7 @@ massive_filecheck () {
     [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
     [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
 
-    if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ]; then
+    if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
         TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
         SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
         TIME_SHORTENED=$((TIME_SHORTENED / 1000))
@@ -501,8 +502,7 @@ new_massive_file_split () {
         SPLIT_MAX=${#array[@]}
         MASSIVE_COUNTER=0
 
-        for index in "${!array[@]}"
-        do
+        for index in "${!array[@]}"; do
             APP_SETUP=0
             if [ "$SPLIT_P2P" -gt 0 ]; then
                 IFS="-"
@@ -662,6 +662,13 @@ remove_combine_files() {
 #***************************************************************************************************************
 combine_split_files() {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    if [ "$SPLITTING_ERROR" != "0" ]; then
+        printf "Failed to separate all asked parts, not combining!"
+        rm "${TARGET_DIR}/packcombofile.txt"
+        rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
+        return 0
+    fi
 
     process_start_time=$(date +%s)
     make_or_remove_split_files 1
@@ -1098,6 +1105,8 @@ short_name () {
 setup_file_packing () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    COMMAND_LINE=""
+
     if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then
         COMMAND_LINE+="-ss $BEGTIME "
     fi
@@ -1436,6 +1445,7 @@ check_alternative_conversion () {
         [ ! -z "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA"
         printf " in $TIMERVALUE"
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
+        SPLITTING_ERROR=1
     fi
 
     printf "${Color_Off}\n"
