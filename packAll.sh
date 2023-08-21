@@ -597,6 +597,11 @@ new_massive_file_split () {
             fi
         fi
 
+        if [ "$index" == "1" ]; then
+            rename "s/_01//" "${FILE%.*}"*
+        fi
+
+
     else
         echo "File '$FILE' not found, cannot split!"
         [ "$EXIT_VALUE" == "1" ] && exit 1
