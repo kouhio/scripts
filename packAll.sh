@@ -593,11 +593,13 @@ new_massive_file_split () {
                 combine_split_files
             else
                 remove_combine_files
+                [ "$EXIT_VALUE" == "1" ] && exit 1
             fi
         fi
 
     else
         echo "File '$FILE' not found, cannot split!"
+        [ "$EXIT_VALUE" == "1" ] && exit 1
     fi
     CONTINUE_PROCESS=0
     MASSIVE_FILE_HANDLE=0
@@ -669,6 +671,7 @@ combine_split_files() {
         printf "Failed to separate all asked parts, not combining!"
         rm "${TARGET_DIR}/packcombofile.txt"
         rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
+        [ "$EXIT_VALUE" == "1" ] && exit 1
         return 0
     fi
 
@@ -692,6 +695,7 @@ combine_split_files() {
     else
         printf "${Red}Failed${Color_Off}\n"
         rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
+        [ "$EXIT_VALUE" == "1" ] && exit 1
         return
     fi
 
@@ -1175,7 +1179,7 @@ setup_add_packing () {
         if [ -z "$VIDEOTRACK" ]; then
             VIDEOID=$(mediainfo '--Inform=Video;%ID%' "$FILE")
             VIDEOID=$((VIDEOID - 1))
-            COMMAND_ADD+="-map 0:$VIDEOID "
+            [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:$VIDEOID "
         fi
 
         if [ -z "$AUDIOTRACK" ]; then
@@ -1190,8 +1194,8 @@ setup_add_packing () {
                 AUDIOID=$(($AUDIOID + 1))
             done
 
-            [ "$AUDIOFOUND" -eq "1" ] && COMMAND_ADD+="-map 0:$AUDIOID "
-            [ "$AUDIOFOUND" -eq "0" ] && COMMAND_ADD+="-map 0:1 "
+            [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:$AUDIOID "
+            [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:1 "
         fi
     fi
 }
