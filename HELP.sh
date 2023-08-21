@@ -96,23 +96,6 @@ printCmake () {
     echo -e "Print out message                      message(WARNING \"git is not found on the system, cannot update _APP_COMMIT_\")"
 }
 
-pritCerts () {
-    echo -e "openssl pkcs12 -in TB4Alpha.slclab.int.p12 -nokeys -clcerts -out cert.pem -passin pass:TB4Alpha.slclab.int"
-    echo -e "openssl x509 -in cert.pem -text\n"
-    echo -e "cp /mnt/mtd7/trs-1/pkcs11.conf /var/lib/lxc/trs-1/rootfs/etc/strongswan.d/charon/pkcs11.conf"
-    echo -e "cp /mnt/mtd7/trs-1/pkcs11.conf /usr/share/strongswan/templates/config/plugins/pkcs11.conf"
-    echo -e "cp /etc/softhsm2.conf /var/lib/lxc/trs-1/rootfs/etc/softhsm2.conf"
-    echo -e "systemctl start strongswan-swanctl"
-    echo -e "swanctl --reload-settings          'this should happen by config agent'"
-}
-
-printSHM () {
-    echo -e "softhsm2-util --show-slots;"
-    echo -e "pkcs11-tool --module /usr/lib/softhsm/libsofthsm2.so --login --pin VwYTbAH7dYk4F --list-objects"
-    echo -e "cat /mnt/crypted-disk/softhsm.secrets\n"
-    echo -e "delete everything in /mnt/crypted-disk/ and then run       config-syscreds --pki import"
-}
-
 printAwk () {
     echo -e "Print all logged users     who | awk '{cmd=\"echo \"\$1}; system(cmd)'"
     echo -e "Logout all logged users    who | awk '\$1 !~ /root/{ cmd=\"/sbin/pkill -KILL -u \" \$1; system(cmd)}'"
@@ -125,6 +108,7 @@ printBash () {
     echo -en "Get substring                 \${STRING:POS:EPOS}\n"
     echo -en "Split string, get start       \${STRING%.*}\n"
     echo -en "Split string, get end         \${STRING##*.}\n"
+    echo -en "Split string at length        \$(STRING:START_POSITION:STRING:LENGTH)\n"
     echo -en "Replace all substrings        \${STRING//SUBS/REPLACEMENT}\n\n"
     echo -en "Loop array                    for ITEM_STRING in \"\${ARRAY[@]}\"; do -> done\n"
     echo -en "Loop array with value         for ITEM_VALUE in \"\${!ARRAY[@]}\"; do -> done\n"
@@ -144,14 +128,10 @@ elif [ "$1" == "yocto" ] || [ "$1" == "yoki" ] || [ "$1" == "cgx" ]; then
     printYocto
 elif [ "$1" == "cmake" ]; then
     printCmake
-elif [ "$1" == "certs" ]; then
-    pritCerts
-elif [ "$1" == "ipsec" ]; then
-    printSHM
 elif [ "$1" == "awk" ]; then
     printAwk
 elif [ "$1" == "bash" ]; then
     printBash
 else
-    echo -e "Choose: grep / vi / git / yocto / cmake / debug / tulips / dxt / tb3 / certs / ipsec / vgem / jira / awk / bash / reg / test"
+    echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash"
 fi
