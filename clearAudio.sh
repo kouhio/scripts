@@ -14,15 +14,25 @@ G='\033[0;32m'
 Y='\033[0;33m'
 O='\033[0m'
 
-[ -z "$1" ] && echo -e ${R}"No input filetype given!"${O} && exit 1
-[ ! -f "$2" ] && echo -e ${R}"audio input file '$2' incorrect!"${O} && exit 1
+help () {
+    echo "Audio portion removal application"
+    echo "Usage inputs:"
+    echo "1 - Target filetypes (mp4 etc)"
+    echo "2 - Source audio / video clip to remove from target files"
+    echo "3 - possible value in seconds to remove from the end of the video, if set as something else than 0"
+    echo "4 - if set, will write removal timeframes to a individualPack.sh handler instead of immediate action by packAll.sh"
+    exit 1
+}
+
+[ -z "$1" ] && echo -e ${R}"No input filetype given!"${O} && help
+[ ! -f "$2" ] && echo -e ${R}"audio input file '$2' incorrect!"${O} && help
 
 ################################################################
 # add mp3s to database
 ################################################################
 LENNY_AUD=$(mediainfo '--Inform=Audio;%Duration%' "$2")
 LENNY_AUD=$((LENNY_AUD / 1000))
-INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Database from $2, len:${LENNY_AUD}s"
+INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${LENNY_AUD}s"
 
 ################################################################
 # Print out final information
@@ -32,10 +42,6 @@ set_int () {
     shopt -u nocaseglob
     [ -f "tembase" ] && rm tembase
     [ -z "$1" ] && echo " Interrupted at file $CURRCNT"
-
-    [ -f "temp_01.mp4" ] && rm "temp_01.mp4"
-    [ -f "temp_02.mp4" ] && rm "temp_02.mp4"
-    [ -f "combo.txt" ] && rm "combo.txt"
 
     ENDSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
     TOTALSIZE=$((ENDSIZE - STARTSIZE))
@@ -49,13 +55,14 @@ set_int () {
     exit 0
 }
 
-################################################################
+#############################################################################
 # Find audio from given video
 #
 # 1 - video filename
-# 2 - If set, will not extract audio, only print out info
+# 2 - If set, will not remove audio, only print out info to given input
 # 3 - Comparison filename
-################################################################
+# 4 - Time to cut from the end
+##############################################################################
 get_info_and_cut () {
     LENNY=$(mediainfo '--Inform=Video;%Duration%' "$1")
     [ -z "$LENNY_AUD" ] && echo -e ${R}"incorrect audio $3 - len:'$LENNY_AUD'"${O} && exit 1
@@ -111,68 +118,71 @@ get_info_and_cut () {
 
     I_LENGTH="${I_LENGTH%.*}"
     I_START="${I_START%.*}"
-    #POS=$((I_LENGTH + I_START))
-    #I_ENDO=$((LENNY - POS))
     CUTSTR=""
     PART_OF_LEN=$((LENNY_AUD / 5))
 
-    #if [ ! -z "$I_LENGTH" ]; then
-    #    #[ "$I_LENGTH" -le 3 ] && echo -e "${Y}-> Skipping less than 3s start:$(date -d@${I_START} -u +%T) len:$(date -d@${I_LENGTH} -u +%T) len:$(date -d@${LENNY} -u +%T) cl:$(date -d@${I_COMPLEN} -u +%T) ns:$(date -d@${NEWSTART} -u +%T)"${O} && return 0
-    #    [ "$I_LENGTH" -lt "$PART_OF_LEN" ] && echo -e ${Y}"-> skipping too short: length $(date -d@${I_LENGTH} -u +%T)/$(date -d@${PART_OF_LEN} -u +%T) pos:$(date -d@${I_START} -u +%T) cl:$(date -d@${I_COMPLEN} -u +%T) ns:$(date -d@${NEWSTART} -u +%T)"${O} && return 0
-    #else
-    #    echo -e ${Y}"-> Skipping, not found."${O}
-    #    return 0
-    #fi
+    # Setup possible end value trimming
+    TIMECUT=0
+    [ ! -z "$4" ] && TIMECUT=$((LENNY - $4))
 
+    # set date formatting according to max value
+    if [ "$NEWSTART" -lt "60" ]; then STARTHANDLE=""
+    elif [ "$NEWSTART" -lt "3600" ]; then STARTHANDLE="+%M:%S";
+    else STARTHANDLE="+%T"; fi
+
+    # set date formatting according to max value
+    ENDSTART=$((NEWSTART + LENNY_AUD))
+    if [ "$ENDSTART" -lt "60" ]; then ENDHANDLE=""
+    elif [ "$ENDSTART" -lt "3600" ]; then ENDHANDLE="+%M:%S";
+    else ENDHANDLE="+%T"; fi
+
+    # format trimming string 
+    if [ "$TIMECUT" -lt "60" ]; then ENDHANDLE2="0"
+    elif [ "$TIMECUT" -lt "3600" ]; then ENDHANDLE2=$(date -d@${TIMECUT} -u +%M:%S);
+    else ENDHANDLE2=$(date -d@${TIMECUT} -u +%T); fi
+
+    # Since no output file is given, remove the found timeframe immediately
     if [ -z "$2" ]; then
+        error=0
+
         # Start is at the beginning, skip too short intro alltogether
         if [ "$NEWSTART" -eq "0" ]; then
             CUTSTR="b=$LENNY_AUD"
-            [ -z "$2" ] && echo -en ${Y}"-> Removing front ${POS}s"${O} && packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
-
-        # No end position, so cut the whole end
-        #elif [ "$I_ENDO" -lt "10" ]; then
-        #    CUTSTR="e=$POS"
-        #    [ -z "$2" ] && echo -en ${Y}"-> Removing end ${POS}s"${O} && packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
+            echo -en ${Y}"-> Removing front:${LENNY_AUD}s"${O}
+            [ ! -z "$4" ] && CUTSRT+=" e=${4}" && echo -en ${Y}" end:${4}s"${O}
+            packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
+            error=$?
 
         # Comparison audio in the middle of the video, remove it from there
         else
-            CALCULATOR=$((LENNY - NEWSTART))
-            ENDPOINT=$((NEWSTART + NEWLEN))
-            printf "${Y}-> Removing from middle %s-%-s (%ds)${O}" "$(date -d@${NEWSTART} -u +%T)" "$(date -d@${ENDPOINT} -u +%T)" "$((ENDPOINT-I_START))"
-            CUTSTR="e=$CALCULATOR"
-            packAll.sh "$1" k i n=temp $CUTSTR >/dev/null 2>&1
-            CUTSTR="b=$ENDPOINT"
-            packAll.sh "$1" k i n=temp $CUTSTR >/dev/null 2>&1
-
-            echo "file 'temp_01.mp4'" >> combo.txt
-            echo "file 'temp_02.mp4'" >> combo.txt
-
-            error=0
-
-            if [ -f "temp_01.mp4" ] && [ -f "temp_02.mp4" ]; then
-                ffmpeg -f concat -i "combo.txt" -c copy "pack_$1" -v quiet >/dev/null 2>&1
-                error=$?
-            else
-                error=1
-            fi
-
-            rm combo.txt temp_01.mp4 temp_02.mp4
-
-            if [ "$error" -eq "0" ]; then
-                echo -e ${G}"-> combining successfull, saved ${I_LENGTH}s"${O}
-                rm "$1"
-                mv "pack_$1" "$1"
-                TOTAL_SAVETIME=$((TOTAL_SAVETIME + I_LENGTH))
-                I_COUNTER=$((I_COUNTER + 1))
-            else
-                echo -e ${R}"-> combining failed!"${O}
-            fi
+            printf "${Y}-> removing %s-%s" "$(date -d@${NEWSTART} -u $STARTHANDLE)" "$(date -d@${ENDSTART} -u ${ENDHANDLE})"
+            [ "$ENDHANLE2" != "0" ] && printf "${Y} trim to:%s${O}" "${ENDHANDLE2}"
+            packAll.sh "${1}" C=0-$(date -d@${NEWSTART} -u $STARTHANDLE),$(date -d@${ENDSTART} -u ${ENDHANDLE})-${ENDHANDLE2},D >/dev/null 2>&1
+            error=$?
         fi
 
+        if [ "$error" -eq "0" ]; then
+            C_LENGTH="$LENNY_AUD"
+            [ ! -z "$4" ] && C_LENGTH=$((C_LENGTH + "$4"))
+            echo -e ${G}"-> successfull, saved ${C_LENGTH}s"${O}
+            TOTAL_SAVETIME=$((TOTAL_SAVETIME + C_LENGTH))
+            I_COUNTER=$((I_COUNTER + 1))
+        else
+            echo -e ${R}"-> failed!"${O}
+        fi
+
+    # Output file has been given, write removal timeframes to given file in the format of individualPack.sh
     else
-        echo "PACK \"${1}\" C=0-$(date -d@${NEWSTART} -u +%T),$(date -d@$((NEWSTART + LENNY_AUD)) -u +%T)-0,D" >> "$2"
-        echo -e "${G}found start:$(date -d@${NEWSTART} -u +%T) end:$(date -d@$((NEWSTART + LENNY_AUD)) -u +%T)${O}"
+        echo -e "${G}found start:$(date -d@${NEWSTART} -u $STARTHANDLE) end:$(date -d@${ENDSTART} -u ${ENDHANDLE}) trim:${ENDHANDLE2}${O}"
+
+        if [ "$NEWSTART" -eq "0" ]; then
+            CUTSTR="b=$LENNY_AUD"
+            [ ! -z "$4" ] && CUTSRT+=" e=${4}"
+            echo "PACK \"${1}\" $CUTSTR" >> "$2"
+
+        else
+            echo "PACK \"${1}\" C=0-$(date -d@${NEWSTART} -u $STARTHANDLE),$(date -d@${ENDSTART} -u ${ENDHANDLE})-${ENDHANDLE2},D" >> "$2"
+        fi
     fi
 }
 
@@ -186,7 +196,7 @@ CURRCNT=1
 
 for f in *.${1}; do
     printf "%03d/%03d " "$CURRCNT" "$FILECNT"
-    get_info_and_cut "$f" "$3" "$2"
+    get_info_and_cut "$f" "$4" "$2" "$3"
     CURRCNT=$((CURRCNT + 1))
 done
 
