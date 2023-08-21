@@ -46,6 +46,7 @@ SKIPEND=0                       # Ending time of the video
 KEEPORG=0                       # If set, will not delete original file after success
 
 CROP=0                          # Crop video handler
+EXIT_VALUE=0                    # Exit with error value
 
 PACKSIZE=""                     # Target file dimensions
 ORIGINAL_DURATION=0             # Original duration of input file
@@ -224,7 +225,7 @@ set_int () {
         print_total
     fi
 
-    exit 1
+    [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
 }
 
 trap set_int SIGINT SIGTERM
@@ -274,6 +275,7 @@ print_help () {
     echo " "
     echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
     echo "             -    If any input is given as 'delete', deletes all sources, if combining is successful"
+    echo "quit         -    Exit after an error with exit code"
     echo " "
     echo "vt           -    Wanted videotrack from input file, if multiple, separate each with :"
     echo "at           -    Wanted audiotrack from input file, if multiple, separate each with :"
@@ -832,6 +834,8 @@ parse_handlers () {
             REPACK=1
             REPACK_GIVEN=1
             COPY_ONLY=0
+        elif [ "$1" == "quit" ]; then
+            EXIT_VALUE=1
         elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then
             IGNORE=1
         elif [ "$1" == "Ignore" ] || [ "$1" == "I" ]; then
@@ -1239,6 +1243,7 @@ simply_pack_file () {
         printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
+    ERROR=0
     $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
@@ -1260,6 +1265,7 @@ burn_subs () {
             process_start_time=$(date +%s)
             PROCESS_NOW=$(date +%T)
             printf "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
+            ERROR=0
             $APP_NAME -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
             ERROR=$?
             echo "Done"
@@ -1362,6 +1368,8 @@ handle_file_rename () {
             RETVAL=1
             mv "$FILE" "./Failed"
         fi
+
+        [ "$EXIT_VALUE" == "1" ] && exit 1
     fi
 }
 
@@ -1400,6 +1408,7 @@ handle_error_file () {
     mv "$FILE" "./Error"
     calculate_duration
     printf "${Red}Something corrupted with $FILE${Color_Off} in $TIMERVALUE\n"
+    [ "$EXIT_VALUE" == "1" ] && exit 1
     RETVAL=1
 }
 
@@ -1527,6 +1536,7 @@ check_file_conversion () {
         mv "$FILE" "./Nodest"
         remove_interrupted_files
         RETVAL=1
+        [ "$EXIT_VALUE" == "1" ] && exit 1
     fi
 }
 
@@ -1745,8 +1755,7 @@ verify_commandline_input "$@"
 
 [ "$1" == "combine" ] && COMBINEFILE=1
 
-for var in "$@"
-do
+for var in "$@"; do
     if [ "$COMBINEFILE" == "1" ]; then
         if [ "$var" != "combine" ]; then
             COMBINELIST+=("$var")

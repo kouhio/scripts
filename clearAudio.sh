@@ -8,12 +8,16 @@ EXIT_EXT_VAL=0
 COUNTED_ITEMS=0
 I_COUNTER=0
 TOTAL_SAVETIME=""
+ERROR=0
 
 R='\033[0;31m'
 G='\033[0;32m'
 Y='\033[0;33m'
 O='\033[0m'
 
+################################################################
+# Print out help
+################################################################
 help () {
     echo "Audio portion removal application"
     echo "Usage inputs:"
@@ -30,9 +34,11 @@ help () {
 ################################################################
 # add mp3s to database
 ################################################################
-LENNY_AUD=$(mediainfo '--Inform=Audio;%Duration%' "$2")
-LENNY_AUD=$((LENNY_AUD / 1000))
-INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${LENNY_AUD}s"
+AUDIO_LENGTH=$(mediainfo '--Inform=Audio;%Duration%' "$2")
+AUDIO_LENGTH=$((AUDIO_LENGTH / 1000))
+AUDIO_TENTH=$((AUDIO_LENGTH / 10))
+AUDIO_MIDDLE=$((AUDIO_LENGTH / 2))
+INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
 
 ################################################################
 # Print out final information
@@ -49,10 +55,19 @@ set_int () {
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE / 1000))
     ENDTIMER=$(date -d@${GLOBAL_TIMESAVE} -u +%T)
 
-    [ ! -z "$TOTAL_SAVETIME" ] && echo -e "${Y}*** Totally saved $TOTALSIZE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files *** ${O}"
+    [ ! -z "$TOTAL_SAVETIME" ] && echo -e "${Y}*** Totally saved $TOTALSIZE / $GLOBAL_FILESAVE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files *** ${O}"
 
     [ -z "$1" ] && exit 1
     exit 0
+}
+
+#############################################################################
+# Print out the time it took to handle one item
+#############################################################################
+endtime () {
+    ENDTIME=$(date +%s)
+    TOTALTIME=$((ENDTIME - STARTTIME))
+    echo " in $(date -d@${TOTALTIME} -u +%T)"
 }
 
 #############################################################################
@@ -64,12 +79,13 @@ set_int () {
 # 4 - Time to cut from the end
 ##############################################################################
 get_info_and_cut () {
-    LENNY=$(mediainfo '--Inform=Video;%Duration%' "$1")
-    [ -z "$LENNY_AUD" ] && echo -e ${R}"incorrect audio $3 - len:'$LENNY_AUD'"${O} && exit 1
+    STARTTIME=$(date +%s)
+    VIDEO_LENGTH=$(mediainfo '--Inform=Video;%Duration%' "$1")
+    [ -z "$AUDIO_LENGTH" ] && echo -e ${R}"incorrect audio $3 - len:'$AUDIO_LENGTH'"${O} && exit 1
 
-    LENNY=$((LENNY / 1000))
+    VIDEO_LENGTH=$((VIDEO_LENGTH / 1000))
     TNOW=$(date +%T)
-    printf "$TNOW : Seeking audio from %-60s %s " "${1:0:60}" "$(date -d@${LENNY} -u +%T)"
+    printf "$TNOW : Seeking audio from %-60s %s " "${1:0:60}" "$(date -d@${VIDEO_LENGTH} -u +%T)"
     I_OUTPUT=$(python3 ~/dev/audfprint/audfprint.py match --dbase tembase "$1" --find-time-range)
 
     NEW_LINE=$'\x0A';
@@ -101,42 +117,58 @@ get_info_and_cut () {
     done
 
     if [ -z "$I_LENGTH" ] || [ -z "$I_START" ] || [ -z "$I_COMPLEN" ]; then
-        echo -e "${Y}-> Skipping not found len:$I_LENGTH start:$I_START complen:$I_COMPLEN ${O}"
+        echo -en "${Y}-> Skipping not found len:$I_LENGTH start:$I_START complen:$I_COMPLEN ${O}"
+        endtime
         return 0
     fi
 
+    I_LENGTH="${I_LENGTH%.*}"
+    if [ "$I_LENGTH" -lt "$AUDIO_TENTH" ]; then
+        echo -en "${Y}-> Skipping too short len:${I_LENGTH}/${AUDIO_TENTH} start:$I_START complen:$I_COMPLEN ${O}"
+        endtime
+        return 0
+    fi
+
+    TIME_CORRECTION=0
     NEWSTART=$(bc <<< "scale=0;($I_START - $I_COMPLEN)")
     NEWSTART="${NEWSTART%.*}"
     if [ "$NEWSTART" == "-" ]; then
         NEWSTART=0
+    elif [ "$NEWSTART" -lt "10" ]; then
+        TIME_CORRECTION=$NEWSTART
+        NEWSTART=0
     elif [ "$NEWSTART" -lt "0" ]; then
-        NEWSTART=$((LENNY_AUD - 1 + NEWSTART))
+        NEWSTART=$((AUDIO_LENGTH - 1 + NEWSTART))
     else
         NEWSTART=$((NEWSTART + 1))
-        NEWLEN=$((LENNY_AUD - 1))
+        NEWLEN=$((AUDIO_LENGTH - 1))
     fi
 
-    I_LENGTH="${I_LENGTH%.*}"
+    if [ "$NEWSTART" -ge "$AUDIO_MIDDLE" ]; then
+        echo -en "${Y}-> Skipping too far in the video $NEWSTART / $AUDIO_MIDDLE ${O}"
+        endtime
+        return 0
+    fi
+
     I_START="${I_START%.*}"
     CUTSTR=""
-    PART_OF_LEN=$((LENNY_AUD / 5))
 
     # Setup possible end value trimming
     TIMECUT=0
-    [ ! -z "$4" ] && TIMECUT=$((LENNY - $4))
+    [ ! -z "$4" ] && TIMECUT=$((VIDEO_LENGTH - $4))
 
     # set date formatting according to max value
-    if [ "$NEWSTART" -lt "60" ]; then STARTHANDLE=""
+    if [ "$NEWSTART" -lt "60" ]; then STARTHANDLE="+%M"
     elif [ "$NEWSTART" -lt "3600" ]; then STARTHANDLE="+%M:%S";
     else STARTHANDLE="+%T"; fi
 
     # set date formatting according to max value
-    ENDSTART=$((NEWSTART + LENNY_AUD))
-    if [ "$ENDSTART" -lt "60" ]; then ENDHANDLE=""
+    ENDSTART=$((NEWSTART + AUDIO_LENGTH))
+    if [ "$ENDSTART" -lt "60" ]; then ENDHANDLE="+%M"
     elif [ "$ENDSTART" -lt "3600" ]; then ENDHANDLE="+%M:%S";
     else ENDHANDLE="+%T"; fi
 
-    # format trimming string 
+    # format trimming string
     if [ "$TIMECUT" -lt "60" ]; then ENDHANDLE2="0"
     elif [ "$TIMECUT" -lt "3600" ]; then ENDHANDLE2=$(date -d@${TIMECUT} -u +%M:%S);
     else ENDHANDLE2=$(date -d@${TIMECUT} -u +%T); fi
@@ -147,43 +179,44 @@ get_info_and_cut () {
 
         # Start is at the beginning, skip too short intro alltogether
         if [ "$NEWSTART" -eq "0" ]; then
-            CUTSTR="b=$LENNY_AUD"
-            echo -en ${Y}"-> Removing front:${LENNY_AUD}s"${O}
-            [ ! -z "$4" ] && CUTSRT+=" e=${4}" && echo -en ${Y}" end:${4}s"${O}
-            packAll.sh i "$1" $CUTSTR >/dev/null 2>&1 && I_COUNTER=$((I_COUNTER + 1))
+            echo -en ${Y}"-> Removing front:$((AUDIO_LENGTH + TIME_CORRECTION))s"${O}
+            [ ! -z "$4" ] && echo -en ${Y}" end:${4}s"${O}
+            packAll.sh "$1" "quit" "c=$((AUDIO_LENGTH + TIME_CORRECTION))-${TIMECUT},D" >/dev/null 2>&1
             error=$?
 
         # Comparison audio in the middle of the video, remove it from there
         else
             printf "${Y}-> removing %s-%s" "$(date -d@${NEWSTART} -u $STARTHANDLE)" "$(date -d@${ENDSTART} -u ${ENDHANDLE})"
             [ "$ENDHANLE2" != "0" ] && printf "${Y} trim to:%s${O}" "${ENDHANDLE2}"
-            packAll.sh "${1}" C=0-$(date -d@${NEWSTART} -u $STARTHANDLE),$(date -d@${ENDSTART} -u ${ENDHANDLE})-${ENDHANDLE2},D >/dev/null 2>&1
+            packAll.sh "${1}" "quit" C=0-$(date -d@${NEWSTART} -u $STARTHANDLE),$(date -d@${ENDSTART} -u ${ENDHANDLE})-${ENDHANDLE2},D >/dev/null 2>&1
             error=$?
         fi
 
         if [ "$error" -eq "0" ]; then
-            C_LENGTH="$LENNY_AUD"
+            C_LENGTH="$AUDIO_LENGTH"
             [ ! -z "$4" ] && C_LENGTH=$((C_LENGTH + "$4"))
-            echo -e ${G}"-> successfull, saved ${C_LENGTH}s"${O}
+            echo -en ${G}"-> successful, saved ${C_LENGTH}s"${O}
             TOTAL_SAVETIME=$((TOTAL_SAVETIME + C_LENGTH))
             I_COUNTER=$((I_COUNTER + 1))
         else
-            echo -e ${R}"-> failed!"${O}
+            echo -en ${R}"-> failed!"${O}
         fi
 
     # Output file has been given, write removal timeframes to given file in the format of individualPack.sh
     else
-        echo -e "${G}found start:$(date -d@${NEWSTART} -u $STARTHANDLE) end:$(date -d@${ENDSTART} -u ${ENDHANDLE}) trim:${ENDHANDLE2}${O}"
+        echo -en "${G}found start:$(date -d@${NEWSTART} -u $STARTHANDLE) end:$(date -d@${ENDSTART} -u ${ENDHANDLE}) trim:${ENDHANDLE2}${O}"
 
         if [ "$NEWSTART" -eq "0" ]; then
-            CUTSTR="b=$LENNY_AUD"
-            [ ! -z "$4" ] && CUTSRT+=" e=${4}"
+            CUTSTR="b=$AUDIO_LENGTH"
+            [ ! -z "$4" ] && CUTSTR+=" e=${4}"
             echo "PACK \"${1}\" $CUTSTR" >> "$2"
 
         else
             echo "PACK \"${1}\" C=0-$(date -d@${NEWSTART} -u $STARTHANDLE),$(date -d@${ENDSTART} -u ${ENDHANDLE})-${ENDHANDLE2},D" >> "$2"
         fi
     fi
+
+    endtime
 }
 
 trap set_int SIGINT SIGTERM
@@ -201,5 +234,7 @@ for f in *.${1}; do
 done
 
 shopt -u nocaseglob
+
+rename "s/_01//" *${1}
 
 set_int 1
