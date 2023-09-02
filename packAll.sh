@@ -561,7 +561,8 @@ new_massive_file_split () {
             fi
         fi
 
-        [ "$index" == "1" ] && rename "s/_01//" "${FILE%.*}"*
+        [ "$index" == "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
+        [ "$index" -le "1" ] && [ ! -z "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
 
     else
         echo "File '$FILE' not found, cannot split!"
@@ -736,26 +737,33 @@ combineFiles () {
 
 #***************************************************************************************************************
 # Separate and calculate given time into seconds and set to corresponting placeholder
-# 1 - time value in hh:mm:ss / mm:ss / ss
+# 1 - time value in hh:mm:ss / mm:ss / ss or a filename
 #***************************************************************************************************************
 calculate_time () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    CALCTIME=0
+    ADDTIME=0
+
     if [ ! -z "$1" ]; then
-        if [ "$1" == "D" ]; then
-            CALCTIME=0
-            return
-        fi
+        [ "$1" == "D" ] && return
 
         if [ -f "$1" ]; then
             find_image_pos "$FILE" "$1" "$2"
             CALCTIME="$IMAGETIME"
         else
-            t1=$(echo "$1" | cut -d : -f 1)
-            t2=$(echo "$1" | cut -d : -f 2)
-            t3=$(echo "$1" | cut -d : -f 3)
+            if [[ "$1" =~ "." ]]; then
+                ADDTIME="${1##*.}"
+                MAINTIME="${1%.*}"
+            else
+                MAINTIME="$1"
+            fi
 
-            occ=$(grep -o ":" <<< "$1" | wc -l)
+            t1=$(echo "$MAINTIME" | cut -d : -f 1)
+            t2=$(echo "$MAINTIME" | cut -d : -f 2)
+            t3=$(echo "$MAINTIME" | cut -d : -f 3)
+
+            occ=$(grep -o ":" <<< "$MAINTIME" | wc -l)
 
             check_zero "$t1"
             t1=$ZERORETVAL
@@ -765,7 +773,7 @@ calculate_time () {
             t3=$ZERORETVAL
 
             if [ "$occ" == "0" ]; then
-                calc_time=$1
+                calc_time=$MAINTIME
             elif [ "$occ" == "1" ]; then
                 t1=$((t1 * 60))
                 calc_time=$((t1 + t2))
@@ -776,9 +784,8 @@ calculate_time () {
             fi
 
             CALCTIME=$calc_time
+            [ "$ADDTIME" != "0" ] && CALCTIME+=".${ADDTIME}"
         fi
-    else
-        CALCTIME=0
     fi
 }
 
@@ -1041,12 +1048,11 @@ calculate_duration () {
 short_name () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    NAMELIMITER=46
     nameLen=${#FILE}
     extLen=${#EXT_CURR}
+    NAMENOEXT="${FILE%.*}"
 
-    if [ "$nameLen" -gt "$NAMELIMITER" ]; then   FILEprint=$(printf "%-40.40s...%3.3s" "$FILE" "$EXT_CURR")
-    elif [ "$nameLen" -le "$NAMELIMITER" ]; then FILEprint=$(printf "%-46.46s" "$FILE"); fi
+    FILEprint=$(printf "%-35s %-5s" "${NAMENOEXT:0:35}" "${EXT_CURR:0:3}")
 }
 
 #***************************************************************************************************************
