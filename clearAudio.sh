@@ -14,6 +14,7 @@ R='\033[0;31m'
 G='\033[0;32m'
 Y='\033[0;33m'
 O='\033[0m'
+COUNT=1
 
 ################################################################
 # Print out help
@@ -25,6 +26,7 @@ help () {
     echo "2 - Source audio / video clip to remove from target files"
     echo "3 - possible value in seconds to remove from the end of the video, if set as something else than 0"
     echo "4 - if set, will write removal timeframes to a individualPack.sh handler instead of immediate action by packAll.sh"
+    echo "5 - If set, will erase everything from beginning to the end of the source audio"
     exit 1
 }
 
@@ -38,6 +40,25 @@ AUDIO_LENGTH=$(mediainfo '--Inform=Audio;%Duration%' "$2")
 AUDIO_LENGTH=$((AUDIO_LENGTH / 1000))
 AUDIO_TENTH=$((AUDIO_LENGTH / 10))
 INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
+
+################################################################
+# Rewrite the do.sh file
+# 1 - If not set, will write data from beginning, otherwise from the end
+################################################################
+writeOutput () {
+    WRITE="$1"
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+        if [ -z "$WRITE" ]; then
+            echo "$line" >> tempfile.txt
+            [[ $line =~ "#BEGIN" ]]&& return 0
+        else
+            [[ $line =~ "#END" ]] && WRITE="" && echo "$line" >> tempfile.txt
+        fi
+    done < "do.sh"
+
+    rm "do.sh"
+    mv "tempfile.txt" "do.sh"
+}
 
 ################################################################
 # Print out final information
@@ -91,6 +112,8 @@ get_info_and_cut () {
     VIDEO_LENGTH=$(mediainfo '--Inform=Video;%Duration%' "$1")
     AUDIO_MIDDLE=$((VIDEO_LENGTH / 2))
     [ -z "$AUDIO_LENGTH" ] && echo -e ${R}"incorrect audio $3 - len:'$AUDIO_LENGTH'"${O} && exit 1
+    OUTPUTFILE="$2"
+    [ "$2" == "do.sh" ] && OUTPUTFILE="tempfile.txt"
 
     VIDEO_LENGTH=$((VIDEO_LENGTH / 1000))
     printf "$(date +%T): Seeking audio from %-50s %8s " "${1:0:50}" "$(date -d@${VIDEO_LENGTH} -u +%T)"
@@ -212,14 +235,21 @@ get_info_and_cut () {
     else
         echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ ! -z "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2}${O} "
 
-        if [ "$NEWSTART" -eq "0" ]; then
+        if [ ! -z "$5" ]; then
+            CUTSTR="b=$ENDHANDLE"
+            [ ! -z "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
+            echo "PACK \"${1}\" $CUTSTR" >> "$OUTPUTFILE"
+
+        elif [ "$NEWSTART" -eq "0" ]; then
             CUTSTR="b=$AUDIO_LENGTH"
             [ ! -z "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
-            echo "PACK \"${1}\" $CUTSTR" >> "$2"
+            echo "PACK \"${1}\" $CUTSTR" >> "$OUTPUTFILE"
 
         else
-            echo "PACK \"${1}\" C=0-$STARTHANDLE,${ENDHANDLE}-${ENDHANDLE2},D" >> "$2"
+            echo "PACK \"${1}\" C=0-$STARTHANDLE,${ENDHANDLE}-${ENDHANDLE2},D" >> "$OUTPUTFILE"
         fi
+        [ "$COUNT" -ge "10" ] && COUNT=0 && echo -en "\n" >> "$OUTPUTFILE"
+        COUNT=$((COUNT + 1))
     fi
 
     endtime
@@ -232,12 +262,18 @@ shopt -s nocaseglob
 FILECNT=$(ls -l *.${1} 2>/dev/null | grep -v ^l | wc -l)
 CURRCNT=1
 [ -f "$3" ] && rm "$3"
+[ ! -f "$4" ] && [ "$4" == "do.sh" ] && individualPack.sh "$1"
+[ -f "tempfile.txt" ] && rm "tempfile.txt"
+
+[ "$4" == "do.sh" ] && writeOutput
 
 for f in *.${1}; do
     printf "%03d/%03d " "$CURRCNT" "$FILECNT"
-    get_info_and_cut "$f" "$4" "$2" "$3"
+    get_info_and_cut "$f" "$4" "$2" "$3" "$5"
     CURRCNT=$((CURRCNT + 1))
 done
+
+[ "$4" == "do.sh" ] && writeOutput "1"
 
 shopt -u nocaseglob
 
