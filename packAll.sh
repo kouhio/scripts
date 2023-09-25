@@ -755,12 +755,15 @@ mergeFiles () {
     DELETESOURCEFILES=0
     COMMANDSTRING=()
     ORIGNAME=""
+    ORGSIZE=0
 
     for file in "${COMBINELIST[@]}"; do
         if [ -f "$file" ]; then
             COMMANDSTRING+=(-i "${file}")
+            OSIZE=$(du -k "$file" | cut -f1)
             [ "$FILESCOUNT" -gt "0" ] && SETUPSTRING+="-map ${FILESCOUNT}:a "
             FILESCOUNT=$((FILESCOUNT + 1))
+            ORIGSIZE=$((ORIGSIZE + OSIZE))
         fi
         [ "$file" == "delete" ] && DELETESOURCEFILES=1
         [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file" && ORIGNAME="$file"
@@ -783,8 +786,10 @@ mergeFiles () {
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
                 for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && rm "$file"; done
+                NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" | cut -f1)
+                NEWSIZE=$(((ORGSIZE - NEWSIZE) / 1000))
                 [ "$NEWNAME" != "$ORIGNAME" ] && mv "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "${TARGET_DIR}/${ORIGNAME}"
-                printf "${Green}Success into ${TARGET_DIR}/${ORIGNAME},${Color_Off} deleted all sourcefiles in $TIMER_TOTAL_PRINT\n"
+                printf "${Green}Success into ${TARGET_DIR}/${ORIGNAME},${Color_Off} deleted all sourcefiles in $TIMER_TOTAL_PRINT saved ${NEWSIZE}Mb\n"
             else
                 printf "${Green}Success into ${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}${Color_Off} in $TIMER_TOTAL_PRINT\n"
             fi
@@ -1260,13 +1265,28 @@ burn_subs () {
     if [ -f "$FILE" ]; then
         if [ -f "$SUBFILE" ]; then
             short_name
-            process_start_time=$(date +%s)
-            PROCESS_NOW=$(date +%T)
-            printf "$PROCESS_NOW : $FILEprint FFMPEG burning subs "
+
+            printf "$(date +%T) : $FILEprint burning subs into '$FILE' "
             ERROR=0
-            $APP_NAME -i "$FILE" -vf subtitles="$SUBFILE" "Subbed_$FILE" -v quiet
+            [ -z "$NEWNAME" ] && NEWNAME="Subbed_$FILE"
+            [[ ! "$NEWNAME" =~ "${CONV_TYPE}" ]] && NEWNAME="${NEWNAME}.${CONV_TYPE}"
+            $APP_NAME -i "$FILE" -vf subtitles="$SUBFILE" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
             ERROR=$?
-            echo "Done"
+            calculate_time_taken
+
+            ORGSIZE=$(du -k "$FILE" | cut -f1)
+            SUBSIZE=$(du -k "$SUBFILE" | cut -f1)
+            NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}" | cut -f1)
+            NEWSIZE=$(((ORGSIZE + SUBSIZE  - NEWSIZE) / 1000))
+
+            if [ "$ERROR" -eq "0" ]; then
+                printf "${Green}Success"
+                if [ "$KEEPORG" == "0" ]; then
+                    rm "$FILE" "$SUBFILE"
+                    [[ "$NEWNAME" =~ "Subbed_" ]] && mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${FILE}"
+                fi
+            else printf "${Red}Failed" && rm "Subbed_$FILE"; fi
+            printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT"
         else
             printf "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
             RETVAL=1

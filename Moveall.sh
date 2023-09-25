@@ -2,7 +2,7 @@
 
 # Move all files with given extensions from sub-directories to current directory
 
-extensions="mp4 mkv avi wmv webm flv m4v mpg"
+extensions="mp4 mkv avi wmv webm flv m4v mpg srt sub"
 skiplist="mp3 part wav"
 
 #If interrupted, make sure no external compressions are continued
@@ -46,8 +46,7 @@ for D in *; do
                 #    continue
                 #fi
 
-                for index in "${!array[@]}"
-                do
+                for index in "${!array[@]}"; do
                     cnt=$(ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l)
                     if [ $cnt -gt "0" ]; then
                         SUCS=$((SUCS + cnt))
@@ -57,8 +56,7 @@ for D in *; do
                 done
 
                 if [ $SUCS -gt "0" ]; then
-                    for index in "${!array2[@]}"
-                    do
+                    for index in "${!array2[@]}"; do
                         cnt=$(ls -l *.${array2[index]} 2>/dev/null | grep -v ^l | wc -l)
                         if [ $cnt -gt "0" ]; then
                             echo "Found files not to be deleted, not removing directory $D"
@@ -76,8 +74,7 @@ for D in *; do
 done
 
 if [ $# -ne 0 ]; then
-    for index in "${!array[@]}"
-    do
+    for index in "${!array[@]}"; do
         rename "s/${array[index]}/mp4/" *
     done
 fi
