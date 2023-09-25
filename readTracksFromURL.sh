@@ -37,10 +37,12 @@ if [[ "$SOURCE" =~ "spotify" ]]; then
     ALBUM_INFO=$(echo "$LIST" |grep -o -P '(?<=<title>).*(?=</title>)')
     ALBUM="${ALBUM_INFO%%-*}"
     ALBUM=${ALBUM//:/ }
+    ALBUM=$(echo "$ALBUM" |recode html..ascii)
     [ "$FIX" -eq "1" ] && ALBUM=$(echo "$ALBUM" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     BAND="${ALBUM_INFO##*Album by }"
     BAND="${BAND%%|*}"
     BAND=${BAND//:/ }
+    BAND=$(echo "$BAND" |recode html..ascii)
     [ "$FIX" -eq "1" ] && BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     YEAR=$(echo "$LIST" |grep -o -P '(?<=music:release_date\" content=\").*(?=\"/><meta name=\"music:song")')
     YEAR="${YEAR%%-*}"
@@ -55,6 +57,7 @@ if [[ "$SOURCE" =~ "spotify" ]]; then
             [[ "$index" =~ "Save to Your Library" ]] && continue
             #tracks+=($(echo "$index" |grep -o -P '(?<=\"track ).*(?=\">)'))
             NEW_ITEM=($(echo "$index" |grep -o -P '(?<=aria-label=\").*(?=\" data-testid=\")'))
+            NEW_ITEM=$(echo "$NEW_ITEM" |recode html..ascii)
             [ ! -z "$NEW_ITEM" ] && tracks+=("$NEW_ITEM")
         fi
     done

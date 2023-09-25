@@ -198,6 +198,8 @@ set_int () {
     remove_interrupted_files
     EXIT_EXT_VAL=1
 
+    [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && rm "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
+
     [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
 
     if [ "$NO_EXIT_EXTERNAL" -ne "0" ]; then
@@ -220,7 +222,7 @@ trap set_int SIGINT SIGTERM
 print_help () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    echo -en "No input file! first input is always 'combine' or filename (filename, file type or part of filename)\n\n"
+    echo -en "No input file! first input is always 'combine/merge/append' or filename (filename, file type or part of filename)\n\n"
     echo -en "To set dimensions Nx (where N is width, height is automatically calculated to retain aspect ratio)\n\n"
     echo "b(eg)=       -    time to remove from beginning (either seconds or X:Y:Z)"
     echo "e(nd)=       -    time to remove from end (calculated from the end) (either seconds or X:Y:Z)"
@@ -251,7 +253,9 @@ print_help () {
     echo "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files"
     echo -en "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end\n\n"
     echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
-    echo -en "             -    If any input is given as 'delete', deletes all sources, if combining is successful\n\n"
+    echo "merge        -    If given as a first input, first file after is the video, and rest all audio files to be overwritten to the video"
+    echo "append       -    If given as a first input, first file after is the video, and all the rest of the audio is added to the video as their own tracks"
+    echo -en "             -    If any input is given as 'delete', deletes all sources, if combining/merge/append is successful\n\n"
     echo "repeat       -    repeat process on failed result"
     echo "continue     -    ignore too many errors"
     echo -en "quit         -    Exit after an error with exit code\n\n"
@@ -701,11 +705,13 @@ combineFiles () {
     for file in "${COMBINELIST[@]}"; do
         [ -f "$file" ] && echo "file '$file'" >> "packcombofile.txt" && FILESCOUNT=$((FILESCOUNT + 1))
         [ "$file" == "delete" ] && DELETESOURCEFILES=1
-        [ "$FILESCOUNT" -gt "0" ] && NEWNAME="$file"
+        [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file"
     done
 
     if [ "$FILESCOUNT" -gt "1" ];  then
         [ -z "$NEWNAME" ] && NEWNAME="target_combo"
+
+        printf "Combining $FILESCOUNT files "
         ERROR=0
         $APP_NAME -f concat -safe 0 -i "packcombofile.txt" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
         ERROR=$?
@@ -731,6 +737,66 @@ combineFiles () {
     else
         [ -f "packcombofile.txt" ] && rm "packcombofile.txt"
         printf "${Red}No input files given to combine! Filecount:$FILESCOUNT${Color_Off}\n"
+        exit 1
+    fi
+}
+
+#***************************************************************************************************************
+# Replace or insert audio in video file with given audio files
+# 1 - If not set, is a merge, else append
+#***************************************************************************************************************
+mergeFiles () {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    if [ -z "$1" ]; then SETUPSTRING="-map 0:v " && TYPE="Merge"
+    else SETUPSTRING="-map 0 " && TYPE="Append"; fi
+
+    FILESCOUNT=0
+    DELETESOURCEFILES=0
+    COMMANDSTRING=()
+    ORIGNAME=""
+
+    for file in "${COMBINELIST[@]}"; do
+        if [ -f "$file" ]; then
+            COMMANDSTRING+=(-i "${file}")
+            [ "$FILESCOUNT" -gt "0" ] && SETUPSTRING+="-map ${FILESCOUNT}:a "
+            FILESCOUNT=$((FILESCOUNT + 1))
+        fi
+        [ "$file" == "delete" ] && DELETESOURCEFILES=1
+        [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file" && ORIGNAME="$file"
+        [[ "$ORIGNAME" =~ "${CONV_TYPE}" ]] && ORIGNAME="${ORIGNAME%.*}.${CONV_TYPE}"
+    done
+
+    SETUPSTRING+="-c:v copy -shortest "
+
+    if [ "$FILESCOUNT" -gt "1" ];  then
+        [ -z "$NEWNAME" ] && NEWNAME="target_combo"
+        [ -f "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" ] && NEWNAME="merged_$NEWNAME"
+
+        printf "$(date -u +%T) $TYPE $FILESCOUNT files "
+        ERROR=0
+        $APP_NAME "${COMMANDSTRING[@]}" $SETUPSTRING "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" >/dev/null 2>&1
+        ERROR=$?
+
+        calculate_time_taken
+
+        if [ "$ERROR" -eq "0" ]; then
+            if [ "$DELETESOURCEFILES" == "1" ]; then
+                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && rm "$file"; done
+                [ "$NEWNAME" != "$ORIGNAME" ] && mv "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "${TARGET_DIR}/${ORIGNAME}"
+                printf "${Green}Success into ${TARGET_DIR}/${ORIGNAME},${Color_Off} deleted all sourcefiles in $TIMER_TOTAL_PRINT\n"
+            else
+                printf "${Green}Success into ${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}${Color_Off} in $TIMER_TOTAL_PRINT\n"
+            fi
+
+            exit 0
+        else
+            printf "${Red}Failed!${Color_Off} in $TIMER_TOTAL_PRINT\n"
+            rm "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
+            exit 1
+        fi
+    else
+        printf "${Red}Not enough input files given to $TYPE! Filecount:$FILESCOUNT${Color_Off}\n"
         exit 1
     fi
 }
@@ -1654,10 +1720,16 @@ verify_necessary_programs
 verify_commandline_input "$@"
 
 [ "$1" == "combine" ] && COMBINEFILE=1
+[ "$1" == "merge" ] && COMBINEFILE=2
+[ "$1" == "append" ] && COMBINEFILE=3
 
 for var in "$@"; do
     if [ "$COMBINEFILE" == "1" ]; then
         [ "$var" != "combine" ] && COMBINELIST+=("$var")
+    elif [ "$COMBINEFILE" == "2" ]; then
+        [ "$var" != "merge" ] && COMBINELIST+=("$var")
+    elif [ "$COMBINEFILE" == "3" ]; then
+        [ "$var" != "append" ] && COMBINELIST+=("$var")
     else
         parse_data "$var"
         CHECKRUN=$((CHECKRUN + 1))
@@ -1666,6 +1738,12 @@ done
 
 if [ "$COMBINEFILE" == "1" ]; then
     combineFiles
+
+elif [ "$COMBINEFILE" == "2" ]; then
+    mergeFiles
+
+elif [ "$COMBINEFILE" == "3" ]; then
+    mergeFiles "append"
 
 elif [ "$CHECKRUN" == "0" ]; then
     print_help

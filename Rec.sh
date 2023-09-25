@@ -50,7 +50,7 @@ verify_dependencies() {
     hash pactl || error_code=$?
     hash awk || error_code=$?
     hash arecord || error_code=$?
-    hash tee error_code=$?
+    hash tee || error_code=$?
 
     if [ $error_code -ne 0 ]; then
         echo "Missing one (or more) necessary dependencies: pactl, awk, arecord, tee"
