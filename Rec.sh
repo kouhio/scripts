@@ -6,17 +6,12 @@
 #**********************************************************************************
 verify_target() {
     WAV="$1"
-    if [ -z "$WAV" ]; then
-        echo "Usage: $0 OUTPUT.WAV" >&2
-        exit 1
-    fi
+    [ -z "$WAV" ] && printHelp
 
     OUTPUT="${1##*.}"
+    [ $OUTPUT != "wav" ] && WAV+=".wav"
 
-    if [ $OUTPUT != "wav" ]; then
-        WAV+=".wav"
-    fi
-    rm -f "$WAV"
+    [ -f "$WAV" ] && rm -f "$WAV"
 }
 
 #**********************************************************************************
@@ -30,19 +25,21 @@ get_sink_monitor() {
 
 #**********************************************************************************
 # Record it raw, and convert to a wav
+# 1 - Possible timeout value for recording
 #**********************************************************************************
 record_audio_stream() {
     echo "Recording to $WAV ... from $MONITOR"
 
     if [ -z "$1" ]; then
-        echo "Close this window to stop (with ctrl+c) Monitoring"
-        parec -d "$MONITOR" | sox "$MONITOR" -t raw -r 44100 -Lb 16 -c 2 "$WAV"
-        #parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+        echo "Close this window to stop (with ctrl+c) recording"
+        arecord -f cd |tee "$WAV" >/dev/null 2>&1
     else
-        echo "This process will terminate in $1"
-        timeout "$1" parec -d "$MONITOR" | sox -t raw -r 44100 -sLb 16 -c 2 - "$WAV"
+        if [[ "$1" =~ "m" ]] || [[ "$1" =~ "h" ]] || [[ "$1" =~ "s" ]] || [[ "$1" =~ "d" ]]; then TIMEOUT="$1"
+        else TIMEOUT="${1}m"; fi
+
+        echo "This process will terminate in $TIMEOUT"
+        timeout "$TIMEOUT" arecord -f cd |tee "$WAV" >/dev/null 2>&1
     fi
-    #parec –format=s16le –device=”$MONITOR” | oggenc –raw –quiet –quality=4 -o $WAV -
 }
 
 #**********************************************************************************
@@ -50,12 +47,13 @@ record_audio_stream() {
 #**********************************************************************************
 verify_dependencies() {
     error_code=0
-    hash parec || error_code=$?
     hash pactl || error_code=$?
     hash awk || error_code=$?
+    hash arecord || error_code=$?
+    hash tee error_code=$?
 
     if [ $error_code -ne 0 ]; then
-        echo "Missing one (or more) necessary dependencies: parec, pactl, awk"
+        echo "Missing one (or more) necessary dependencies: pactl, awk, arecord, tee"
         exit 1
     fi
 }
@@ -66,7 +64,7 @@ verify_dependencies() {
 printHelp() {
     echo "System audio output recorder"
     echo "first parameter: name of the target wav file"
-    echo "second parameter (optional): time to run 'VALUE's/m/h/d (secs/mins/hours/days)"
+    echo "second parameter (optional): time to run 'VALUE's/m/h/d (secs/mins/hours/days) [default:m]"
     exit 1
 }
 
@@ -76,6 +74,7 @@ printHelp() {
 # 2 - timeout value (VALUEs/m/h/d)
 #**********************************************************************************
 
+[ -z "$1" ] && printHelp
 [ "$1" == "-h" ] && printHelp
 
 verify_dependencies

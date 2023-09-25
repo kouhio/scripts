@@ -86,7 +86,7 @@ set_int () {
 endtime () {
     ENDTIME=$(date +%s)
     TOTALTIME=$((ENDTIME - STARTTIME))
-    echo " in $(date -d@${TOTALTIME} -u +%T)"
+    echo -en " in $(date -d@${TOTALTIME} -u +%T)${O}\n"
 }
 
 #############################################################################
@@ -97,6 +97,7 @@ calcTime () {
     if [ "$1" -lt "60" ]; then TIME="$(date -d@${1} -u +%S)"
     elif [ "$1" -lt "3600" ]; then TIME="$(date -d@${1} -u +%M:%S)";
     else TIME="$(date -d@${1} -u +%T)"; fi
+    [ "$TIME" == "00" ] && TIME="0"
 }
 
 #############################################################################
@@ -233,7 +234,7 @@ get_info_and_cut () {
 
     # Output file has been given, write removal timeframes to given file in the format of individualPack.sh
     else
-        echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ ! -z "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2}${O} "
+        echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ ! -z "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2} "
 
         if [ ! -z "$5" ]; then
             CUTSTR="b=$ENDHANDLE"
