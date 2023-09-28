@@ -65,8 +65,7 @@ printTerminatorFunction () {
 # 1 - file path
 ##########################################################
 verifyFileNotInList() {
-    for i in "${FILE_ARRAY[@]}"
-    do
+    for i in "${FILE_ARRAY[@]}"; do
         if [ "$i" == "$1" ]; then
             return 0
         fi
@@ -297,8 +296,7 @@ updateExistingFile () {
 ##########################################################
 parsePackData() {
     INPUTCOUNT=1
-    for var in "$@"
-    do
+    for var in "$@"; do
         CNT=$((CNT + 1))
         if [ $CNT == 1 ]; then
             EXT="$var"
@@ -391,8 +389,7 @@ goThroughAllFiles() {
     index=1
     shopt -s nocaseglob
 
-    for f in *${EXT}*
-    do
+    for f in *${EXT}*; do
         if [ -f "$f" ]; then
             EXT_CURR="${f##*.}"
             if [ "$EXT_CURR" == "part" ] || [ -f "${f}.part" ]; then

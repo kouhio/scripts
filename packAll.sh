@@ -1773,7 +1773,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ ! -z "$SUBFILE" ]; then
         burn_subs
 
-    elif [ "$FILECOUNT" -gt 1 ] || [ "$FileStrLen" -lt 5 ]; then
+    elif [ "$FILECOUNT" -gt 1 ]; then
         EXT_CURR="$FILE"
         shopt -s nocaseglob
         for f in *.$EXT_CURR; do
@@ -1802,7 +1802,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     fi
 
     if [ "$CURRENTFILECOUNTER" -gt "1" ]; then print_total
-    else                                       GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE)); fi
+    else GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE)); fi
 fi
 
 [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
