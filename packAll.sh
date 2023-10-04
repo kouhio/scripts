@@ -41,8 +41,6 @@ WIDTH=0                         # Width of the video
 #HEIGHT=0                        # Height of the current video
 DIMENSION_PARSED=0              # Handler to tell if the dimension was already parsed
 
-SKIPBEG=0                       # Beginning time of the video
-SKIPEND=0                       # Ending time of the video
 KEEPORG=0                       # If set, will not delete original file after success
 
 CROP=0                          # Crop video handler
@@ -58,7 +56,6 @@ ORIGINAL_SIZE=0                 # Input filesize
 
 PRINT_ALL=0                     # Print information only on file(s)
 PRINT_INFO=0                    # Will print information according to value
-SEGMENT_PARSING=""              # Segment parsing handler
 
 DEBUG_PRINT=0                   # Print function name in this mode
 MASSIVE_SPLIT=0                 # Splitting one file into multiple files
@@ -85,7 +82,6 @@ SPACELEFT=0                     # Target directory drive space left
 SIZETYPE="Mb"                   # Saved size type
 SAVESIZE=0                      # Calculated value of size saved
 
-ERROR=0
 ERROR_WHILE_MORPH=0
 
 APP_NAME=/usr/bin/ffmpeg        # current application name to be used
@@ -169,6 +165,7 @@ print_total () {
         calculate_time_taken
 
         if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then echo  "Totally saved $SAVESIZE ${SIZETYPE} $TIMER_SECOND_PRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
+        elif [ -n "$SUBFILE" ]; then                             echo "Burned subs to $SUCCESFULFILECNT files (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"
         else                                                       echo "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"; fi
 
         [ "$MISSING" -gt "0" ] && echo "Number of files disappeared during process: $MISSING" && RETVAL=1
@@ -184,6 +181,7 @@ remove_interrupted_files () {
     [ -f "$FILE$CONV_TYPE" ]     && delete_file "$FILE$CONV_TYPE"
     [ -f "$FILE"_1"$CONV_TYPE" ] && delete_file "$FILE"_1"$CONV_TYPE"
     [ -f "$FILE"_2"$CONV_TYPE" ] && delete_file "$FILE"_2"$CONV_TYPE"
+    [ -f "$NEWNAME" ] && delete_file "$NEWNAME"
 }
 
 #***************************************************************************************************************
@@ -241,8 +239,8 @@ print_help () {
     echo "p(rint)      -    print only file information (if set as 1, will print everything, 2 = lessthan, 3=biggerthan, 4=else )"
     echo "h(evc)       -    convert with avconv instead of ffmpeg"
     echo "s(crub)      -    original on completion"
-    echo -en "crop         -    crop black borders\n\n"
-    echo "sub=         -    subtitle file to be burned into video"
+    echo -en "crop         -    crop black borders (experimental atm, probably will cut too much of the area)\n\n"
+    echo "sub=         -    subtitle file to be burned into video, or if the file itself has subtitles embedded, the number of the wanted subtitle track (starting from 0)"
     echo "w(rite)=     -    Write printing output to file"
     echo "n(ame)=      -    Give file a new target name (without file extension)"
     echo -en "T(arget)=    -    Target directory for the target file\n\n"
@@ -275,7 +273,7 @@ find_image_pos () {
     [[ ! "$APP_NAME" =~ "ffmpeg" ]] && echo "Can't seek images without ffmpeg!" && exit 1
     [ "$DEBUG_PRINT" == 1 ] && echo -en "Seeking time from '$1' by '$2'"
     IMAGEPOS=$(ffmpeg -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
-    IMAGETIME=$(echo $IMAGEPOS |grep "blackframe" -m 1)
+    IMAGETIME=$(echo "$IMAGEPOS" |grep "blackframe" -m 1)
 
     if [ -z "$3" ]; then IMAGETIME="${IMAGEPOS#*pts_time:}"
     else IMAGETIME="${IMAGEPOS##*pts_time:}"; fi
@@ -297,11 +295,11 @@ check_and_crop () {
     fi
 
     CROP_DATA=$($APP_NAME -i "$FILE" -t 1 -vf cropdetect -f null - 2>&1 | awk '/crop/ { print $NF }' | tail -1)
-    if [ ! -z "$CROP_DATA" ]; then
+    if [ -n "$CROP_DATA" ]; then
         XC=$(mediainfo '--Inform=Video;%Width%' "$FILE")
         YC=$(mediainfo '--Inform=Video;%Height%' "$FILE")
 
-        if [ ! -z "$XC" ] && [ ! -z "$YC" ]; then
+        if [ -n "$XC" ] && [ -n "$YC" ]; then
             CB=$(echo "$CROP_DATA" | cut -d = -f 2)
             C1=$(echo "$CB" | cut -d : -f 1)
             C2=$(echo "$CB" | cut -d : -f 2)
@@ -351,7 +349,7 @@ check_zero () {
 
     ZERORETVAL="$1"
     ttime="${1:0:1}"
-    [ ! -z "$ttime" ] && [ "$ttime" == "0" ] && ZERORETVAL="${1:1:1}"
+    [ -n "$ttime" ] && [ "$ttime" == "0" ] && ZERORETVAL="${1:1:1}"
 }
 
 #**************************************************************************************************************
@@ -442,16 +440,13 @@ new_massive_file_split () {
     MASSIVE_FILE_HANDLE=1
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
-        if [[ "$APP_NAME" =~ "ffmpeg" ]]; then
-            GOGO=1
-        else
+        if [[ ! "$APP_NAME" =~ "ffmpeg" ]]; then
             printf "${Red}Cannot combine files with ${Yellow}$APP_NAME${Red} Aborting!${Color_Off}\n"
             exit 1
         fi
     fi
 
     MASSIVE_TIME_CHECK=0
-    SPLIT_COUNTER=0
     FILECOUNT=1
     MASSIVE_SPLIT=1
     KEEPORG=1
@@ -566,7 +561,7 @@ new_massive_file_split () {
         fi
 
         [ "$index" == "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
-        [ "$index" -le "1" ] && [ ! -z "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
+        [ "$index" -le "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
 
     else
         echo "File '$FILE' not found, cannot split!"
@@ -720,7 +715,7 @@ combineFiles () {
 
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
-                for file in "${COMBINELIST}"; do
+                for file in "${COMBINELIST[@]}"; do
                     [ -f "$file" ] && rm "$file"
                 done
 
@@ -767,7 +762,7 @@ mergeFiles () {
         fi
         [ "$file" == "delete" ] && DELETESOURCEFILES=1
         [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file" && ORIGNAME="$file"
-        [[ "$ORIGNAME" =~ "${CONV_TYPE}" ]] && ORIGNAME="${ORIGNAME%.*}.${CONV_TYPE}"
+        [[ "$ORIGNAME" =~ ${CONV_TYPE} ]] && ORIGNAME="${ORIGNAME%.*}.${CONV_TYPE}"
     done
 
     SETUPSTRING+="-c:v copy -shortest "
@@ -816,14 +811,14 @@ calculate_time () {
     CALCTIME=0
     ADDTIME=0
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         [ "$1" == "D" ] && return
 
         if [ -f "$1" ]; then
             find_image_pos "$FILE" "$1" "$2"
             CALCTIME="$IMAGETIME"
         else
-            if [[ "$1" =~ "." ]]; then
+            if [[ "$1" =~ . ]]; then
                 ADDTIME="${1##*.}"
                 MAINTIME="${1%.*}"
             else
@@ -866,7 +861,7 @@ calculate_time () {
 parse_handlers () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         if [ "$1" == "repack" ] || [ "$1" == "r" ]; then
             REPACK=1
             REPACK_GIVEN=1
@@ -931,7 +926,7 @@ parse_handlers () {
 parse_values () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         HANDLER=$(echo "$1" | cut -d = -f 1)
         VALUE=$(echo "$1" | cut -d = -f 2)
 
@@ -995,9 +990,9 @@ parse_values () {
 parse_dimension () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         WIDTH=$(echo "$1" | cut -d x -f 1)
-        HEIGHT=$(echo "$1" | cut -d x -f 2)
+        #HEIGHT=$(echo "$1" | cut -d x -f 2)
         COPY_ONLY=0
         DIMENSION_PARSED=1
     fi
@@ -1009,13 +1004,12 @@ parse_dimension () {
 parse_file () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         CONTINUE_PROCESS=1
         FILE="$1"
 
         filename="${FILE%.*}"
         [ -f "${filename}.mp4" ] && FILE="${filename}.mp4"
-        FileStrLen=${#FILE}
 
         if [ ! -f "$FILE" ]; then
             shopt -s nocaseglob
@@ -1032,7 +1026,7 @@ parse_file () {
 parse_data () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         if [ "$CHECKRUN" == 0 ]; then
             parse_file "$1"
         else
@@ -1058,7 +1052,7 @@ print_file_info () {
 
     if [ -f "$FILE" ]; then
         X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
-        if [ ! -z "$X" ]; then
+        if [ -n "$X" ]; then
             if [ "$PRINT_INFO" == "2" ] && [ "$WIDTH" -le "$X" ]; then   return 0
             elif [ "$PRINT_INFO" == "3" ] && [ "$WIDTH" -ge "$X" ]; then return 0
             elif [ "$PRINT_INFO" == "4" ] && [ "$WIDTH" == "$X" ]; then  echo "$PACKSIZE -- $X" && return 0; fi
@@ -1079,7 +1073,7 @@ print_file_info () {
             short_name
             check_valuetype "${SIZE}"
             printf "${FILECOUNTPRINTER}${FILEprint} X:%04d Y:%04d Size:%-6.6s ${SIZETYPE} Lenght:${TIMER_SECOND_PRINT}\n" "${X}" "${Y}" "${SAVESIZE}"
-            [ ! -z "$WRITEOUT" ] && echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
+            [ -n "$WRITEOUT" ] && echo "packAll.sh \"$FILE\" " >> "$WRITEOUT"
         else
             echo "$FILE is corrupted"
         fi
@@ -1119,10 +1113,7 @@ calculate_duration () {
 short_name () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    nameLen=${#FILE}
-    extLen=${#EXT_CURR}
     NAMENOEXT="${FILE%.*}"
-
     FILEprint=$(printf "%-35s %-5s" "${NAMENOEXT:0:35}" "${EXT_CURR:0:3}")
 }
 
@@ -1159,14 +1150,14 @@ setup_file_packing () {
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
     else                               COMMAND_LINE+="-c:v:1 copy "; fi
 
-    if [ ! -z "$AUDIOTRACK" ]; then
+    if [ -n "$AUDIOTRACK" ]; then
         IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
         for audio in "${audio_array[@]}"; do
             COMMAND_LINE+="-map 0:a:$audio "
         done
     fi
 
-    if [ ! -z "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
+    if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
         IFS=':' read -r -a video_array <<< "$AUDIOTRACK"
         for video in "${video_array[@]}"; do
             COMMAND_LINE+="-map 0:v:$video "
@@ -1193,11 +1184,11 @@ setup_add_packing () {
             AUDIOID=1
             AUDIOFOUND=0
 
-            while [ ! -z "${#AUDIO_OPTIONS}" ]; do
+            while [ -n "${#AUDIO_OPTIONS}" ]; do
                 [ "${#AUDIO_OPTIONS}" -lt 2 ] && break
                 [ "${AUDIO_OPTIONS:0:2}" == "$LANGUAGE" ] && AUDIOFOUND=1 && break
                 AUDIO_OPTIONS="${AUDIO_OPTIONS:2}"
-                AUDIOID=$(($AUDIOID + 1))
+                AUDIOID=$((AUDIOID + 1))
             done
 
             [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:$AUDIOID "
@@ -1252,7 +1243,36 @@ simply_pack_file () {
 }
 
 #***************************************************************************************************************
+# Read subtitle language from embedded video
+# 1 - filename
+# 2 - Subtitle track ID
+#***************************************************************************************************************
+get_sub_info () {
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+
+    SUBDATA=$(mediainfo "$1")
+    SUBVAL="$2"
+    SUBVAL=$((SUBVAL + 1))
+    SINGLESUB=$(echo "$SUBDATA" |grep -e "Text #$SUBVAL" -m 1 -A 12)
+    [ -z "$SINGLESUB" ] && SINGLESUB=$(echo "$SUBDATA" |grep -e "Text" -m 1 -A 12)
+    SUBLANG=$(echo "$SINGLESUB" |grep -e "Language")
+    SUBLANG="${SUBLANG##*: }"
+    SUBTITLE=$(echo "$SINGLESUB" |grep -e "Title")
+    SUBTITLE="${SUBTITLE##*: }"
+
+    if [ -z "$SUBLANG" ]; then printf "${Red}language not found for index $2${Color_Off}\n" && SUBERR=1;
+    elif [ "$SUBLANG" != "English" ]; then
+        printf "\n    Read language is not english? Proceed with '$SUBLANG' (y/n)?"
+        read -rsn1 -t 1 sinput
+        [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1
+    else printf "Language:$SUBLANG " && [ -n "$SUBTITLE" ] && printf "Title:'$SUBTITLE' "; fi
+    [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
+}
+
+#***************************************************************************************************************
 # Burn subtitle file to a given video file
+# 1 - Video file
+# 2 - Subtitle file
 #***************************************************************************************************************
 burn_subs () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
@@ -1262,39 +1282,68 @@ burn_subs () {
         exit 1
     fi
 
-    if [ -f "$FILE" ]; then
-        if [ -f "$SUBFILE" ]; then
+    MKVSUB=""
+    RETVAL=1
+    TYPECHANGE=""
+    SUBERR=0
+    SUB="$2"
+
+    re='^[0-9]+$'
+    [[ $SUB =~ $re ]] && MKVSUB="$SUB" && SUB="$1"
+
+    if [ -f "$1" ]; then
+        if [ -f "$SUB" ]; then
             short_name
 
-            printf "$(date +%T) : $FILEprint burning subs into '$FILE' "
+            printf "$(date +%T) : $1print burning subs into '$1' "
+            [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB"
             ERROR=0
-            [ -z "$NEWNAME" ] && NEWNAME="Subbed_$FILE"
-            [[ ! "$NEWNAME" =~ "${CONV_TYPE}" ]] && NEWNAME="${NEWNAME}.${CONV_TYPE}"
-            $APP_NAME -i "$FILE" -vf subtitles="$SUBFILE" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
-            ERROR=$?
-            calculate_time_taken
+            [ "$SINGULAR" == "0" ] && NEWNAME=""
+            [ -z "$NEWNAME" ] && NEWNAME="Subbed_$1"
+            [[ ! "$NEWNAME" =~ ${CONV_TYPE} ]] && NEWNAME="${NEWNAME}.${CONV_TYPE}" && TYPECHANGE="${1%.*}"
 
-            ORGSIZE=$(du -k "$FILE" | cut -f1)
-            SUBSIZE=$(du -k "$SUBFILE" | cut -f1)
-            NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}" | cut -f1)
-            NEWSIZE=$(((ORGSIZE + SUBSIZE  - NEWSIZE) / 1000))
-
-            if [ "$ERROR" -eq "0" ]; then
-                printf "${Green}Success"
-                if [ "$KEEPORG" == "0" ]; then
-                    rm "$FILE" "$SUBFILE"
-                    [[ "$NEWNAME" =~ "Subbed_" ]] && mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${FILE}"
+            if [ "$SUBERR" == "0" ]; then
+                if [ -n "$MKVSUB" ]; then
+                    $APP_NAME -i "$1" -vf "subtitles='$SUB':stream_index=$MKVSUB" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
+                else
+                    $APP_NAME -i "$1" -vf subtitles="$SUB" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
                 fi
-            else printf "${Red}Failed" && rm "Subbed_$FILE"; fi
-            printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT"
+                ERROR=$?
+                calculate_time_taken
+
+                ORGSIZE=$(du -k "$1" | cut -f1)
+                SUBSIZE=0
+                [ -z "$MKVSUB" ] && SUBSIZE=$(du -k "$SUB" | cut -f1)
+                NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}" | cut -f1)
+                NEWSIZE=$((ORGSIZE + SUBSIZE - NEWSIZE))
+                TOTALSAVE=$((TOTALSAVE + NEWSIZE))
+                NEWSIZE=$((NEWSIZE / 1000))
+
+                if [ "$ERROR" -eq "0" ]; then
+                    RETVAL=0
+                    printf "${Green}Success${Color_Off} "
+                    if [ "$KEEPORG" == "0" ]; then
+                        rm "$1"
+                        [ -f "$SUB" ] && rm "$SUB"
+                        if [[ "$NEWNAME" =~ "Subbed_" ]]; then
+                            if [ -z "$TYPECHANGE" ]; then mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${1}" && printf " -> '${1}' "
+                            else mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${TYPECHANGE}${CONV_TYPE}" && echo " -> '${TYPECHANGE}${CONV_TYPE}' " ; fi
+                        fi
+                    fi
+                    printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT\n"
+                    SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
+                else printf "${Red}Failed${Color_Off}" && rm "${TARGET_DIR}/${NEWNAME}"; fi
+                printf "${Color_Off}\n"
+            fi
         else
-            printf "${Red}Subfile $SUBFILE not found!${Color_Off}\n"
-            RETVAL=1
+            printf "${Red}Subfile $SUB not found!${Color_Off}\n"
         fi
     else
-        printf "${Red}File $FILE not found!${Color_Off}\n"
-        RETVAL=1
+        printf "${Red}File $1 not found!${Color_Off}\n"
     fi
+
+    ERROR=$RETVAL
+    [ "$SINGULAR" == "1" ] && exit $RETVAL
 }
 
 #***************************************************************************************************************
@@ -1449,13 +1498,13 @@ check_alternative_conversion () {
         PRINT_ERROR_DATA="Unknown"
     fi
 
-    if [ ! -z "$PRINT_ERROR_DATA" ]; then
+    if [ -n "$PRINT_ERROR_DATA" ]; then
         calculate_duration
         handle_file_rename 0
         printf "${Red} FAILED!"
         [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:$xNEW_DURATION>$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:$xNEW_FILESIZE>$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
-        [ ! -z "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA"
+        [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA"
         printf " in $TIMERVALUE"
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
         SPLITTING_ERROR=1
@@ -1770,29 +1819,44 @@ elif [ "$CHECKRUN" == "0" ]; then
     RETVAL=1
 
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
-    if [ ! -z "$SUBFILE" ]; then
-        burn_subs
+    if [ -n "$SUBFILE" ]; then
+        SINGULAR=1
+        if [ "$FILECOUNT" -gt 1 ] || [ "$MULTIFILECOUNT" -gt 1 ]; then
+            SINGULAR=0
+            shopt -s nocaseglob
+            for f in *"$FILE"*; do
+                if [ -f "$f" ]; then
+                    EXT_CURR="${FILE##*.}"
+                    CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
+                    print_info
+                    burn_subs "$f" "$SUBFILE"
+                fi
+            done
+            shopt -u nocaseglob
+        else
+            burn_subs "$1" "$SUBFILE"
+        fi
 
     elif [ "$FILECOUNT" -gt 1 ]; then
         EXT_CURR="$FILE"
         shopt -s nocaseglob
-        for f in *.$EXT_CURR; do
-                FILE="$f"
-                CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
-                pack_file
-            done
+        for f in *."$EXT_CURR"; do
+            FILE="$f"
+            CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
+            pack_file
+        done
         shopt -u nocaseglob
 
     elif [ "$MULTIFILECOUNT" -gt 1 ]; then
         shopt -s nocaseglob
-        for f in *$FILE*; do
-                if [ -f "$f" ]; then
-                    FILE="$f"
-                    EXT_CURR="${FILE##*.}"
-                    CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
-                    pack_file
-                fi
-            done
+        for f in *"$FILE"*; do
+            if [ -f "$f" ]; then
+                FILE="$f"
+                EXT_CURR="${FILE##*.}"
+                CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
+                pack_file
+            fi
+        done
         shopt -u nocaseglob
 
     else

@@ -118,10 +118,12 @@ get_info_and_cut () {
 
     VIDEO_LENGTH=$((VIDEO_LENGTH / 1000))
     printf "$(date +%T): Seeking audio from %-50s %8s " "${1:0:50}" "$(date -d@${VIDEO_LENGTH} -u +%T)"
+    I_OUTPUT=""
     I_OUTPUT=$(python3 ~/dev/audfprint/audfprint.py match --dbase tembase "$1" --find-time-range)
 
     NEW_LINE=$'\x0A';
     export IFS="${NEW_LINE}";
+    data_array=()
     data_array=(${I_OUTPUT///$IFS})
 
     for index in "${!data_array[@]}"; do
@@ -131,6 +133,7 @@ get_info_and_cut () {
         fi
     done
 
+    data_array=()
     data_array=(${ITEM// /$IFS})
     I_LENGTH=""
     I_START=""
@@ -274,7 +277,7 @@ for f in *.${1}; do
     CURRCNT=$((CURRCNT + 1))
 done
 
-[ "$4" == "do.sh" ] && writeOutput "1"
+[ "$4" == "do.sh" ] && writeOutput "1" && chmod 777 do.sh
 
 shopt -u nocaseglob
 

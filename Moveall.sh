@@ -22,8 +22,9 @@ if [ "$PWD" == "$HOME" ]; then
     exit 1
 fi
 
-array=(${extensions//\t})
-array2=(${skiplist//\t})
+array=(${extensions//})
+array2=(${skiplist//})
+sinput=""
 
 for D in *; do
     size=${#D}
@@ -34,17 +35,27 @@ for D in *; do
             if [ $cnt -lt "1" ]; then
                 IS_DIR=0
                 for DIRE in *; do
-                    if [ -f "${DIRE}" ]; then
+                    if [ -d "${DIRE}" ]; then
                         IS_DIR=1
-                        #echo "$D has subdirectories $DIRE"
-                        break;
+                        if  [ -z "$sinput" ]; then
+                            echo "$D has subdirectories $DIRE, continue or skip? (y for continue, anything else to ignore all folders with subdirectories)"
+                            read -rsn1 sinput
+                        fi
+
+                        if [ "$sinput" == "y" ]; then
+                            Moveall.sh
+                            IS_DIR=0
+                        else
+                            IS_DIR=1
+                            break;
+                        fi
                     fi
                 done
 
-                #if [ $IS_DIR -eq 1 ]; then
-                #    cd ..
-                #    continue
-                #fi
+                if [ $IS_DIR -eq 1 ]; then
+                    cd ..
+                    continue
+                fi
 
                 for index in "${!array[@]}"; do
                     cnt=$(ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l)
