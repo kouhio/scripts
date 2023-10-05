@@ -762,7 +762,7 @@ mergeFiles () {
         fi
         [ "$file" == "delete" ] && DELETESOURCEFILES=1
         [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file" && ORIGNAME="$file"
-        [[ "$ORIGNAME" =~ ${CONV_TYPE} ]] && ORIGNAME="${ORIGNAME%.*}.${CONV_TYPE}"
+        [[ "$ORIGNAME" =~ "${CONV_TYPE}" ]] && ORIGNAME="${ORIGNAME%.*}.${CONV_TYPE}"
     done
 
     SETUPSTRING+="-c:v copy -shortest "
@@ -818,7 +818,7 @@ calculate_time () {
             find_image_pos "$FILE" "$1" "$2"
             CALCTIME="$IMAGETIME"
         else
-            if [[ "$1" =~ . ]]; then
+            if [[ "$1" =~ "." ]]; then
                 ADDTIME="${1##*.}"
                 MAINTIME="${1%.*}"
             else
@@ -1300,7 +1300,7 @@ burn_subs () {
             ERROR=0
             [ "$SINGULAR" == "0" ] && NEWNAME=""
             [ -z "$NEWNAME" ] && NEWNAME="Subbed_$1"
-            [[ ! "$NEWNAME" =~ ${CONV_TYPE} ]] && NEWNAME="${NEWNAME}.${CONV_TYPE}" && TYPECHANGE="${1%.*}"
+            [[ ! "$NEWNAME" =~ "${CONV_TYPE}" ]] && NEWNAME="${NEWNAME}.${CONV_TYPE}" && TYPECHANGE="${1%.*}"
 
             if [ "$SUBERR" == "0" ]; then
                 if [ -n "$MKVSUB" ]; then
