@@ -1069,7 +1069,7 @@ print_file_info () {
             TOTALSAVE=$((TOTALSAVE + SIZE))
 
             print_info
-            printf ":: "
+            if [ "$FILECOUNT" -gt 1 ] || [ "$MULTIFILECOUNT" -gt 1 ]; then printf ":: "; fi
             short_name
             check_valuetype "${SIZE}"
             printf "${FILECOUNTPRINTER}${FILEprint} X:%04d Y:%04d Size:%-6.6s ${SIZETYPE} Lenght:${TIMER_SECOND_PRINT}\n" "${X}" "${Y}" "${SAVESIZE}"
@@ -1821,7 +1821,9 @@ elif [ "$CHECKRUN" == "0" ]; then
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ -n "$SUBFILE" ]; then
         SINGULAR=1
-        if [ "$FILECOUNT" -gt 1 ] || [ "$MULTIFILECOUNT" -gt 1 ]; then
+        if [ -f "$1" ]; then
+            burn_subs "$1" "$SUBFILE"
+        elif [ "$FILECOUNT" -gt 0 ] || [ "$MULTIFILECOUNT" -gt 0 ]; then
             SINGULAR=0
             shopt -s nocaseglob
             for f in *"$FILE"*; do
@@ -1834,10 +1836,16 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             done
             shopt -u nocaseglob
         else
-            burn_subs "$1" "$SUBFILE"
+            printf "${Red}File(s) '$1' not found!${Color_Off}\n"
+            RETVAL=2
         fi
 
-    elif [ "$FILECOUNT" -gt 1 ]; then
+    elif [ -f "$1" ]; then
+        FILECOUNT=1
+        EXT_CURR="${FILE##*.}"
+        pack_file
+
+    elif [ "$FILECOUNT" -gt 0 ]; then
         EXT_CURR="$FILE"
         shopt -s nocaseglob
         for f in *."$EXT_CURR"; do
@@ -1847,7 +1855,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         done
         shopt -u nocaseglob
 
-    elif [ "$MULTIFILECOUNT" -gt 1 ]; then
+    elif [ "$MULTIFILECOUNT" -gt 0 ]; then
         shopt -s nocaseglob
         for f in *"$FILE"*; do
             if [ -f "$f" ]; then
@@ -1860,9 +1868,8 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         shopt -u nocaseglob
 
     else
-        FILECOUNT=1
-        EXT_CURR="${FILE##*.}"
-        pack_file
+        printf "${Red}File(s) '$1' not found!${Color_Off}\n"
+        RETVAL=2
     fi
 
     if [ "$CURRENTFILECOUNTER" -gt "1" ]; then print_total
