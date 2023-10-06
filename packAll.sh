@@ -1181,18 +1181,23 @@ setup_add_packing () {
 
         if [ -z "$AUDIOTRACK" ]; then
             AUDIO_OPTIONS=$(mediainfo '--Inform=Audio;%Language%' "$FILE")
-            AUDIOID=1
-            AUDIOFOUND=0
 
-            while [ -n "${#AUDIO_OPTIONS}" ]; do
-                [ "${#AUDIO_OPTIONS}" -lt 2 ] && break
-                [ "${AUDIO_OPTIONS:0:2}" == "$LANGUAGE" ] && AUDIOFOUND=1 && break
-                AUDIO_OPTIONS="${AUDIO_OPTIONS:2}"
-                AUDIOID=$((AUDIOID + 1))
-            done
+            if [ -z "$AUDIO_OPTION" ]; then
+                COMMAND_ADD="-map 0 "
+            else
+                AUDIOID=1
+                AUDIOFOUND=0
 
-            [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:$AUDIOID "
-            [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:1 "
+                while [ -n "${#AUDIO_OPTIONS}" ]; do
+                    [ "${#AUDIO_OPTIONS}" -lt 2 ] && break
+                    [ "${AUDIO_OPTIONS:0:2}" == "$LANGUAGE" ] && AUDIOFOUND=1 && break
+                    AUDIO_OPTIONS="${AUDIO_OPTIONS:2}"
+                    AUDIOID=$((AUDIOID + 1))
+                done
+
+                [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:$AUDIOID "
+                [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:1 "
+            fi
         fi
     fi
 }
