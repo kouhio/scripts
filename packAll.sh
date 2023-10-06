@@ -164,8 +164,8 @@ print_total () {
         fi
         calculate_time_taken
 
-        if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then echo  "Totally saved $SAVESIZE ${SIZETYPE} $TIMER_SECOND_PRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
-        elif [ -n "$SUBFILE" ]; then                             echo "Burned subs to $SUCCESFULFILECNT files (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"
+        if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then echo "Totally saved $SAVESIZE ${SIZETYPE} $TIMER_SECOND_PRINT on $SUCCESFULFILECNT files in $TIMER_TOTAL_PRINT"
+        elif [ -n "$SUBFILE" ]; then                               echo "Burned subs to $SUCCESFULFILECNT files (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"
         else                                                       echo "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT"; fi
 
         [ "$MISSING" -gt "0" ] && echo "Number of files disappeared during process: $MISSING" && RETVAL=1
@@ -1148,7 +1148,7 @@ setup_file_packing () {
         else                                COMMAND_LINE+="-q:a 0 -map a "; fi
 
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
-    else                               COMMAND_LINE+="-c:v:1 copy "; fi
+    else                               COMMAND_LINE+="-c:v copy -c:a copy "; fi
 
     if [ -n "$AUDIOTRACK" ]; then
         IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
@@ -1163,6 +1163,8 @@ setup_file_packing () {
             COMMAND_LINE+="-map 0:v:$video "
         done
     fi
+
+    COMMAND_LINE+="-metadata title= "
 
     APP_SETUP=1
 }
