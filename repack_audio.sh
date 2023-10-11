@@ -95,7 +95,8 @@ for file in *.$INPUT; do
             continue
         fi
     fi
-    printf "  - Starting to pack %-40s to $OUTPUT : " "${file##*/}"
+    fileprint="${file##*/}"
+    printf "  - Starting to pack %-40s to ${OUTPUT} : " "${fileprint:0:40}"
     error=0
     INPUTSIZE=$(du -k "$file" | cut -f1)
     lame -V 0 -h "${file}" "${file}.new.${OUTPUT}" >/dev/null 2>&1

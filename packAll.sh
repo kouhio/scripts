@@ -69,6 +69,7 @@ SPLIT_AND_COMBINE=0             # If set, will combine a new file from splitted 
 MASSIVE_FILE_HANDLE=0           # If set, will not raise the global filecount more than once
 
 SUBFILE=""                      # Path to subtitle file to be burned into target video
+SUBERR=0                        # Subfile error checker
 WRITEOUT=""                     # Target filename for file info printing
 NEWNAME=""                      # New target filename, if not set, will use input filename
 TARGET_DIR="."                  # Target directory for successful file
@@ -98,6 +99,9 @@ AUDIOTRACK=""                   # Audiotrack number
 VIDEOTRACK=""                   # Videotrack number
 LANGUAGE="en"                   # Wanted audiotrack language
 SPLITTING_ERROR=0               # Is set when splitting fails
+
+AUDIODELAY=""                   # Delay audio by given value
+VIDEODELAY=""                   # Delay video by given value
 
 TOTAL_ERR_CNT=0                 # Number of errors occured
 
@@ -259,6 +263,8 @@ print_help () {
     echo -en "quit         -    Exit after an error with exit code\n\n"
     echo "vt           -    Wanted videotrack from input file, if multiple, separate each with :"
     echo "at           -    Wanted audiotrack from input file, if multiple, separate each with :"
+    echo "delaudio     -    Delay audio by given seconds"
+    echo "delvideo     -    Delay video by given seconds"
     echo -en "l(anguage)   -    Wanted output audio language with two letters, default:en\n\n"
     echo "example:     ${0} \"FILENAME\" 640x c=0:11-1:23,1:0:3-1:6:13,D"
 }
@@ -936,6 +942,10 @@ parse_values () {
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
             calculate_time "$VALUE" "1"
             ENDTIME=$CALCTIME
+        elif [ "$HANDLER" == "delaudio" ]; then
+            AUDIODELAY="$VALUE"
+        elif [ "$HANDLER" == "delvideo" ]; then
+            VIDEODELAY="$VALUE"
         elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "" ]; then
             LANGUAGE="$VALUE"
         elif [ "$HANDLER" == "videotrack" ] || [ "$HANDLER" == "vt" ]; then
@@ -992,6 +1002,10 @@ parse_dimension () {
 
     if [ -n "$1" ]; then
         WIDTH=$(echo "$1" | cut -d x -f 1)
+        if [ "$WIDTH" -lt "640" ]; then
+            echo "$WIDTH way too small width to be used! Aborting! 640x is minimum!"
+            exit 1
+        fi
         #HEIGHT=$(echo "$1" | cut -d x -f 2)
         COPY_ONLY=0
         DIMENSION_PARSED=1
@@ -1031,7 +1045,10 @@ parse_data () {
             parse_file "$1"
         else
             xss=0
-            [ "$DIMENSION_PARSED" -eq "0" ] && xss=$(grep -o "x" <<< "$1" | wc -l)
+            if [ "$DIMENSION_PARSED" -eq "0" ]; then
+                re='^[0-9x]+$'
+                [[ "$1" =~ $re ]] && xss=$(grep -o "x" <<< "$1" | wc -l)
+            fi
 
             if [ "$xss" == "0" ] || [[ "$1" =~ "=" ]]; then
                 xss=$(grep -o "=" <<< "$1" | wc -l)
@@ -1135,6 +1152,16 @@ setup_file_packing () {
 
     AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
 
+    #if [ -n "$SUBFILE" ]; then
+    #    re='^[0-9]+$'
+    #    if [[ $SUBFILE =~ $re ]]; then
+    #        get_sub_info "$FILE" "$SUBFILE" "1"
+    #        [ "$SUBERR" == "0" ] && COMMAND_LINE+="subtitles='$FILE':stream_index=$SUBFILE "
+    #    elif [ -f "$SUBFILE" ]; then
+    #        COMMAND_LINE="subtitles='$SUBFILE' "
+    #    fi
+    #fi
+
     if [ "$HEVC_CONV" == "0" ]; then
         if [ "$AUDIOSTUFF" -gt "0" ]; then
             if [ "$CONV_CHECK" == "wav" ]; then COMMAND_LINE+="-vn -acodec pcm_s16le -ar 44100 -ac 2 "
@@ -1147,21 +1174,25 @@ setup_file_packing () {
         elif [ "$AUDIO_PACK" == "1" ]; then COMMAND_LINE+="-codec:a libmp3lame -q:a 0 -v error "
         else                                COMMAND_LINE+="-q:a 0 -map a "; fi
 
+    elif [ -n "$AUDIODELAY" ]; then    COMMAND_LINE+="-itsoffset $AUDIODELAY -c:a copy -c:v copy -map 0:a:0 -map 1:v:0 "
+    elif [ -n "$VIDEODELAY" ]; then    COMMAND_LINE+="-itsoffset $VIDEODELAY -c:v copy -c:a copy -map 0:v:0 -map 1:a:0 "
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
     else                               COMMAND_LINE+="-c:v copy -c:a copy "; fi
 
-    if [ -n "$AUDIOTRACK" ]; then
-        IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
-        for audio in "${audio_array[@]}"; do
-            COMMAND_LINE+="-map 0:a:$audio "
-        done
-    fi
+    if [ -z "$AUDIODELAY" ] && [ -z "$VIDEODELAY" ]; then
+        if [ -n "$AUDIOTRACK" ]; then
+            IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
+            for audio in "${audio_array[@]}"; do
+                COMMAND_LINE+="-map 0:a:$audio "
+            done
+        fi
 
-    if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
-        IFS=':' read -r -a video_array <<< "$AUDIOTRACK"
-        for video in "${video_array[@]}"; do
-            COMMAND_LINE+="-map 0:v:$video "
-        done
+        if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
+            IFS=':' read -r -a video_array <<< "$AUDIOTRACK"
+            for video in "${video_array[@]}"; do
+                COMMAND_LINE+="-map 0:v:$video "
+            done
+        fi
     fi
 
     COMMAND_LINE+="-metadata title= "
@@ -1244,6 +1275,14 @@ simply_pack_file () {
         printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT"
     fi
 
+    if [ -n "$SUBFILE" ] && [ "$SUBERR" = "0" ]; then
+        if [ -n "$SUBLANG" ]; then
+            printf "Sub:$SUBLANG "
+        elif [ -f "$SUBFILE" ]; then
+            printf "Sub:${SUBFILE:0:10}"
+        fi
+    fi
+
     ERROR=0
     $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
@@ -1253,10 +1292,12 @@ simply_pack_file () {
 # Read subtitle language from embedded video
 # 1 - filename
 # 2 - Subtitle track ID
+# 3 - If set, will not print successfully read info
 #***************************************************************************************************************
 get_sub_info () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    SUBERR=0
     SUBDATA=$(mediainfo "$1")
     SUBVAL="$2"
     SUBVAL=$((SUBVAL + 1))
@@ -1267,12 +1308,12 @@ get_sub_info () {
     SUBTITLE=$(echo "$SINGLESUB" |grep -e "Title")
     SUBTITLE="${SUBTITLE##*: }"
 
-    if [ -z "$SUBLANG" ]; then printf "${Red}language not found for index $2${Color_Off}\n" && SUBERR=1;
+    if [ -z "$SUBLANG" ]; then printf "${Red}language not found for index '$2' ${Color_Off}\n" && SUBERR=1;
     elif [ "$SUBLANG" != "English" ]; then
         printf "\n    Read language is not english? Proceed with '$SUBLANG' (y/n)?"
         read -rsn1 -t 1 sinput
         [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1
-    else printf "Language:$SUBLANG " && [ -n "$SUBTITLE" ] && printf "Title:'$SUBTITLE' "; fi
+    elif [ -z "$3" ]; then printf "Language:$SUBLANG " && [ -n "$SUBTITLE" ] && printf "Title:'$SUBTITLE' "; fi
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 }
 
@@ -1292,7 +1333,6 @@ burn_subs () {
     MKVSUB=""
     RETVAL=1
     TYPECHANGE=""
-    SUBERR=0
     SUB="$2"
 
     re='^[0-9]+$'
@@ -1302,7 +1342,7 @@ burn_subs () {
         if [ -f "$SUB" ]; then
             short_name
 
-            printf "$(date +%T) : $1print burning subs into '$1' "
+            printf "$(date +%T) '${1:0:40}' burning subs "
             [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB"
             ERROR=0
             [ "$SINGULAR" == "0" ] && NEWNAME=""
@@ -1333,8 +1373,8 @@ burn_subs () {
                         rm "$1"
                         [ -f "$SUB" ] && rm "$SUB"
                         if [[ "$NEWNAME" =~ "Subbed_" ]]; then
-                            if [ -z "$TYPECHANGE" ]; then mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${1}" && printf " -> '${1}' "
-                            else mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${TYPECHANGE}${CONV_TYPE}" && echo " -> '${TYPECHANGE}${CONV_TYPE}' " ; fi
+                            if [ -z "$TYPECHANGE" ]; then mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${1}" && printf " -> '${1:0:40}' "
+                            else mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${TYPECHANGE}${CONV_TYPE}" && echo " -> '${TYPECHANGE:0:36}${CONV_TYPE}' " ; fi
                         fi
                     fi
                     printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT\n"
@@ -1828,8 +1868,8 @@ elif [ "$CHECKRUN" == "0" ]; then
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ -n "$SUBFILE" ]; then
         SINGULAR=1
-        if [ -f "$1" ]; then
-            burn_subs "$1" "$SUBFILE"
+        if [ -f "$FILE" ]; then
+            burn_subs "$FILE" "$SUBFILE"
         elif [ "$FILECOUNT" -gt 0 ] || [ "$MULTIFILECOUNT" -gt 0 ]; then
             SINGULAR=0
             shopt -s nocaseglob
@@ -1847,7 +1887,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             RETVAL=2
         fi
 
-    elif [ -f "$1" ]; then
+    elif [ -f "$FILE" ]; then
         FILECOUNT=1
         EXT_CURR="${FILE##*.}"
         pack_file
@@ -1855,7 +1895,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     elif [ "$FILECOUNT" -gt 0 ]; then
         EXT_CURR="$FILE"
         shopt -s nocaseglob
-        for f in *."$EXT_CURR"; do
+        for f in *".$EXT_CURR"; do
             FILE="$f"
             CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
             pack_file

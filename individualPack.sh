@@ -43,7 +43,10 @@ printSavedData () {
     printShit "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
     printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
     printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)" "$1"
-    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files" "$1"
+    printShit "SET=\$(date +%s)" "$1"
+    printShit "STT=\$((SET - STT))" "$1"
+
+    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)" "$1"
     echo " " >> $FILE
 }
 
@@ -296,6 +299,8 @@ updateExistingFile () {
 ##########################################################
 parsePackData() {
     INPUTCOUNT=1
+    re='^[0-9X]+$'
+
     for var in "$@"; do
         CNT=$((CNT + 1))
         if [ $CNT == 1 ]; then
@@ -304,19 +309,17 @@ parsePackData() {
         #    FILE="$var"
         elif [ $var == "-i" ]; then
             IGNORE_SIZE=true
-        else
+        elif [[ "$var" =~ $re ]]; then
             xss=$(grep -o "x" <<< "$var" | wc -l)
+            SIZE=$(echo $var | cut -d x -f 1)
+            [ -z "$SIZE" ] && IGNORE_SIZE=true
+        else
             INPUTSTR+=" \"\$${INPUTCOUNT}\""
             INPUTCOUNT=$((INPUTCOUNT + 1))
-            if [ $xss == "0" ]; then
-                if [ "$var" == "keep" ]; then
-                    KEEP_PLAYLIST=1
-                else
-                    OPTIONS+=" $var"
-                fi
+            if [ "$var" == "keep" ]; then
+                KEEP_PLAYLIST=1
             else
-                SIZE=$(echo $var | cut -d x -f 1)
-                [ -z "$SIZE" ] && IGNORE_SIZE=true
+                OPTIONS+=" $var"
             fi
         fi
     done
@@ -345,6 +348,7 @@ printBaseData() {
     printShit "EXIT_EXT_VAL=0"
     printShit "COUNTED_ITEMS=0"
     printShit "ERROR=0"
+    printShit "STT=\$(date +%s)"
 
     printShit ""
     printShit "PACK () {"
