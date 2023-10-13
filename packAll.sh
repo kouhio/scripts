@@ -1177,7 +1177,8 @@ setup_file_packing () {
     elif [ -n "$AUDIODELAY" ]; then    COMMAND_LINE+="-itsoffset $AUDIODELAY -c:a copy -c:v copy -map 0:a:0 -map 1:v:0 "
     elif [ -n "$VIDEODELAY" ]; then    COMMAND_LINE+="-itsoffset $VIDEODELAY -c:v copy -c:a copy -map 0:v:0 -map 1:a:0 "
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
-    else                               COMMAND_LINE+="-c:v copy -c:a copy "; fi
+    else                               COMMAND_LINE+="-c:v:1 copy "; fi # -c:a copy "
+    #else                               COMMAND_LINE+="-bsf:v h264_mp4toannexb -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "; fi #-c:v:1 copy "; fi # -c:a copy "
 
     if [ -z "$AUDIODELAY" ] && [ -z "$VIDEODELAY" ]; then
         if [ -n "$AUDIOTRACK" ]; then
@@ -1216,7 +1217,7 @@ setup_add_packing () {
             AUDIO_OPTIONS=$(mediainfo '--Inform=Audio;%Language%' "$FILE")
 
             if [ -z "$AUDIO_OPTION" ]; then
-                COMMAND_ADD="-map 0 "
+                [ "$COPY_ONLY" == "1" ] && COMMAND_ADD="-map 0 "
             else
                 AUDIOID=1
                 AUDIOFOUND=0
@@ -1374,10 +1375,10 @@ burn_subs () {
                         [ -f "$SUB" ] && rm "$SUB"
                         if [[ "$NEWNAME" =~ "Subbed_" ]]; then
                             if [ -z "$TYPECHANGE" ]; then mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${1}" && printf " -> '${1:0:40}' "
-                            else mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${TYPECHANGE}${CONV_TYPE}" && echo " -> '${TYPECHANGE:0:36}${CONV_TYPE}' " ; fi
+                            else mv "${TARGET_DIR}/${NEWNAME}" "${TARGET_DIR}/${TYPECHANGE}${CONV_TYPE}" && printf " -> '${TYPECHANGE:0:36}${CONV_TYPE}' " ; fi
                         fi
                     fi
-                    printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT\n"
+                    printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT"
                     SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
                 else printf "${Red}Failed${Color_Off}" && rm "${TARGET_DIR}/${NEWNAME}"; fi
                 printf "${Color_Off}\n"
