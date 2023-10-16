@@ -84,8 +84,30 @@ for D in *; do
     fi
 done
 
-if [ $# -ne 0 ]; then
-    for index in "${!array[@]}"; do
-        rename "s/${array[index]}/mp4/" *
-    done
-fi
+for D in *; do
+    size=${#D}
+    if [ -d "${D}" ] && [ $size -gt "0" ]; then
+        DIRECTORY="${D,,}"
+        for f in *; do
+            if [ -f "$f" ]; then
+                EXT="${f##*.}"
+                for index in "${array[@]}"; do
+                    if [ "$index" == "$EXT" ]; then
+                        FILENAME="${f//./ }"
+                        FILENAME="${FILENAME,,}"
+                        if [[ "${FILENAME}" =~ "${DIRECTORY}" ]]; then
+                            mv "${f}" "${D}/"
+                            echo "Moving '$f' to '$D'"
+                        fi
+                    fi
+                done
+            fi
+        done
+    fi
+done
+
+#if [ $# -ne 0 ]; then
+#    for index in "${!array[@]}"; do
+#        rename "s/${array[index]}/mp4/" *
+#    done
+#fi

@@ -102,6 +102,8 @@ SPLITTING_ERROR=0               # Is set when splitting fails
 
 AUDIODELAY=""                   # Delay audio by given value
 VIDEODELAY=""                   # Delay video by given value
+NOMAPPING=0                     # Don't map file
+QUICK=0                         # Quickcopy handler
 
 TOTAL_ERR_CNT=0                 # Number of errors occured
 
@@ -244,7 +246,7 @@ print_help () {
     echo "h(evc)       -    convert with avconv instead of ffmpeg"
     echo "s(crub)      -    original on completion"
     echo -en "crop         -    crop black borders (experimental atm, probably will cut too much of the area)\n\n"
-    echo "sub=         -    subtitle file to be burned into video, or if the file itself has subtitles embedded, the number of the wanted subtitle track (starting from 0)"
+    echo "sub=         -    subtitle file to be burned into video, or if the file itself has subtitles embedded, the number of the wanted subtitle track (starting from 0), or self:SUB_EXT"
     echo "w(rite)=     -    Write printing output to file"
     echo "n(ame)=      -    Give file a new target name (without file extension)"
     echo -en "T(arget)=    -    Target directory for the target file\n\n"
@@ -265,6 +267,7 @@ print_help () {
     echo "at           -    Wanted audiotrack from input file, if multiple, separate each with :"
     echo "delaudio     -    Delay audio by given seconds"
     echo "delvideo     -    Delay video by given seconds"
+    echo "quick        -    Quick copy handling instead of packing"
     echo -en "l(anguage)   -    Wanted output audio language with two letters, default:en\n\n"
     echo "example:     ${0} \"FILENAME\" 640x c=0:11-1:23,1:0:3-1:6:13,D"
 }
@@ -886,6 +889,8 @@ parse_handlers () {
             IGNORE_SPACE_SIZE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
             KEEPORG=1
+        elif [ "$1" == "quick" ]; then
+            QUICK=1
         elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then
             KEEPORG=1
             AUDIO_PACK=1
@@ -1177,14 +1182,14 @@ setup_file_packing () {
     elif [ -n "$AUDIODELAY" ]; then    COMMAND_LINE+="-itsoffset $AUDIODELAY -c:a copy -c:v copy -map 0:a:0 -map 1:v:0 "
     elif [ -n "$VIDEODELAY" ]; then    COMMAND_LINE+="-itsoffset $VIDEODELAY -c:v copy -c:a copy -map 0:v:0 -map 1:a:0 "
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+="-bsf:v h264_mp4toannexb -vf scale=$PACKSIZE -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "
-    else                               COMMAND_LINE+="-c:v:1 copy "; fi # -c:a copy "
-    #else                               COMMAND_LINE+="-bsf:v h264_mp4toannexb -sn -vcodec libx264 -codec:a libmp3lame -q:a 0 -v error "; fi #-c:v:1 copy "; fi # -c:a copy "
+    elif [ "$QUICK" == "1" ]; then     COMMAND_LINE+="-c:v copy -c:a copy "
+    else                               COMMAND_LINE+="-c:v:1 copy " && NOMAPPING=1 ; fi
 
     if [ -z "$AUDIODELAY" ] && [ -z "$VIDEODELAY" ]; then
         if [ -n "$AUDIOTRACK" ]; then
             IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
             for audio in "${audio_array[@]}"; do
-                COMMAND_LINE+="-map 0:a:$audio "
+                COMMAND_LINE+="-map 1:a:$audio "
             done
         fi
 
@@ -1206,18 +1211,19 @@ setup_file_packing () {
 #***************************************************************************************************************
 setup_add_packing () {
     COMMAND_ADD=""
+    VIDEOID="-1"
+
     if [ "$AUDIOSTUFF" -eq "0" ]; then
         if [ -z "$VIDEOTRACK" ]; then
             VIDEOID=$(mediainfo '--Inform=Video;%ID%' "$FILE")
             VIDEOID=$((VIDEOID - 1))
-            [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:$VIDEOID "
         fi
 
         if [ -z "$AUDIOTRACK" ]; then
             AUDIO_OPTIONS=$(mediainfo '--Inform=Audio;%Language%' "$FILE")
 
             if [ -z "$AUDIO_OPTION" ]; then
-                [ "$COPY_ONLY" == "1" ] && COMMAND_ADD="-map 0 "
+                [ "$NOMAPPING" == "0" ] && COMMAND_ADD="-map 0 "
             else
                 AUDIOID=1
                 AUDIOFOUND=0
@@ -1229,8 +1235,8 @@ setup_add_packing () {
                     AUDIOID=$((AUDIOID + 1))
                 done
 
-                [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:$AUDIOID "
-                [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0:1 "
+                [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ] && COMMAND_ADD+="-map 0:v:$VIDEOID -map 1:a:$AUDIOID "
+                [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ] && COMMAND_ADD+="-map 0 "
             fi
         fi
     fi
@@ -1336,8 +1342,13 @@ burn_subs () {
     TYPECHANGE=""
     SUB="$2"
 
-    re='^[0-9]+$'
-    [[ $SUB =~ $re ]] && MKVSUB="$SUB" && SUB="$1"
+    if [ "$SUB" == "self:" ]; then
+        END="${SUB##*:}"
+        SUB="${1%.*}.${END}"
+    else
+        re='^[0-9]+$'
+        [[ $SUB =~ $re ]] && MKVSUB="$SUB" && SUB="$1"
+    fi
 
     if [ -f "$1" ]; then
         if [ -f "$SUB" ]; then
@@ -1586,6 +1597,7 @@ check_file_conversion () {
     if [ "$FILE_EXISTS" == 1 ]; then
         if [ "$AUDIO_PACK" == "1" ]; then NEW_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE$CONV_TYPE")
         else                              NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE"); fi
+        AUDIO_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE$CONV_TYPE")
 
         NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
@@ -1600,7 +1612,14 @@ check_file_conversion () {
         [ "$IGNORE" == "1" ] && ORIGINAL_SIZE=$((NEW_FILESIZE + 10000))
 
         #if video length matches (with one second error tolerance) and destination file is smaller than original, then
-        if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
+        if [ -z "$AUDIO_DURATION" ]; then
+            calculate_duration
+            handle_file_rename 0
+            printf "${Red} FAILED! Target has no Audio!${Color_Off}\n"
+            TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
+            SPLITTING_ERROR=1
+            [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
+        elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             ORIGINAL_SIZE=$ORIGINAL_HOLDER
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
             TOTALSAVE=$((TOTALSAVE + ENDSIZE))
