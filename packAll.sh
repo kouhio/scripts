@@ -99,6 +99,8 @@ AUDIOTRACK=""                   # Audiotrack number
 VIDEOTRACK=""                   # Videotrack number
 LANGUAGE="en"                   # Wanted audiotrack language
 SPLITTING_ERROR=0               # Is set when splitting fails
+CMD_PRINT=""                    # If set, will print out commandline options
+IGNORE_UNKNOWN=0                # Ignore unknown errors
 
 AUDIODELAY=""                   # Delay audio by given value
 VIDEODELAY=""                   # Delay video by given value
@@ -268,6 +270,8 @@ print_help () {
     echo "delaudio     -    Delay audio by given seconds"
     echo "delvideo     -    Delay video by given seconds"
     echo "quick        -    Quick copy handling instead of packing"
+    echo "command      -    Print out commandline options while processing"
+    echo "ierr         -    Ignore unknown error and procees"
     echo -en "l(anguage)   -    Wanted output audio language with two letters, default:en\n\n"
     echo "example:     ${0} \"FILENAME\" 640x c=0:11-1:23,1:0:3-1:6:13,D"
 }
@@ -875,10 +879,14 @@ parse_handlers () {
             REPACK=1
             REPACK_GIVEN=1
             COPY_ONLY=0
+        elif [ "$1" == "ierr" ]; then
+            IGNORE_UNKNOWN=1
         elif [ "$1" == "quit" ]; then
             EXIT_VALUE=1
         elif [ "$1" == "repeat" ]; then
             EXIT_REPEAT=1
+        elif [ "$1" == "command" ]; then
+            CMD_PRINT="1"
         elif [ "$1" == "continue" ]; then
             EXIT_CONTINUE=1
         elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then
@@ -1291,6 +1299,7 @@ simply_pack_file () {
     fi
 
     ERROR=0
+    [ -n "$CMD_PRINT" ] && printf "$Yellow '$COMMAND_LINE' '$COMMAND_ADD' $Color_Off"
     $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
@@ -1456,16 +1465,25 @@ handle_file_rename () {
 
         if [ "$KEEPORG" == "0" ]; then
             if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-                if [ -z "$NEWNAME" ]; then mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
-                else                       mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"; fi
+                if [ ! -f "${TARGET_DIR}/${FILE}" ] && [ ! -f "${TARGET_DIR}/$NEWNAME$CONV_TYPE" ]; then
+                    if [ -z "$NEWNAME" ]; then mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
+                    else                       mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"; fi
+                else
+                    move_to_a_running_file
+                    printf "    ${Yellow}Target already exists, naming '${RUNNING_FILENAME}'!${Color_Off}\n"
+                fi
 
-            else
+            elif [ ! -f "${TARGET_DIR}/$FILE$CONV_TYPE" ] && [ ! -f "$FILE$CONV_TYPE" ]; then
                 if [ "${TARGET_DIR}" != "." ]; then
                     mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
                     rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
                 else
                     rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
                 fi
+
+            else
+                move_to_a_running_file
+                printf "    ${Yellow}Target already exists, naming '${RUNNING_FILENAME}'!${Color_Off}\n"
             fi
         else
             move_to_a_running_file
@@ -1551,10 +1569,14 @@ check_alternative_conversion () {
         RETVAL=1
         ERROR_WHILE_MORPH=1
         PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
-    else
+    elif [ "$IGNORE_UNKNOWN" == "0" ]; then
         RETVAL=1
         ERROR_WHILE_MORPH=1
         PRINT_ERROR_DATA="Unknown"
+    else
+        handle_file_rename 1
+        check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))"
+        printf "${Yellow}Warning, ignoring unknown error:$ERROR in $TIMERVALUE, saved:${SAVESIZE}${SIZETYPE}"
     fi
 
     if [ -n "$PRINT_ERROR_DATA" ]; then
@@ -1563,7 +1585,7 @@ check_alternative_conversion () {
         printf "${Red} FAILED!"
         [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:$xNEW_DURATION>$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:$xNEW_FILESIZE>$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
-        [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA"
+        [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:$PRINT_ERROR_DATA ($ERROR)"
         printf " in $TIMERVALUE"
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
         SPLITTING_ERROR=1

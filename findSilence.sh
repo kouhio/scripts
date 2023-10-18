@@ -477,7 +477,9 @@ split_file_by_input_file () {
 #**************************************************************************************************************
 check_file () {
     EXT="${1##*.}"
-    if [ "mp3" == "$EXT" ] || [ $EXT == "wav" ]; then
+    TIMELEN=$(mediainfo '--Inform=Audio;%Duration%' "$1")
+    if [ -n "$TIMELEN" ]; then
+
         if [ -f "$1" ]; then
             SILENCEDATA=$(ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence")
             if [ ! -z "$SILENCEDATA" ]; then
@@ -522,9 +524,10 @@ verify_dependencies() {
     hash ffprobe || error_code=$?
     hash awk || error_code=$?
     hash lame || error_code=$?
+    hash mediainfo || error_code=$?
 
     if [ $error_code -ne 0 ]; then
-        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk, lame"
+        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk, lame, mediainfo"
         exit 1
     fi
 }
@@ -533,12 +536,12 @@ verify_dependencies() {
 # The main function
 #**************************************************************************************************************
 run_main() {
-    if [ ! -z "$FILE" ] && [ -z "$INFO_FROM_FILE" ]; then
+    if [ ! -z "$FILE" ] && [ -z "$INFO_FROM_FILE" ] && [ ! -f "$FILE" ]; then
         echo "Seeking silence with $DURATION secs or more" > "$FILE"
     fi
 
     if [ -z "$FILENAME" ]; then
-        echo "Starting seek from $PWD"
+        echo "Starting seek from $PWD $FILENAME"
         do_directory
     elif [ -d "$FILENAME" ]; then
         echo "Starting seek from directory $FILENAME"
