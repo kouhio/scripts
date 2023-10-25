@@ -57,7 +57,7 @@ if [[ "$SOURCE" =~ "spotify" ]]; then
             [[ "$index" =~ "Save to Your Library" ]] && continue
             #tracks+=($(echo "$index" |grep -o -P '(?<=\"track ).*(?=\">)'))
             NEW_ITEM=($(echo "$index" |grep -o -P '(?<=aria-label=\").*(?=\" data-testid=\")'))
-            NEW_ITEM=$(echo "$NEW_ITEM" |recode html..ascii)
+            #NEW_ITEM=$(echo "$NEW_ITEM" |recode html..ascii)
             [ ! -z "$NEW_ITEM" ] && tracks+=("$NEW_ITEM")
         fi
     done

@@ -1364,7 +1364,7 @@ burn_subs () {
             short_name
 
             printf "$(date +%T) '${1:0:40}' burning subs "
-            [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB"
+            [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB" || printf "'$SUB' "
             ERROR=0
             [ "$SINGULAR" == "0" ] && NEWNAME=""
             [ -z "$NEWNAME" ] && NEWNAME="Subbed_$1"
@@ -1465,25 +1465,15 @@ handle_file_rename () {
 
         if [ "$KEEPORG" == "0" ]; then
             if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-                if [ ! -f "${TARGET_DIR}/${FILE}" ] && [ ! -f "${TARGET_DIR}/$NEWNAME$CONV_TYPE" ]; then
-                    if [ -z "$NEWNAME" ]; then mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
-                    else                       mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"; fi
-                else
-                    move_to_a_running_file
-                    printf "    ${Yellow}Target already exists, naming '${RUNNING_FILENAME}'!${Color_Off}\n"
-                fi
-
-            elif [ ! -f "${TARGET_DIR}/$FILE$CONV_TYPE" ] && [ ! -f "$FILE$CONV_TYPE" ]; then
+                if [ -z "$NEWNAME" ]; then mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
+                else                       mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"; fi
+            else
                 if [ "${TARGET_DIR}" != "." ]; then
                     mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$FILE$CONV_TYPE"
                     rename "s/.$EXT_CURR//" "${TARGET_DIR}/$FILE$CONV_TYPE"
                 else
                     rename "s/.$EXT_CURR//" "$FILE$CONV_TYPE"
                 fi
-
-            else
-                move_to_a_running_file
-                printf "    ${Yellow}Target already exists, naming '${RUNNING_FILENAME}'!${Color_Off}\n"
             fi
         else
             move_to_a_running_file
