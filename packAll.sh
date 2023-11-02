@@ -107,7 +107,9 @@ VIDEODELAY=""                   # Delay video by given value
 NOMAPPING=0                     # Don't map file
 QUICK=0                         # Quickcopy handler
 
+MAX_SHORT_TIME=""               # Maximum accepted time for shortening
 TOTAL_ERR_CNT=0                 # Number of errors occured
+ERROR_WHILE_SPLITTING=0         # Splitting error handler
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
@@ -255,7 +257,8 @@ print_help () {
     echo "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc"
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
     echo "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one"
-    echo -en "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful\n\n"
+    echo -en "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful\n"
+    echo "max=         -    Maximum removal time in seconds, verification for combine-functionality\n\n"
     echo "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files"
     echo -en "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end\n\n"
     echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
@@ -382,8 +385,6 @@ delete_file () {
 #**************************************************************************************************************
 # Check that the timelength matches with the destination files from splitting
 #***************************************************************************************************************
-ERROR_WHILE_SPLITTING=0
-
 massive_filecheck () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
@@ -416,12 +417,16 @@ massive_filecheck () {
     [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
     [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
 
-    if [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
-        TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
-        SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
-        TIME_SHORTENED=$((TIME_SHORTENED / 1000))
+    TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
+    TIME_SHORTENED=$((TIME_SHORTENED / 1000))
+
+    if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ -n "$MAX_SHORT_TIME" ] && [ "$TIME_SHORTENED" -gt "$MAX_SHORT_TIME" ]; then
+        printf "${Red}Cutting over max-time:${TIME_SHORTENED}s > ${MAX_SHORT_TIME}s, aborting!${Color_Off}\n"
+        RETVAL="1"
+    elif [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
 
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
+            SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
             OSZ=$(du -k "$FILE" | cut -f1)
             delete_file "$FILE"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
@@ -955,6 +960,8 @@ parse_values () {
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
             calculate_time "$VALUE" "1"
             ENDTIME=$CALCTIME
+        elif [ "$HANDLER" == "max" ]; then
+            MAX_SHORT_TIME="$VALUE"
         elif [ "$HANDLER" == "delaudio" ]; then
             AUDIODELAY="$VALUE"
         elif [ "$HANDLER" == "delvideo" ]; then
@@ -1549,7 +1556,7 @@ check_alternative_conversion () {
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1
             check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))"
-            printf "| Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and ${SAVESIZE} ${SIZETYPE} in $TIMERVALUE"
+            printf " ${Green}Converted. $((ORIGINAL_DURATION - NEW_DURATION))sec and ${SAVESIZE} ${SIZETYPE} in $TIMERVALUE"
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
