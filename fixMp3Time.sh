@@ -15,10 +15,10 @@ trap set_int SIGINT SIGTERM
 #************************************************************************
 init() {
     cnt=0
-    depth=0
+    #depth=0
 
-    START=$(pwd)
-    CURR=$START
+    #START=$(pwd)
+    #CURR="$START"
 }
 
 #************************************************************************
@@ -41,17 +41,15 @@ process_directory() {
         if [ "$D" == "lost+found" ]; then
             continue
         elif [ -d "${D}" ]; then
-            cd "$D"
-            if [ $? == "0" ]; then
-                echo Entering directory $D
-                cnt=$(ls -l *.mp3 | grep -v ^l | wc -l) >/dev/null 2>&1
-                if [ $cnt -gt "0" ]; then
-                    check_files
-                else
-                    process_directory
-                fi
-                cd ..
+            cd "$D" || continue
+            echo "Entering directory $D"
+            cnt=$(find . -maxdepth 1 -name "*.mp3" |wc -l)
+            if [ "$cnt" -gt "0" ]; then
+                check_files
+            else
+                process_directory
             fi
+            cd ..
         fi
     done
 }
@@ -77,17 +75,12 @@ main() {
         process_directory
     else
         if [ -d "$1" ]; then
-            cd "$1"
-            if [ $? == "0" ]; then
-                process_directory
-                cd ..
-            else
-                echo "Something wrong with with $1, can't enter directory"
-                exit 1
-            fi
+            cd "$1" || echo "Something wrong with $1, can't enter directory!" && exit 1
+            process_directory
+            cd ..
         else
             FILE="${1##*.}"
-            if [ $FILE == "mp3" ]; then
+            if [ "$FILE" == "mp3" ]; then
                 mp3val "${FILE}" -f -t >/dev/null 2>&1
             else
                 echo "$1 is not a mp3 file"

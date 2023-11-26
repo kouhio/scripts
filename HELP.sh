@@ -3,15 +3,23 @@
 printGrep() {
     echo -e "GREP things:\n"
     echo -e "Exclude STRING from search                     -v STRING\n"
-    echo -e "Print information:   -n rownumber in file      -c count of found items\n"
-    echo -e "Search for multiple patters:                   -e STRING1 -e STRING2 -e STRING...\n"
-    echo -e "Ignore string care:                            -i STRING\n"
-    echo -e "Search for tab:                                -P '\t' *"
+    echo -e "Print information:                             -n rownumber in file"
+    echo -e "                                               -c count of found items\n"
+    echo -e "Search for multiple patters:                   -e STRING1 -e STRING2 -e STRING..."
+    echo -e "                                               -E 'STRING|STRING2|...'\n"
+    echo -e "Ignore string case:                            -i STRING\n"
+    echo -e "Search for tab:                                -P '\\\t' *"
+}
+
+printFind() {
+    echo -e "FIND things:\n"
+    echo -e "Find only files                                -type f"
+    echo -e "Ignore case search                             -iname \"STRING\""
 }
 
 printVim () {
     echo -e "VIM things:\n"
-    echo    "Search for multiple strings at once                    :\vSTRING|STRING"
+    echo    "Search for multiple strings at once                    :\\vSTRING|STRING"
     echo -e "Search two different string in one row                 :STRING1.*STRING2"
     echo -e "Search for STRING1 that doesn't continue with STRING2  :STRING1\(STRING2\)\@!"
     echo    "Search for STRING that's not case sensitive            :STRING\c"
@@ -24,7 +32,7 @@ printVim () {
     echo -e "Remove all rows containing string                      :g/STRING/d"
     echo -e "Remove all rows not having STRING                      :%g!/STRING/d"
     echo -e "Remove everything after string                         :%s/STRING.*g"
-    echo    "Remove carriage return ^M                              :%s/\\r//\n"
+    echo -e "Remove carriage return ^M                              :%s/\\r//\n"
     echo -e "Special search options                                 :\\+ repeat given string | \$ end of the line\n"
     echo -e "ctrl+v -> paint all rows -> g -> ctrl+a (to increment all values)"
     echo -e "ctrl+v -> paint all rows / test -> c -> write new text to replace painted text -> esc\n"
@@ -114,7 +122,7 @@ printBash () {
     echo -en "Loop array with value         for ITEM_VALUE in \"\${!ARRAY[@]}\"; do -> done\n"
     echo -en "Get array item with value     \${ARRAY[index]}\n\n"
     echo -en "Split string into array       ARRAY=(\${STRING//,/\$IFS})\n"
-    echo -en "Set IFS for enter             NEW_LINE=$'\\\x0A'; export IFS="\${NEW_LINE}";\n\n"
+    echo -en "Set IFS for enter             NEW_LINE=$'\\\x0A'; export IFS=\"\${NEW_LINE}\";\n\n"
     echo -en "Find all file extensions      find . -type f -name '*.*' | sed 's|.*\.||' | sort -u\n"
 }
 
@@ -132,6 +140,8 @@ elif [ "$1" == "awk" ]; then
     printAwk
 elif [ "$1" == "bash" ]; then
     printBash
+elif [ "$1" == "find" ]; then
+    printFind
 else
     echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash"
 fi

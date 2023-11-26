@@ -1,4 +1,4 @@
-#"!/bin/bash
+#!/bin/bash
 
 INPUT="mp3"
 OUTPUT="mp3"
@@ -27,7 +27,7 @@ set_int () {
     fi
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     TOTALSAVE=$((TOTALSAVE / 1000))
-    printf "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb\n"
+    echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb"
     exit 1
 }
 
@@ -72,7 +72,7 @@ done
 if [ -f "$INPUT" ]; then
     handle_cue "$INPUT"
 elif [[ "$INPUT" =~ "cue" ]]; then
-    for file in *.$INPUT; do
+    for file in *".$INPUT"; do
         handle_cue "$file"
     done
 fi
@@ -85,7 +85,7 @@ DIDNTSAVE=0
 
 shopt -s nocaseglob
 
-for file in *.$INPUT; do
+for file in *".$INPUT"; do
     INFO=$(mediainfo "${file}")
     FILE="${file%.*}"
     if [[ "$INFO" =~ "Variable" ]]; then
@@ -104,7 +104,7 @@ for file in *.$INPUT; do
     if [ "$error" == 0 ]; then
         OUTPUTSIZE=$(du -k "${file}.new.${OUTPUT}" | cut -f1)
         if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$IGNORE" == "0" ]; then
-            printf "new size bigger than original $OUTPUTSIZE > $INPUTSIZE\n"
+            echo "new size bigger than original $OUTPUTSIZE > $INPUTSIZE"
             DIDNTSAVE=$((DIDNTSAVE + 1))
             [ "$DELETE" == "0" ] && rm "${file}.new.${OUTPUT}"
             [ "$DELETE" == "1" ] && rm "${file}" && mv "${file}.new.${OUTPUT}" "${file}"
@@ -116,7 +116,7 @@ for file in *.$INPUT; do
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
            printf "repacked succesfully, saved %-6d total:$TOTALSAVE\n" "$((INPUTSIZE - OUTPUTSIZE))"
            SUCCESS=$((SUCCESS + 1))
-           [ ! -z "$TARGET" ] && echo "$file" >> $TARGET
+           [ -n "$TARGET" ] && echo "$file" >> "$TARGET"
         fi
     elif [ -f "${file}.new.${OUTPUT}" ]; then
         printf "Failed to repack\n"
@@ -128,5 +128,5 @@ done
 shopt -u nocaseglob
 GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
 TOTALSAVE=$((TOTALSAVE / 1000))
-printf "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb\n"
+echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb"
 

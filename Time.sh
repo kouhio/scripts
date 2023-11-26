@@ -12,16 +12,16 @@ set_int () {
     [[ "$2" =~ "python" ]] && OUTPUT+=" $3"
 
     end_time=$(date +%s)
-    total_time=$(($end_time - $start_time))
+    total_time=$((end_time - start_time))
     print_time=$(date -d@${total_time} -u +%T)
 
     OUTPUT+="' in $print_time\n"
     echo -en "$OUTPUT"
 
-    exit $1
+    exit "$1"
 }
 
-trap "set_int 1 $1 $2" SIGINT SIGTERM
+trap 'set_int 1 $1 $2' SIGINT SIGTERM
 
 $@
 

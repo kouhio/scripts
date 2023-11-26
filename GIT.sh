@@ -48,7 +48,7 @@ elif [ "$1" == "push" ] && [ -z "$2" ] || [ "$2" == "ignore" ]; then
         if [ "$LOG" -eq "1" ]; then ${GIT} push
         else echo "Too many Change-Id's! Won't push with '$LOG' items! Fix commit!"; fi
 
-    else ${GIT} push origin $BRANCH ; fi
+    else ${GIT} push origin "$BRANCH" ; fi
 
 ##############################################################################################
 elif [ "$1" == "pull" ]; then
@@ -61,7 +61,7 @@ elif [ "$1" == "pull" ]; then
     [[ "$STATUS" =~ "Changes not staged for commit" ]] && [ -z "$2" ] && echo "Not all is committed! Not pulling!" && exit 1
 
     ${GIT} pull
-    ${GIT} pull origin $BRANCH
+    ${GIT} pull origin "$BRANCH"
 
 ##############################################################################################
 elif [ "$1" == "debug" ]; then
@@ -71,12 +71,12 @@ elif [ "$1" == "debug" ]; then
         else  ${GIT} commit -a -m "$2"; fi
 
         if [ "$REMOTE" -eq "1" ]; then ${GIT} push
-        else ${GIT} push origin $BRANCH; fi
+        else ${GIT} push origin "$BRANCH"; fi
 
     else echo "Cannot debug with master branch!"; fi
 
 ##############################################################################################
-elif [ "$1" == "grep" ] && [ ! -z "$2" ]; then
+elif [ "$1" == "grep" ] && [ -n "$2" ]; then
     ${GIT} log --grep="$2"
 
 ##############################################################################################
@@ -85,16 +85,16 @@ elif [ "$1" == "remote" ]; then
 
 ##############################################################################################
 elif [ "$1" == "reset" ]; then
-    if [ -z "$2" ]; then ${GIT} reset --hard origin/${BRANCH}
-    else ${GIT} reset --soft origin/${BRANCH}; fi
+    if [ -z "$2" ]; then ${GIT} reset --hard "origin/${BRANCH}"
+    else ${GIT} reset --soft "origin/${BRANCH}"; fi
 
 ##############################################################################################
 elif [ "$1" == "force" ]; then
-    if [ -z "$2" ]; then ${GIT} push origin $BRANCH
-    else ${GIT} push --force origin $BRANCH; fi
+    if [ -z "$2" ]; then ${GIT} push origin "$BRANCH"
+    else ${GIT} push --force origin "$BRANCH"; fi
 
     ${GIT} pull
-    ${GIT} pull origin $BRANCH
+    ${GIT} pull origin "$BRANCH"
 
 else
     ${GIT} $@

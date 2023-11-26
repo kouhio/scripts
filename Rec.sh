@@ -1,6 +1,18 @@
 #!/bin/bash
 
 #**********************************************************************************
+# Interrupt handler
+#**********************************************************************************
+recording_interrupt () {
+    ENDED=$(lib time from "$STARTED")
+    echo "Process complete in $ENDED"
+    exit 0
+}
+
+STARTED=$(lib time)
+trap recording_interrupt SIGINT SIGTERM
+
+#**********************************************************************************
 # Verify that the target file is being created in the correct format
 # 1 - filename
 #**********************************************************************************
@@ -9,7 +21,7 @@ verify_target() {
     [ -z "$WAV" ] && printHelp
 
     OUTPUT="${1##*.}"
-    [ $OUTPUT != "wav" ] && WAV+=".wav"
+    [ "$OUTPUT" != "wav" ] && WAV+=".wav"
 
     [ -f "$WAV" ] && rm -f "$WAV"
 }
@@ -37,8 +49,9 @@ record_audio_stream() {
         if [[ "$1" =~ "m" ]] || [[ "$1" =~ "h" ]] || [[ "$1" =~ "s" ]] || [[ "$1" =~ "d" ]]; then TIMEOUT="$1"
         else TIMEOUT="${1}m"; fi
 
-        echo "This process will terminate in $TIMEOUT"
-        timeout "$TIMEOUT" arecord -f cd |tee "$WAV" >/dev/null 2>&1
+        echo "This process will terminate in $TIMEOUT. Started at $(date +%T)."
+        timeout -v "$TIMEOUT" arecord -f cd |tee "$WAV" >/dev/null 2>&1
+        recording_interrupt
     fi
 }
 
@@ -81,3 +94,4 @@ verify_dependencies
 verify_target "$1"
 get_sink_monitor
 record_audio_stream "$2"
+recording_interrupt

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-STARTSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+STARTSIZE=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
 GLOBAL_FILESAVE=0
 NO_EXIT_EXTERNAL=1
 EXIT_EXT_VAL=0
@@ -8,7 +8,7 @@ COUNTED_ITEMS=0
 I_COUNTER=0
 TOTAL_SAVETIME="0"
 ERROR=0
-LASTSTART=0
+#LASTSTART=0
 
 R='\033[0;31m'
 G='\033[0;32m'
@@ -69,7 +69,7 @@ set_int () {
     [ -f "tembase" ] && rm tembase
     [ -z "$1" ] && echo " Interrupted at file $CURRCNT"
 
-    ENDSIZE=`df --output=avail "$PWD" | sed '1d;s/[^0-9]//g'`
+    ENDSIZE=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
     TOTALSIZE=$((ENDSIZE - STARTSIZE))
     TOTALSIZE=$((TOTALSIZE / 1000))
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE / 1000))
@@ -94,9 +94,9 @@ endtime () {
 # 1 - Time in seconds
 #############################################################################
 calcTime () {
-    if [ "$1" -lt "60" ]; then TIME="$(date -d@${1} -u +%S)"
-    elif [ "$1" -lt "3600" ]; then TIME="$(date -d@${1} -u +%M:%S)";
-    else TIME="$(date -d@${1} -u +%T)"; fi
+    if [ "$1" -lt "60" ]; then TIME="$(date -d@"${1}" -u +%S)"
+    elif [ "$1" -lt "3600" ]; then TIME="$(date -d@"${1}" -u +%M:%S)";
+    else TIME="$(date -d@"${1}" -u +%T)"; fi
     [ "$TIME" == "00" ] && TIME="0"
 }
 
@@ -166,7 +166,7 @@ get_info_and_cut () {
 
     TIME_CORRECTION=0
     NEWSTART=$(bc <<< "scale=0;($I_START - $I_COMPLEN)")
-    ORIGSTART="${NEWSTART##.*}"
+    #ORIGSTART="${NEWSTART##.*}"
     NEWSTART="${NEWSTART%.*}"
     if [ "$NEWSTART" == "-" ]; then
         NEWSTART=0
@@ -192,12 +192,12 @@ get_info_and_cut () {
 
     # Setup possible end value trimming
     TIMECUT=0
-    [ ! -z "$4" ] && [ "$4" != "0" ] && TIMECUT=$((VIDEO_LENGTH - $4))
+    [ -n "$4" ] && [ "$4" != "0" ] && TIMECUT=$((VIDEO_LENGTH - $4))
 
     # reformat time values for later use
     calcTime "$NEWSTART"
     STARTHANDLE="$TIME"
-    LASTSTART="$NEWSTART"
+    #LASTSTART="$NEWSTART"
 
     ENDSTART=$((NEWSTART + AUDIO_LENGTH))
     calcTime "$ENDSTART"
@@ -213,7 +213,7 @@ get_info_and_cut () {
         # Start is at the beginning, skip too short intro alltogether
         if [ "$NEWSTART" -eq "0" ]; then
             echo -en ${Y}"-> Removing front:$((AUDIO_LENGTH + TIME_CORRECTION))s"${O}
-            [ ! -z "$4" ] && [ "$4" != "0" ] && echo -en ${Y}" end:${4}s"${O}
+            [ -n "$4" ] && [ "$4" != "0" ] && echo -en ${Y}" end:${4}s"${O}
             packAll.sh "$1" "quit" "c=$((AUDIO_LENGTH + TIME_CORRECTION))-${TIMECUT},D" >/dev/null 2>&1
             error=$?
 
@@ -227,7 +227,7 @@ get_info_and_cut () {
 
         if [ "$error" -eq "0" ]; then
             C_LENGTH="$AUDIO_LENGTH"
-            [ ! -z "$4" ] && [ "$4" != "0" ] && C_LENGTH=$((C_LENGTH + "$4"))
+            [ -n "$4" ] && [ "$4" != "0" ] && C_LENGTH=$((C_LENGTH + "$4"))
             echo -en ${G}"-> successful, saved ${C_LENGTH}s"${O}
             TOTAL_SAVETIME=$((TOTAL_SAVETIME + C_LENGTH))
             I_COUNTER=$((I_COUNTER + 1))
@@ -237,16 +237,16 @@ get_info_and_cut () {
 
     # Output file has been given, write removal timeframes to given file in the format of individualPack.sh
     else
-        echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ ! -z "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2} "
+        echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ -n "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2} "
 
-        if [ ! -z "$5" ]; then
+        if [ -n "$5" ]; then
             CUTSTR="b=$ENDHANDLE"
-            [ ! -z "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
+            [ -n "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
             echo "PACK \"${1}\" $CUTSTR" >> "$OUTPUTFILE"
 
         elif [ "$NEWSTART" -eq "0" ]; then
             CUTSTR="b=$AUDIO_LENGTH"
-            [ ! -z "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
+            [ -n "$4" ] && [ "$4" != "0" ] && CUTSTR+=" e=${4}"
             echo "PACK \"${1}\" $CUTSTR" >> "$OUTPUTFILE"
 
         else
@@ -263,7 +263,7 @@ trap set_int SIGINT SIGTERM
 
 shopt -s nocaseglob
 
-FILECNT=$(ls -l *.${1} 2>/dev/null | grep -v ^l | wc -l)
+FILECNT=$(find . -maxdepth 1 -name "*${1}" |wc -l)
 CURRCNT=1
 [ -f "$3" ] && rm "$3"
 [ ! -f "$4" ] && [ "$4" == "do.sh" ] && individualPack.sh "$1"
@@ -271,7 +271,7 @@ CURRCNT=1
 
 [ "$4" == "do.sh" ] && writeOutput
 
-for f in *.${1}; do
+for f in *".${1}"; do
     printf "%03d/%03d " "$CURRCNT" "$FILECNT"
     get_info_and_cut "$f" "$4" "$2" "$3" "$5"
     CURRCNT=$((CURRCNT + 1))
@@ -281,6 +281,6 @@ done
 
 shopt -u nocaseglob
 
-rename "s/_01//" *${1}
+rename "s/_01//" *"${1}"
 
 set_int 1

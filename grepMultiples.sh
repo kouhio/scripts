@@ -23,7 +23,7 @@ verify() {
     array=(${1// / })
 
     if [ -z "${array[2]}" ]; then
-        [ ! -z "$TARGET" ] && echo "$1" >> "$TARGET"
+        [ -n "$TARGET" ] && echo "$1" >> "$TARGET"
         return 0
     fi
 
@@ -39,7 +39,7 @@ verify() {
             echo -n "Multiple found! Preserve (y/n)?"
             read -rsn1 input < /dev/tty
             if [ "$input" == "y" ]; then
-                if [ ! -z "$TARGET" ]; then
+                if [ -n "$TARGET" ]; then
                     PRESERVED=1
                     echo "$1" >> "$TARGET"
                 fi
@@ -47,16 +47,16 @@ verify() {
             echo " "
         elif [ "$COUNT" -ge 10 ]; then
             echo "${array[1]} -> ${array[2]} -> Found too many times ($COUNT)"
-            [ ! -z "$TARGET" ] && echo "$1" >> "$TARGET"
+            [ -n "$TARGET" ] && echo "$1" >> "$TARGET"
             PRESERVED=1
-        elif [ ! -z "$PRINT" ]; then
+        elif [ -n "$PRINT" ]; then
             echo "$INPUT2"
             echo " "
             if [ $PAUSE -ne 0 ]; then
                 echo "Keep this match (y/n)?"
                 read -rsn1 input < /dev/tty
                 if [ "$input" == "y" ]; then
-                    if [ ! -z "$TARGET" ]; then
+                    if [ -n "$TARGET" ]; then
                         PRESERVED=1
                         echo "$1" >> "$TARGET"
                     fi
@@ -66,7 +66,7 @@ verify() {
 
         [ $PRESERVED -eq 0 ] && ((REMOVECOUNT++))
 
-    elif [ ! -z "$TARGET" ]; then
+    elif [ -n "$TARGET" ]; then
         echo "$1" >> "$TARGET"
     fi
 }
@@ -81,7 +81,7 @@ readFile() {
         exit 1
     fi
 
-    if [ ! -z "$TARGET" ]; then
+    if [ -n "$TARGET" ]; then
         [ -f "$TARGET" ] && rm "$TARGET"
         touch "$TARGET"
     fi
@@ -89,11 +89,11 @@ readFile() {
     while IFS= read -r p || [[ -n "$p" ]]; do
         if [[ "$p" =~ $FIND ]]; then
             if [[ "$p" =~ "\\" ]]; then
-                [ ! -z "$TARGET" ] && echo "$p" >> "$TARGET"
+                [ -n "$TARGET" ] && echo "$p" >> "$TARGET"
             else
                 verify "$p"
             fi
-        elif [ ! -z "$TARGET" ]; then
+        elif [ -n "$TARGET" ]; then
             echo "$p" >> "$TARGET"
         fi
     done < "$1"

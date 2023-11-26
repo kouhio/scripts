@@ -24,11 +24,11 @@ shift 1
 mkdir -p "$savedir"
 
 cnt=0
-for f in *.$input; do
+for f in *".$input"; do
     [ ! -f "$f" ] && continue
     echo "handling '$f'"
     filename="${f%.*}"
-    ext="${f##*.}"
+    #ext="${f##*.}"
     settings="-T $filename"
     err_cod=0
     [ -f "${filename}.txt" ] && settings="-F ${filename}.txt"

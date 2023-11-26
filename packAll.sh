@@ -106,6 +106,7 @@ AUDIODELAY=""                   # Delay audio by given value
 VIDEODELAY=""                   # Delay video by given value
 NOMAPPING=0                     # Don't map file
 QUICK=0                         # Quickcopy handler
+BUGME=0                         # Debug output commands
 
 MAX_SHORT_TIME=""               # Maximum accepted time for shortening
 TOTAL_ERR_CNT=0                 # Number of errors occured
@@ -258,7 +259,7 @@ print_help () {
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
     echo "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one"
     echo -en "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful\n"
-    echo "max=         -    Maximum removal time in seconds, verification for combine-functionality\n\n"
+    echo -en "max=         -    Maximum removal time in seconds, verification for combine-functionality\n\n"
     echo "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files"
     echo -en "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end\n\n"
     echo "combine      -    If given as a first input, all input after are read as files, and are combined into one file"
@@ -272,9 +273,9 @@ print_help () {
     echo "at           -    Wanted audiotrack from input file, if multiple, separate each with :"
     echo "delaudio     -    Delay audio by given seconds"
     echo "delvideo     -    Delay video by given seconds"
-    echo "quick        -    Quick copy handling instead of packing"
+    echo "quick        -    Quick copy handling instead of packing (warning, will probably cause syncinc problems with the video)"
     echo "command      -    Print out commandline options while processing"
-    echo "ierr         -    Ignore unknown error and procees"
+    echo "ierr         -    Ignore unknown error and proceed"
     echo -en "l(anguage)   -    Wanted output audio language with two letters, default:en\n\n"
     echo "example:     ${0} \"FILENAME\" 640x c=0:11-1:23,1:0:3-1:6:13,D"
 }
@@ -310,6 +311,7 @@ check_and_crop () {
         exit 1
     fi
 
+    [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$FILE\" -t 1 -vf cropdetect -f null$Color_Off\n"
     CROP_DATA=$($APP_NAME -i "$FILE" -t 1 -vf cropdetect -f null - 2>&1 | awk '/crop/ { print $NF }' | tail -1)
     if [ -n "$CROP_DATA" ]; then
         XC=$(mediainfo '--Inform=Video;%Width%' "$FILE")
@@ -330,6 +332,7 @@ check_and_crop () {
                         process_start_time=$(date +%s)
                         PROCESS_NOW=$(date +%T)
                         printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
+                        [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$FILE\" -vf \"$CROP_DATA\"$Color_Off\n"
                         $APP_NAME -i "$FILE" -vf "$CROP_DATA" "$FILE$CONV_TYPE" -v quiet >/dev/null 2>&1
                         calculate_duration
                         check_file_conversion
@@ -657,14 +660,14 @@ combine_split_files() {
     process_start_time=$(date +%s)
     make_or_remove_split_files 1
     CURRDIR="$PWD"
-    cd "$TARGET_DIR"
+    cd "$TARGET_DIR" || return
 
     ERROR=0
     printf "%-57.57s Combining $COMBINE_RUN_COUNT split files " " "
     $APP_NAME -f concat -i "packcombofile.txt" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
-    cd "$CURRDIR"
+    cd "$CURRDIR" || return
     rm "${TARGET_DIR}/packcombofile.txt"
 
     if [ "$ERROR" -eq "0" ]; then
@@ -791,6 +794,7 @@ mergeFiles () {
 
         printf "$(date -u +%T) $TYPE $FILESCOUNT files "
         ERROR=0
+        [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME \"${COMMANDSTRING[*]}\" $SETUPSTRING \"${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}\"$Color_Off\n"
         $APP_NAME "${COMMANDSTRING[@]}" $SETUPSTRING "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" >/dev/null 2>&1
         ERROR=$?
 
@@ -886,6 +890,8 @@ parse_handlers () {
             COPY_ONLY=0
         elif [ "$1" == "ierr" ]; then
             IGNORE_UNKNOWN=1
+        elif [ "$1" == "bugme" ]; then
+            BUGME=1
         elif [ "$1" == "quit" ]; then
             EXIT_VALUE=1
         elif [ "$1" == "repeat" ]; then
@@ -966,7 +972,7 @@ parse_values () {
             AUDIODELAY="$VALUE"
         elif [ "$HANDLER" == "delvideo" ]; then
             VIDEODELAY="$VALUE"
-        elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "" ]; then
+        elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "l" ]; then
             LANGUAGE="$VALUE"
         elif [ "$HANDLER" == "videotrack" ] || [ "$HANDLER" == "vt" ]; then
             VIDEOTRACK="$VALUE"
@@ -1047,8 +1053,8 @@ parse_file () {
 
         if [ ! -f "$FILE" ]; then
             shopt -s nocaseglob
-            FILECOUNT=$(ls -l *"$FILE" 2>/dev/null | grep -v ^l | wc -l)
-            [ "$FILECOUNT" == 0 ] && MULTIFILECOUNT=$(ls -l *"$FILE"* 2>/dev/null | grep -v ^l | wc -l)
+            FILECOUNT=$(find . -maxdepth 1 -name "*$FILE" |wc -l)
+            [ "$FILECOUNT" == 0 ] && MULTIFILECOUNT=$(find . -maxdepth 1 -name "*${FILE}*" |wc -l)
             shopt -u nocaseglob
         fi
     fi
@@ -1201,18 +1207,27 @@ setup_file_packing () {
     else                               COMMAND_LINE+="-c:v:1 copy " && NOMAPPING=1 ; fi
 
     if [ -z "$AUDIODELAY" ] && [ -z "$VIDEODELAY" ]; then
+        INCREMENTOR=0
+
+        if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
+            IFS=':' read -r -a video_array <<< "$VIDEOTRACK"
+            for video in "${video_array[@]}"; do
+                COMMAND_LINE+="-map $INCREMENTOR:v:$video "
+                INCREMENTOR=$((INCREMENTOR + 1))
+            done
+        elif [ -n "$AUDIOTRACK" ]; then
+            COMMAND_LINE+="-map $INCREMENTOR:v:0 "
+            INCREMENTOR=1
+        fi
+
         if [ -n "$AUDIOTRACK" ]; then
             IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
             for audio in "${audio_array[@]}"; do
-                COMMAND_LINE+="-map 1:a:$audio "
+                COMMAND_LINE+="-map $INCREMENTOR:a:$audio "
+                INCREMENTOR=$((INCREMENTOR + 1))
             done
-        fi
-
-        if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
-            IFS=':' read -r -a video_array <<< "$AUDIOTRACK"
-            for video in "${video_array[@]}"; do
-                COMMAND_LINE+="-map 0:v:$video "
-            done
+        elif [ -n "$VIDEOTRACK" ]; then
+            COMMAND_LINE+="-map $INCREMENTOR:a:0 "
         fi
     fi
 
@@ -1307,6 +1322,7 @@ simply_pack_file () {
 
     ERROR=0
     [ -n "$CMD_PRINT" ] && printf "$Yellow '$COMMAND_LINE' '$COMMAND_ADD' $Color_Off"
+    [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$FILE\" $COMMAND_LINE $COMMAND_ADD \"${FILE}${CONV_TYPE}\"$Color_Off\n"
     $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
@@ -1331,8 +1347,13 @@ get_sub_info () {
     SUBTITLE=$(echo "$SINGLESUB" |grep -e "Title")
     SUBTITLE="${SUBTITLE##*: }"
 
+    if [ -z "$SUBLANG" ]; then
+        SUBCOUNT=$(mediainfo '--Inform=General;%TextCount%;' "$1")
+        [ "${SUBCOUNT}" == "1" ] && SUBLANG="Unknown"
+    fi
+
     if [ -z "$SUBLANG" ]; then printf "${Red}language not found for index '$2' ${Color_Off}\n" && SUBERR=1;
-    elif [ "$SUBLANG" != "English" ]; then
+    elif [ "$SUBLANG" != "English" ] && [ "$SUBLANG" != "Unknown" ]; then
         printf "\n    Read language is not english? Proceed with '$SUBLANG' (y/n)?"
         read -rsn1 -t 1 sinput
         [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1
@@ -1379,8 +1400,10 @@ burn_subs () {
 
             if [ "$SUBERR" == "0" ]; then
                 if [ -n "$MKVSUB" ]; then
+                    [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$1\" vf \"subtitles='$SUB':stream_index=$MKVSUB\"$Color_Off\n"
                     $APP_NAME -i "$1" -vf "subtitles='$SUB':stream_index=$MKVSUB" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
                 else
+                    [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$1\" -vf subtitles=\"$SUB\"$Color_Off\n"
                     $APP_NAME -i "$1" -vf subtitles="$SUB" "${TARGET_DIR}/${NEWNAME}" -v quiet >/dev/null 2>&1
                 fi
                 ERROR=$?
@@ -1591,7 +1614,7 @@ check_alternative_conversion () {
 
     printf "${Color_Off}\n"
 
-    [ "$TOTAL_ERR_CNT" -gt "3" ] && [ "$EXIT_CONTINUE" == "0" ] && printf "\nToo many errors ($TOTAL_ERR_CNT), aborting!\n" && exit 1
+    [ "$TOTAL_ERR_CNT" -gt "3" ] && [ "$EXIT_CONTINUE" == "0" ] && echo -en "\nToo many errors ($TOTAL_ERR_CNT), aborting!\n" && exit 1
 }
 
 #***************************************************************************************************************
@@ -1634,7 +1657,7 @@ check_file_conversion () {
         if [ -z "$AUDIO_DURATION" ]; then
             calculate_duration
             handle_file_rename 0
-            printf "${Red} FAILED! Target has no Audio!${Color_Off}\n"
+            echo -en "${Red} FAILED! Target has no Audio!${Color_Off}\n"
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
             SPLITTING_ERROR=1
             [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
@@ -1649,7 +1672,7 @@ check_file_conversion () {
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
             if [ "$MASSIVE_SPLIT" == 1 ]; then
-                printf "${Green} Success in $TIMERVALUE${Color_Off} "
+                echo -en "${Green} Success in $TIMERVALUE${Color_Off} "
             else
                 check_valuetype "$ENDSIZE"
                 printf "${Green} Success! Saved %-6.6s ${SIZETYPE} in $TIMERVALUE${Color_Off}\n" "$SAVESIZE"
@@ -1660,7 +1683,7 @@ check_file_conversion () {
         fi
     else
         calculate_duration
-        printf "${Red} No destination file!${Color_Off} in $TIMERVALUE\n"
+        echo -en "${Red} No destination file!${Color_Off} in $TIMERVALUE\n"
         [ ! -d "./Nodest" ] && mkdir "Nodest"
         mv "$FILE" "./Nodest"
         remove_interrupted_files
@@ -1769,7 +1792,7 @@ pack_file () {
                 [ "$EXIT_REPEAT" == "2" ] && handle_file_packing
                 REPACK="$REPACK_GIVEN"
             elif [ "$PRINT_ALL" == 1 ]; then
-                printf "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
+                echo -en "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
                 RETVAL=1
             fi
         elif [ "$PRINT_ALL" == 1 ]; then
@@ -1922,7 +1945,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             done
             shopt -u nocaseglob
         else
-            printf "${Red}File(s) '$1' not found!${Color_Off}\n"
+            echo -en "${Red}File(s) '$1' not found!${Color_Off}\n"
             RETVAL=2
         fi
 
@@ -1954,7 +1977,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         shopt -u nocaseglob
 
     else
-        printf "${Red}File(s) '$1' not found!${Color_Off}\n"
+        echo -en "${Red}File(s) '$1' not found!${Color_Off}\n"
         RETVAL=2
     fi
 

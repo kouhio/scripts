@@ -57,7 +57,7 @@ printTerminatorFunction () {
     echo -e "\ncleanup () {" >> "$FILE"
     echo -e "  echo \"Terminated, quitting process!\"" >> "$FILE"
     printSavedData "1"
-    echo -e "  exit 1" >> "$FILE" >> "$FILE"
+    echo -e "  exit 1" >> "$FILE"
     echo -e "}\n" >> "$FILE"
     echo -e "trap cleanup INT TERM\n" >> "$FILE"
     echo -e "#BEGIN" >> "$FILE"
@@ -91,7 +91,7 @@ printVLCStart() {
 # Change filename to VLC url encoding
 # 1 - filepath
 ##########################################################
-VLC_FILENANE=""
+VLC_FILENAME=""
 
 rawurlencode() {
   local string="${1}"
@@ -152,8 +152,7 @@ addNewFiles() {
     printVLCStart
     shopt -s nocaseglob
 
-    for f in *${EXT}*
-    do
+    for f in *"${EXT}"* ; do
         if [ -f "$f" ]; then
             EXT_CURR="${f##*.}"
             if [ "$EXT_CURR" == "part" ] || [ -f "${f}.part" ]; then
@@ -164,7 +163,7 @@ addNewFiles() {
                 continue
             fi
             X=$(mediainfo '--Inform=Video;%Width%' "$f")
-            [ -z $X ] && X=0
+            [ -z "$X" ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"
 
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then
@@ -303,15 +302,15 @@ parsePackData() {
 
     for var in "$@"; do
         CNT=$((CNT + 1))
-        if [ $CNT == 1 ]; then
+        if [ "$CNT" == 1 ]; then
             EXT="$var"
         #elif [ $CNT == 2 ]; then
         #    FILE="$var"
-        elif [ $var == "-i" ]; then
+        elif [ "$var" == "-i" ]; then
             IGNORE_SIZE=true
         elif [[ "$var" =~ $re ]]; then
-            xss=$(grep -o "x" <<< "$var" | wc -l)
-            SIZE=$(echo $var | cut -d x -f 1)
+            #xss=$(grep -o "x" <<< "$var" | wc -l)
+            SIZE=$(echo "$var" | cut -d x -f 1)
             [ -z "$SIZE" ] && IGNORE_SIZE=true
         else
             INPUTSTR+=" \"\$${INPUTCOUNT}\""
@@ -393,7 +392,7 @@ goThroughAllFiles() {
     index=1
     shopt -s nocaseglob
 
-    for f in *${EXT}*; do
+    for f in *"${EXT}"*; do
         if [ -f "$f" ]; then
             EXT_CURR="${f##*.}"
             if [ "$EXT_CURR" == "part" ] || [ -f "${f}.part" ]; then
@@ -403,7 +402,7 @@ goThroughAllFiles() {
             renfile "$f"
 
             X=$(mediainfo '--Inform=Video;%Width%' "$CLEARNAME")
-            [ -z $X ] && X=0
+            [ -z "$X" ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"
 
             if [ $X -le $SIZE ] && [ $IGNORE_SIZE == false ]; then

@@ -10,12 +10,12 @@ fi
 
 # If input 2 is set, then will choose files that don't have given string
 if [ -z "$2" ]; then
-    DATA=$(grep -r -c -E $1 --exclude=*.o --exclude-dir=bin | grep -v ":0")
+    DATA=$(grep -r -c -E "$1" --exclude=*.o --exclude-dir=bin | grep -v ":0")
 else
     if [ "$2" == "I" ]; then
-        DATA=$(grep -r -c -i -E $1 --exclude=*.o --exclude-dir=bin | grep -v ":0")
+        DATA=$(grep -r -c -i -E "$1" --exclude=*.o --exclude-dir=bin | grep -v ":0")
     else
-        DATA=$(grep -r -c -E $1 --exclude=*.o --exclude-dir=bin | grep ":0")
+        DATA=$(grep -r -c -E "$1" --exclude=*.o --exclude-dir=bin | grep ":0")
     fi
 fi
 
@@ -37,7 +37,7 @@ do
     fi
 done
 
-if [ ! -z "$FILES" ]; then
+if [ -n "$FILES" ]; then
     VimScript.sh $FILES
 else
     echo "No files with '$1' found!"

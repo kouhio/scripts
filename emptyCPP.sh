@@ -36,7 +36,7 @@ header_print() {
         echo " *"
         echo " * Copyright of $OWNER All rights reserved."
         echo " *"
-        if [ ! -z "$USER" ]; then
+        if [ -n "$USER" ]; then
             echo " * \\author $USER"
             echo " *"
         fi
@@ -102,7 +102,7 @@ parse_arguments () {
                 shift
                 ;;
             --)
-                [ -z "$FILENAME" ] && [ ! -z "$2" ] && FILENAME="$2"
+                [ -z "$FILENAME" ] && [ -n "$2" ] && FILENAME="$2"
                 break
                 ;;
             *)
@@ -117,7 +117,7 @@ parse_arguments "$@"
 ##################################################
 # Main (create files with wantd information)
 ##################################################
-if [ ! -z "$FILENAME" ]; then
+if [ -n "$FILENAME" ]; then
     if [ -f "$FILENAME.$EXT" ] || [ -f "$1.h" ]; then
         echo "File $FILENAME already exists, aborting!"
     else
@@ -132,7 +132,7 @@ if [ ! -z "$FILENAME" ]; then
             {
                 echo "#ifndef __${UPPER}_H__"
                 echo -e "#define __${UPPER}_H__\n"
-                if [ ! -z "$SOURCES" ]; then
+                if [ -n "$SOURCES" ]; then
                     IFS=" "
                     array=(${SOURCES//,/$IFS})
                     for index in "${!array[@]}"

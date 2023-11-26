@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # Reset
 Color_Off='\033[0m'       # Text Reset
@@ -72,22 +73,22 @@ On_IPurple='\033[0;105m'  # Purple
 On_ICyan='\033[0;106m'    # Cyan
 On_IWhite='\033[0;107m'   # White
 
-if [ ! -z $1 ]; then
-    if [ $1 == "red" ]; then
+if [ -n "$1" ]; then
+    if [ "$1" == "red" ]; then
         echo -e -n "$Red"
-    elif [ $1 == "green" ]; then
+    elif [ "$1" == "green" ]; then
         echo -e -n "$Green"
-    elif [ $1 == "yellow" ]; then
+    elif [ "$1" == "yellow" ]; then
         echo -e -n "$Yellow"
-    elif [ $1 == "blue" ]; then
+    elif [ "$1" == "blue" ]; then
         echo -e -n "$Blue"
-    elif [ $1 == "purple" ]; then
+    elif [ "$1" == "purple" ]; then
         echo -e -n "$Purple"
-    elif [ $1 == "cyan" ]; then
+    elif [ "$1" == "cyan" ]; then
         echo -e -n "$Cyan"
-    elif [ $1 == "white" ]; then
+    elif [ "$1" == "white" ]; then
         echo -e -n "$White"
-    elif [ $1 == "reset" ]; then
+    elif [ "$1" == "reset" ]; then
         echo -e -n "$Color_Off"
     else
         echo -e -n "$Color_Off"

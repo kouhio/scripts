@@ -8,11 +8,11 @@ TYPES="c cpp h"
 
 # $1 = filetype, $2 = no-exact replace
 replace_data() {
-    COUNT=$(ls -l *".$1" 2>/dev/null | grep -v ^l | wc -l)
+    COUNT=$(find . -maxdepth 1 -name "*$1" |wc -l)
     rType=0
-    [ ! -z "$2" ] && rType="$2"
+    [ -n "$2" ] && rType="$2"
 
-    if [ $COUNT -gt 0 ]; then
+    if [ "$COUNT" -gt 0 ]; then
         if [ "$rType" -eq 0 ]; then
             echo "Replacing exact strings in $1 -files"
             sed -i "s/\<${INPUT}\>/${REPLACE}/g" ./*".$1"
@@ -23,14 +23,14 @@ replace_data() {
     fi
 }
 
-if [ ! -z "$1" ]; then
-    if [ ! -z "$2" ]; then
+if [ -n "$1" ]; then
+    if [ -n "$2" ]; then
         REPLACE="$2"
     fi
 
     array=(${TYPES// / })
 
-    if [ ! -z "$4" ]; then
+    if [ -n "$4" ]; then
         array+=($4)
     fi
 
@@ -48,10 +48,10 @@ if [ ! -z "$1" ]; then
             replace_data "${array[index]}" "$3"
         done
 
-        if [ ! -z "$2" ]; then
+        if [ -n "$2" ]; then
             if [[ ! "$INPUT" =~ "$REPLACE" ]]; then
                 VERIFY=$(grep "${INPUT}" -r)
-                [ ! -z "$VERIFY" ] && echo "Failed to replace ${INPUT}"
+                [ -n "$VERIFY" ] && echo "Failed to replace ${INPUT}"
             fi
         fi
     fi

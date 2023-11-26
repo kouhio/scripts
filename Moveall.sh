@@ -11,7 +11,7 @@ set_int () {
 }
 
 TARGET=".."
-[ ! -z "$1" ] && TARGET="$1"
+[ -n "$1" ] && TARGET="$1"
 
 trap set_int SIGINT SIGTERM
 
@@ -28,11 +28,11 @@ sinput=""
 
 for D in *; do
     size=${#D}
-    if [ -d "${D}" ] && [ $size -gt "0" ]; then
-        cd "$D"
+    if [ -d "${D}" ] && [ "$size" -gt "0" ]; then
+        cd "$D" || continue
             SUCS=0
-            cnt=$(ls -l *.part 2>/dev/null | grep -v ^l | wc -l)
-            if [ $cnt -lt "1" ]; then
+            cnt=$(find . -maxdepth 1 -name "*.part" |wc -l)
+            if [ "$cnt" -lt "1" ]; then
                 IS_DIR=0
                 for DIRE in *; do
                     if [ -d "${DIRE}" ]; then
@@ -58,18 +58,18 @@ for D in *; do
                 fi
 
                 for index in "${!array[@]}"; do
-                    cnt=$(ls -l *.${array[index]} 2>/dev/null | grep -v ^l | wc -l)
-                    if [ $cnt -gt "0" ]; then
+                    cnt=$(find . -maxdepth 1 -name "*.${array[index]}" |wc -l)
+                    if [ "$cnt" -gt "0" ]; then
                         SUCS=$((SUCS + cnt))
-                        mv *${array[index]} "$TARGET"
+                        mv ./*"${array[index]}" "$TARGET"
                         echo "Found ${array[index]} in $D (*${array[index]})"
                     fi
                 done
 
                 if [ $SUCS -gt "0" ]; then
                     for index in "${!array2[@]}"; do
-                        cnt=$(ls -l *.${array2[index]} 2>/dev/null | grep -v ^l | wc -l)
-                        if [ $cnt -gt "0" ]; then
+                        cnt=$(find . -maxdepth 1 -name "*.${array2[index]}" |wc -l)
+                        if [ "$cnt" -gt "0" ]; then
                             echo "Found files not to be deleted, not removing directory $D"
                             SUCS=0
                         fi
@@ -86,7 +86,7 @@ done
 
 for D in *; do
     size=${#D}
-    if [ -d "${D}" ] && [ $size -gt "0" ]; then
+    if [ -d "${D}" ] && [ "$size" -gt "0" ]; then
         DIRECTORY="${D,,}"
         for f in *; do
             if [ -f "$f" ]; then

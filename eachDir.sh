@@ -33,7 +33,8 @@ trap set_interrupt SIGINT SIGTERM
 
 for d in */ ; do
     error=0
-    cd "$d" || error=1
+    cd "$d" || continue
+    error=$?
 
     if [ "$error" == "0" ]; then
         echo -en "\nRunning in $d\n"
@@ -42,7 +43,7 @@ for d in */ ; do
         echo -en "\nFailed to enter $d\n"
     fi
 
-    cd "$startPath"
+    cd "$startPath" || continue
 done
 
 set_interrupt "1"

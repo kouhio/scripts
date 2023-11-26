@@ -194,7 +194,7 @@ find_target_in_file () {
 # 1 - filenumber (aka the row in the file
 #**************************************************************************************************************
 find_name_in_file () {
-    [ ! -z "$INFO_FROM_FILE" ] && return
+    [ -n "$INFO_FROM_FILE" ] && return
 
     cnt=1
     while IFS='' read -r line || [[ -n "$line" ]]; do
@@ -225,11 +225,11 @@ split_to_file () {
 
     error_code=0
     OUTPUT=$(printf "%02d_$1" "$4")
-    if  [ ! -z "$TARGET_DIR" ]; then
+    if  [ -n "$TARGET_DIR" ]; then
         [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
     fi
 
-    if [ ! -z $TARGET_EXT ]; then
+    if [ -n "$TARGET_EXT" ]; then
         if [ -z "$NAMEPATH" ]; then
             PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
         else
@@ -237,12 +237,12 @@ split_to_file () {
             PACK_OUTPUT=$(printf "%02d_${CURRENT_NAME}.$TARGET_EXT" "$4")
             CURRENT_NAME=""
         fi
-        [ ! -z "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
-    elif [ ! -z "$NAMEPATH" ]; then
+        [ -n "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
+    elif [ -n "$NAMEPATH" ]; then
         find_name_in_file "$4"
         OUTPUT=$(printf "%02d_$CURRENT_NAME" "$4")
         CURRENT_NAME=""i
-        [ ! -z "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
+        [ -n "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
     fi
 
     ORG_EXT="${1##*.}"
@@ -254,8 +254,8 @@ split_to_file () {
         echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
-        if [ ! -z "$TARGET_EXT" ]; then
-            if [ $TARGET_EXT == "mp3" ]; then
+        if [ -n "$TARGET_EXT" ]; then
+            if [ "$TARGET_EXT" == "mp3" ]; then
                 echo "Packing to mp3 with lame $OUTPUT to $PACK_OUTPUT"
                 lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
                 if [ $error_code -eq 0 ]; then
@@ -290,11 +290,11 @@ split_file_by_silence () {
     FILENUMBER=1
     TOTAL_LENGTH=$(ffprobe -i "$2" -show_entries format=duration -v quiet -of csv="p=0")
 
-    if [ $MIN_DURATION -le 0 ]; then
+    if [ "$MIN_DURATION" -le 0 ]; then
         MIN_DURATION="$DURATION"
     fi
 
-    if [ ! -z "$NAMEPATH" ] && [ -z "$TARGET_DIR" ]; then
+    if [ -n "$NAMEPATH" ] && [ -z "$TARGET_DIR" ]; then
         find_target_in_file
     fi
 
@@ -308,7 +308,7 @@ split_file_by_silence () {
             END=$(bc <<< "${array[index + 1]} - 0.25")
         fi
 
-        if [ $END != "0" ] && [ $START != "0" ]; then
+        if [ "$END" != "0" ] && [ "$START" != "0" ]; then
             if (( $(echo "$START < $END" |bc -l) )); then
                 # There is no silence in the beginning, so the first file start from the beginning
                 if (( $(echo "$START < $MIN_DURATION" |bc -l) )); then
@@ -364,7 +364,7 @@ check_zero () {
 
     ZERORETVAL="$1"
     ttime="${1:0:1}"
-    if [ ! -z "$ttime" ]; then
+    if [ -n "$ttime" ]; then
         if [ "$ttime" == "0" ]; then
             ZERORETVAL="${1:1:1}"
         fi
@@ -380,7 +380,7 @@ calculate_time () {
         echo "calculate_time"
     fi
 
-    if [ ! -z "$1" ]; then
+    if [ -n "$1" ]; then
         t1=$(echo "$1" | cut -d : -f 1)
         t2=$(echo "$1" | cut -d : -f 2)
         t3=$(echo "$1" | cut -d : -f 3)
@@ -421,7 +421,7 @@ split_file_by_input_file () {
     FILENUMBER=1
     TOTAL_LENGTH=$(ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0")
 
-    if [ $MIN_DURATION -le 0 ]; then
+    if [ "$MIN_DURATION" -le 0 ]; then
         MIN_DURATION="$DURATION"
     fi
 
@@ -476,13 +476,13 @@ split_file_by_input_file () {
 # 1 - Sourcefile
 #**************************************************************************************************************
 check_file () {
-    EXT="${1##*.}"
+    #EXT="${1##*.}"
     TIMELEN=$(mediainfo '--Inform=Audio;%Duration%' "$1")
     if [ -n "$TIMELEN" ]; then
 
         if [ -f "$1" ]; then
             SILENCEDATA=$(ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence")
-            if [ ! -z "$SILENCEDATA" ]; then
+            if [ -n "$SILENCEDATA" ]; then
                 if [ $SPLIT == 1 ]; then
                     split_file_by_silence "$SILENCEDATA" "$1"
                 else
@@ -497,19 +497,15 @@ check_file () {
 # Go through all files and directories in given directory and act accordingly
 #**************************************************************************************************************
 do_directory () {
-    for f in *
-    do
+    for f in * ; do
         if [ "$f" != "lost+found" ]; then
             if [ -f "$f" ]; then
                 check_file "$f"
             elif [ -d "$f" ]; then
                 # Enter directory and repeat function recursively
-                cd "$f"
-                if [ $? == "0" ]; then
-                    echo "Entering $f"
-                    do_directory
-                    cd ..
-                fi
+                cd "$f" || continue
+                echo "Entering $f"
+                do_directory
             fi
         fi
     done
@@ -536,7 +532,7 @@ verify_dependencies() {
 # The main function
 #**************************************************************************************************************
 run_main() {
-    if [ ! -z "$FILE" ] && [ -z "$INFO_FROM_FILE" ] && [ ! -f "$FILE" ]; then
+    if [ -n "$FILE" ] && [ -z "$INFO_FROM_FILE" ] && [ ! -f "$FILE" ]; then
         echo "Seeking silence with $DURATION secs or more" > "$FILE"
     fi
 
@@ -545,7 +541,7 @@ run_main() {
         do_directory
     elif [ -d "$FILENAME" ]; then
         echo "Starting seek from directory $FILENAME"
-        cd "$FILENAME"
+        cd "$FILENAME" || return
         do_directory
         cd ..
     else

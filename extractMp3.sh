@@ -107,8 +107,8 @@ calculate_duration() {
 check_zero () {
     ZERORETVAL="$1"
     ttime="${1:0:1}"
-    if [ ! -z $ttime ]; then
-        if [ $ttime == "0" ]; then
+    if [ -n "$ttime" ]; then
+        if [ "$ttime" == "0" ]; then
             ZERORETVAL="${1:1:1}"
         fi
     fi
@@ -118,23 +118,23 @@ check_zero () {
 #Separate and calculate given time into seconds and set to corresponting placeholder
 #***************************************************************************************************************
 calculate_time () {
-    if [ ! -z $1 ]; then
-        t1=$(echo $1 | cut -d : -f 1)
-        t2=$(echo $1 | cut -d : -f 2)
-        t3=$(echo $1 | cut -d : -f 3)
+    if [ -n "$1" ]; then
+        t1=$(echo "$1" | cut -d : -f 1)
+        t2=$(echo "$1" | cut -d : -f 2)
+        t3=$(echo "$1" | cut -d : -f 3)
 
         occ=$(grep -o ":" <<< "$1" | wc -l)
 
-        check_zero $t1
+        check_zero "$t1"
         t1=$ZERORETVAL
-        check_zero $t2
+        check_zero "$t2"
         t2=$ZERORETVAL
-        check_zero $t3
+        check_zero "$t3"
         t3=$ZERORETVAL
 
-        if [ $occ == "0" ]; then
+        if [ "$occ" == "0" ]; then
             calc_time=$1
-        elif [ $occ == "1" ]; then
+        elif [ "$occ" == "1" ]; then
             t1=$((t1 * 60))
             calc_time=$((t1 + t2))
         else

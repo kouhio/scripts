@@ -10,11 +10,9 @@ trap set_int SIGINT SIGTERM
 
 for dir in */; do
     if [ -d "$dir" ]; then
-        cd "$dir"
-        if [ "$?" -eq "0" ]; then
-            AllDirs.sh $@
-            cd ..
-        fi
+        cd "$dir" || continue
+        AllDirs.sh $@
+        cd ..
     fi
 done
 
