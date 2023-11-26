@@ -12,6 +12,8 @@ HELP.sh                 - Miscellaneous help topics
 
 sound.sh                - An alternative for a beeper
 
+lib                     - Library of several commands made for easy access
+
 
 Audio Manipulation scripts:
 

@@ -1,0 +1,301 @@
+#!/bin/bash
+
+##########################################################################################
+# Print script user help
+##########################################################################################
+print_help () {
+    printf "Bash quick command library\n\n"
+    printf "COMMAND     | OPTION 1          | OPTION 2          | OPTTION 3         | Function\n"
+    printf "time        | now (or empty)    |                   |                   | Print current time in seconds\n"
+    printf "            | full              | time in seconds   |                   | Print human readable time from value\n"
+    printf "            | from              |                   |                   | Calculate time between now and given value\n"
+    printf "            | sec               | time split with : |                   | Transform split time to seconds\n"
+    printf "            | time in seconds   |                   |                   | Print time formatted based on the length of time\n\n"
+    printf "size        | size in kb        |                   |                   | Print size in human format\n\n"
+    printf "file        | count             | filetype          |                   | Print number of files\n"
+    printf "            | any               | string in file    |                   | Print number of files with given string\n"
+    printf "            | empty             |                   |                   | Get empty HD space\n\n"
+    printf "value       | number            | value to check    |                   | Check if value is a number\n"
+    printf "            | dim               | value to check    |                   | Check if value is a dimension\n"
+    printf "            | time              | value to check    |                   | Check if value is time\n\n"
+    printf "video       | sub               | path to file      | id or language    | Get subtitle ID or Language\n"
+    printf "            | audio             | path to file      | id or language    | Get audio ID or language\n"
+    printf "            | len               |                   |                   | Get length of video\n"
+    printf "            | alen              |                   |                   | Get length of audio\n"
+    printf "            | x                 |                   |                   | Get video width\n"
+    printf "            | y                 |                   |                   | Get video height\n\n"
+    printf "string      | TBD\n"
+
+    exit 0
+}
+
+[ -z "$1" ] && print_help
+
+##########################################################################################
+# Print formatted time based on length of time
+# 1 - Time in seconds
+##########################################################################################
+print_time () {
+    if   [ "$1" -lt "60" ];    then echo "$1"
+    elif [ "$1" -lt "3600" ];  then date -d@"${1}" -u +%M:%S
+    elif [ "$1" -lt "86400" ]; then date -d@"${1}" -u +%T;
+    else                            date -d@"${1}" -u +1:%T; fi
+}
+
+#***************************************************************************************************************
+# Check if given value starts with a 0 and remove it
+# 1 - Value to be verified and modified
+#***************************************************************************************************************
+check_zero () {
+    ZERORETVAL="$1"
+    ttime="${1:0:1}"
+    [ -n "$ttime" ] && [ "$ttime" == "0" ] && ZERORETVAL="${1:1:1}"
+}
+
+##########################################################################################
+# Format : -split time to seconds
+# 1 - Formatted time
+##########################################################################################
+print_secs () {
+    CALCTIME=0
+    ADDTIME=0
+
+    if [[ "$1" =~ "." ]]; then
+        ADDTIME="${1##*.}"
+        MAINTIME="${1%.*}"
+    else
+        MAINTIME="$1"
+    fi
+
+    t1=$(echo "$MAINTIME" | cut -d : -f 1)
+    t2=$(echo "$MAINTIME" | cut -d : -f 2)
+    t3=$(echo "$MAINTIME" | cut -d : -f 3)
+    occ=$(grep -o ":" <<< "$MAINTIME" | wc -l)
+
+    check_zero "$t1"
+    t1=$ZERORETVAL
+    check_zero "$t2"
+    t2=$ZERORETVAL
+    check_zero "$t3"
+    t3=$ZERORETVAL
+
+    if [ "$occ" == "0" ]; then
+        calc_time=$MAINTIME
+    elif [ "$occ" == "1" ]; then
+        t1=$((t1 * 60))
+        calc_time=$((t1 + t2))
+    else
+        t1=$((t1 * 3600))
+        t2=$((t2 * 60))
+        calc_time=$((t1 + t2 + t3))
+    fi
+
+    CALCTIME=$calc_time
+    [ "$ADDTIME" != "0" ] && CALCTIME+=".${ADDTIME}"
+
+    echo "$CALCTIME"
+}
+
+##########################################################################################
+# Update still timer
+# 1 - time in seconds
+# 2 - pid of application
+##########################################################################################
+running_time () {
+    while [ "1" -lt "2" ]; do
+        NOW=$(date +%s)
+        DIFFER=$((NOW - $1))
+        printf "\033[8D$(date -d@${DIFFER} -u +%T)"
+        kill -s 0 "$2" >/dev/null 2>&1
+        [ "$?" -ne "0" ] && break
+        sleep 1
+    done
+}
+
+##########################################################################################
+# Time functions
+# 1 - command or time in seconds
+# 2 - time in seconds
+# 3 - pid of app
+##########################################################################################
+do_time () {
+    if   [ "$1" == "now" ] || [ -z "$1" ]; then
+        date +%s
+    elif [ "$1" == "full" ]; then
+        date -d@"${2}" -u +%T
+    elif [ "$1" == "sec" ]; then
+        print_secs "$2"
+    elif [ "$1" == "run" ]; then
+        running_time "$2" "$3"
+    elif [ "$1" == "from" ]; then
+        T_NOW=$(date +%s)
+        T_TAKEN=$((T_NOW - $2))
+        print_time "$T_TAKEN"
+    else
+        print_time "$1"
+    fi
+}
+
+##########################################################################################
+# Print out filesize in readable format
+# 1 - Size in kilobytes
+##########################################################################################
+do_size () {
+    HAND_VAL="$1"
+
+    [ -z "$1" ] && return
+    [ "$1" -lt "0" ] && HAND_VAL=$((HAND_VAL * -1))
+
+    if [ "$HAND_VAL" -lt "1000" ]; then
+        SAVESIZE="$1"
+        SIZETYPE="kb"
+    elif [ "$HAND_VAL" -lt "1000000" ]; then
+        SIZETYPE="Mb"
+        SAVESIZE=$(bc <<<"scale=2; $1 / 1000")
+    else
+        SIZETYPE="Gb"
+        SAVESIZE=$(bc <<<"scale=2; $1 / 1000000")
+    fi
+
+    echo "${SAVESIZE}${SIZETYPE}"
+}
+
+##########################################################################################
+# File handlers
+##########################################################################################
+do_file () {
+    cnt=0
+
+    if   [ "$1" == "count" ]; then
+        #cnt=$(ls *"$2" 2>/dev/null |wc -l)
+        cnt=$(find . -maxdepth 1 -name "*$2" |wc -l)
+    elif [ "$1" == "any" ]; then
+        #cnt=$(ls *"$2"* 2>/dev/null |wc -l)
+        cnt=$(find . -maxdepth 1 -name "*$2" |wc -l)
+    elif [ "$1" == "empty" ]; then
+        FULL=$(df -k "." |grep "/")
+        IFS=" "
+        space_array=(${FULL//,/$IFS})
+        cnt=${space_array[3]}
+    else
+        return
+    fi
+
+    echo "$cnt"
+}
+
+##########################################################################################
+# Value handlers
+# 1 - command
+# 2 - string to check
+##########################################################################################
+do_value () {
+    if   [ "$1" == "number" ]; then
+        re='^[0-9]+$'
+    elif [ "$1" == "dim" ]; then
+        re='^[0-9x]+$'
+    elif [ "$1" == "time" ]; then
+        re='^[0-9:]+$'
+    else
+        return
+    fi
+
+    RET=0
+    [[ "$2" =~ $re ]] && RET=1
+    echo "$RET"
+}
+
+##########################################################################################
+# String handlers
+##########################################################################################
+do_string () {
+    if   [ "$1" == "split" ]; then
+        :
+    elif [ "$1" == "short" ]; then
+        :
+    elif [ "$1" == "filename" ]; then
+        :
+    elif [ "$1" == "ext" ]; then
+        :
+    else
+        return
+    fi
+}
+
+##########################################################################################
+# Get information from video
+# 1 - command
+# 2 - source video file
+# 3 - possible language or stream id
+##########################################################################################
+do_video () {
+    TRACKS=()
+    OUTPUT=""
+
+    if   [ "$1" == "sub" ]; then
+        TRACKS=($(mediainfo '--Inform=Text;%StreamKindID%:%Language/String%\n;' "$2"))
+    elif [ "$1" == "audio" ]; then
+        TRACKS=($(mediainfo '--Inform=Audio;%StreamKindID%:%Language/String%\n;' "$2"))
+    elif [ "$1" == "len" ]; then
+        OUTPUT=$(mediainfo '--Inform=Video;%Duration%' "$2")
+    elif [ "$1" == "alen" ]; then
+        OUTPUT=$(mediainfo '--Inform=Audio;%Duration%' "$2")
+    elif [ "$1" == "x" ]; then
+        OUTPUT=$(mediainfo '--Inform=Video;%Width%' "$2")
+    elif [ "$1" == "y" ]; then
+        OUTPUT=$(mediainfo '--Inform=Video;%Height%' "$2")
+    else
+        return
+    fi
+
+    if [ "${#TRACKS[@]}" -gt "0" ] && [ -n "$3" ]; then
+        IS_VALUE=$(do_value "number" "$3")
+
+        for i in "${TRACKS[@]}"; do
+            track="${i%:*}"
+            language="${i##*:}"
+            if   [ "$IS_VALUE" == "0" ] && [ "$3" == "$language" ]; then echo "$track" && break
+            elif [ "$IS_VALUE" == "1" ] && [ "$3" == "$track" ]; then echo "$language" && break
+            fi
+        done
+    elif [ -n "$OUTPUT" ]; then
+        echo "$OUTPUT"
+    fi
+}
+
+##########################################################################################
+# Initial handlers, and removal of the first option
+##########################################################################################
+COMMAND="$1"
+shift 1
+
+##########################################################################################
+# Selections of the commands
+##########################################################################################
+if   [ "$COMMAND" == "time" ]; then
+    do_time "$@"
+elif [ "$COMMAND" == "help" ]; then
+    print_help
+elif [ "$COMMAND" == "size" ]; then
+    do_size "$@"
+elif [ "$COMMAND" == "file" ]; then
+    do_file "$@"
+elif [ "$COMMAND" == "value" ]; then
+    do_value "$@"
+elif [ "$COMMAND" == "string" ]; then
+    do_string "$@"
+elif [ "$COMMAND" == "video" ]; then
+    do_video "$@"
+elif [ "$COMMAND" == "" ]; then
+    :
+elif [ "$COMMAND" == "" ]; then
+    :
+elif [ "$COMMAND" == "" ]; then
+    :
+elif [ "$COMMAND" == "" ]; then
+    :
+elif [ -z "$COMMAND" ]; then
+    print_help
+else
+    echo "Error! Unknown command '$1'"
+fi
