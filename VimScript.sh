@@ -124,8 +124,7 @@ get_rownumber () {
 # More than one input given, check if multiple files or something else
 if [ "$#" -gt 1 ]; then
     # Go through all input files
-    for var in "$@"
-    do
+    for var in "$@"; do
         get_rownumber "$var" "$#"
     done
 

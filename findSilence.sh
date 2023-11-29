@@ -153,8 +153,7 @@ print_info () {
     array=(${1//,/$IFS})
 
     OUTPUT_DATA=""
-    for index in "${!array[@]}"
-    do
+    for index in "${!array[@]}"; do
         if [[ "${array[index]}" =~ "silence_" ]]; then
             OUTPUT_DATA+="${array[index]} ${array[index+1]} "
         fi
@@ -298,8 +297,7 @@ split_file_by_silence () {
         find_target_in_file
     fi
 
-    for index in "${!array[@]}"
-    do
+    for index in "${!array[@]}"; do
         if [[ ${array[index]} =~ "silence_start" ]]; then
             if (( $(echo "${array[index + 1]} > 0" |bc -l) )); then
                 START=$(bc <<< "${array[index + 1]} + 0.25")
@@ -473,6 +471,8 @@ split_file_by_input_file () {
     fi
 }
 
+#**************************************************************************************************************
+# Check file for silence
 # 1 - Sourcefile
 #**************************************************************************************************************
 check_file () {

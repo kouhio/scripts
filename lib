@@ -5,28 +5,42 @@
 ##########################################################################################
 print_help () {
     printf "Bash quick command library\n\n"
-    printf "COMMAND     | OPTION 1          | OPTION 2          | OPTTION 3         | Function\n"
-    printf "time        | now (or empty)    |                   |                   | Print current time in seconds\n"
-    printf "            | full              | time in seconds   |                   | Print human readable time from value\n"
-    printf "            | from              |                   |                   | Calculate time between now and given value\n"
-    printf "            | sec               | time split with : |                   | Transform split time to seconds\n"
-    printf "            | time in seconds   |                   |                   | Print time formatted based on the length of time\n\n"
-    printf "size        | size in kb        |                   |                   | Print size in human format\n\n"
-    printf "file        | count             | filetype          |                   | Print number of files\n"
-    printf "            | any               | string in file    |                   | Print number of files with given string\n"
-    printf "            | empty             |                   |                   | Get empty HD space\n\n"
-    printf "value       | number            | value to check    |                   | Check if value is a number\n"
-    printf "            | dim               | value to check    |                   | Check if value is a dimension\n"
-    printf "            | time              | value to check    |                   | Check if value is time\n\n"
-    printf "video       | sub               | path to file      | id or language    | Get subtitle ID or Language\n"
-    printf "            | audio             | path to file      | id or language    | Get audio ID or language\n"
-    printf "            | len               |                   |                   | Get length of video\n"
-    printf "            | alen              |                   |                   | Get length of audio\n"
-    printf "            | x                 |                   |                   | Get video width\n"
-    printf "            | y                 |                   |                   | Get video height\n\n"
-    printf "string      | TBD\n"
+    printf "COMMAND     | OPTION 1          | OPTION 2          | OPTION 3          | OPTION 4      | Function\n"
+    printf "time (t)    | now (or empty)    |                   |                   |               | Print current time in seconds\n"
+    printf "            | full (f)          | time in seconds   |                   |               | Print human readable time from value\n"
+    printf "            | from (F)          | time in seconds   |                   |               | Calculate time between now and given value\n"
+    printf "            | sec (s)           | time split with : |                   |               | Transform split time to seconds\n"
+    printf "            | run (r)           | time in seconds   |                   |               | Print time formatted based on the length of time\n\n"
+    printf "size (s)    | size in kb        |                   |                   |               | Print size in human format\n\n"
+    printf "file (f)    | count (c)         | filetype          |                   |               | Print number of files\n"
+    printf "            | any (a)           | string in file    |                   |               | Print number of files with given string\n"
+    printf "            | empty (e)         |                   |                   |               | Get empty HD space\n\n"
+    printf "value (v)   | number (n)        | value to check    |                   |               | Check if value is a number (1 = true)\n"
+    printf "            | dim (d)           | value to check    |                   |               | Check if value is a dimensioni (1 = true)\n"
+    printf "            | ip (i)            | value to check    |                   |               | Check if value is an IP address (1 = true)\n"
+    printf "            | time (t)          | value to check    |                   |               | Check if value is time (1 = true)\n\n"
+    printf "video (V)   | sub (s)           | path to file      | id or language    |               | Get subtitle ID or Language\n"
+    printf "            | audio (a)         | path to file      | id or language    |               | Get audio ID or language\n"
+    printf "            | len (l)           |                   |                   |               | Get length of video\n"
+    printf "            | alen (A)          |                   |                   |               | Get length of audio\n"
+    printf "            | x                 |                   |                   |               | Get video width\n"
+    printf "            | y                 |                   |                   |               | Get video height\n\n"
+    printf "string (S)  | split (s)         | string            | split string      |               | Get everything before split string\n"
+    printf "            | first (F)         | string            | split string      |               | Get everything up to split string\n"
+    printf "            | short (S)         | string            | length            |               | Get string up to length characters\n"
+    printf "            | filename (f)      | string            | split string      |               | Get filename without extension of path\n"
+    printf "            | ext (e)           | string            | split string      |               | Get file extension\n"
+    printf "            | path (p)          | string            | split string      |               | Get path without filename\n"
+    printf "            | clean (c)         | string            |                   |               | Remove non-ascii characters from string\n"
+    printf "            | iso (i)           | string            |                   |               | Convert HTML to ISO-format\n"
+    printf "            | white (w)         | string            |                   |               | Remove whitespace from string\n"
+    printf "            | convert (C)       | string            | SOURCE            | TARGET        | Convert string SOURCE decoding to TARGET decoding\n\n"
+    printf "compare (c) | start (s)         | string            | comparison string |               | Does string start with comparison string (1 = true)\n"
+    printf "            | in (i)            | string            | comparison string |               | Does string have comparison string (1 = true)\n\n"
+    printf "color (C)   | color option      | string            |                   |               | Print out text in given color and style options\n"
+    printf "            | help (h)          |                   |                   |               | Print out color options\n\n"
 
-    exit 0
+    exit 1
 }
 
 [ -z "$1" ] && print_help
@@ -36,14 +50,14 @@ print_help () {
 # 1 - Time in seconds
 ##########################################################################################
 print_time () {
-    if   [ "$1" -lt "60" ];    then echo "$1"
-    elif [ "$1" -lt "3600" ];  then date -d@"${1}" -u +%M:%S
-    elif [ "$1" -lt "86400" ]; then date -d@"${1}" -u +%T;
-    else                            date -d@"${1}" -u +1:%T; fi
+    if   [ "$1" -lt "60" ];    then echo "$1"                       # Time in seconds
+    elif [ "$1" -lt "3600" ];  then date -d@"${1}" -u +%M:%S        # Time in minutes and seconds
+    elif [ "$1" -lt "86400" ]; then date -d@"${1}" -u +%T;          # Time in hours, minutes and seconds
+    else                            date -d@"${1}" -u +1:%T; fi     # Time in day, hours, minutes and seconds
 }
 
 #***************************************************************************************************************
-# Check if given value starts with a 0 and remove it
+# Check if given value starts with a 0 and remove it if it does
 # 1 - Value to be verified and modified
 #***************************************************************************************************************
 check_zero () {
@@ -53,7 +67,7 @@ check_zero () {
 }
 
 ##########################################################################################
-# Format : -split time to seconds
+# Format : split time given in HH:MM:SS to seconds
 # 1 - Formatted time
 ##########################################################################################
 print_secs () {
@@ -79,12 +93,12 @@ print_secs () {
     check_zero "$t3"
     t3=$ZERORETVAL
 
-    if [ "$occ" == "0" ]; then
+    if [ "$occ" == "0" ]; then                          # Time is in seconds
         calc_time=$MAINTIME
-    elif [ "$occ" == "1" ]; then
+    elif [ "$occ" == "1" ]; then                        # Time is in minutes
         t1=$((t1 * 60))
         calc_time=$((t1 + t2))
-    else
+    else                                                # Time is in hours
         t1=$((t1 * 3600))
         t2=$((t2 * 60))
         calc_time=$((t1 + t2 + t3))
@@ -97,16 +111,16 @@ print_secs () {
 }
 
 ##########################################################################################
-# Update still timer
-# 1 - time in seconds
+# Update still timer until app is done
+# 1 - start time of PID in seconds
 # 2 - pid of application
 ##########################################################################################
 running_time () {
-    while [ "1" -lt "2" ]; do
+    while [ -n "$1" ] && [ -n "$2" ]; do
         NOW=$(date +%s)
         DIFFER=$((NOW - $1))
         printf "\033[8D$(date -d@${DIFFER} -u +%T)"
-        kill -s 0 "$2" >/dev/null 2>&1
+        kill -s 0 "$2" >/dev/null 2>&1                  # Check if the PID is still active
         [ "$?" -ne "0" ] && break
         sleep 1
     done
@@ -119,19 +133,19 @@ running_time () {
 # 3 - pid of app
 ##########################################################################################
 do_time () {
-    if   [ "$1" == "now" ] || [ -z "$1" ]; then
+    if   [ "$1" == "now" ] || [ -z "$1" ]; then         # Get current time in seconds from epoch
         date +%s
-    elif [ "$1" == "full" ]; then
+    elif [ "$1" == "full" ] || [ "$1" == "f" ]; then    # Get formatted time from given time from epoch
         date -d@"${2}" -u +%T
-    elif [ "$1" == "sec" ]; then
+    elif [ "$1" == "sec" ] || [ "$1" == "s" ]; then     # Get formatted time in seconds
         print_secs "$2"
-    elif [ "$1" == "run" ]; then
+    elif [ "$1" == "run" ] || [ "$1" == "r" ]; then     # Start loop and update running time with PID
         running_time "$2" "$3"
-    elif [ "$1" == "from" ]; then
+    elif [ "$1" == "from" ] || [ "$1" == "F" ]; then    # Get formatted time difference from start and now from seconds
         T_NOW=$(date +%s)
         T_TAKEN=$((T_NOW - $2))
         print_time "$T_TAKEN"
-    else
+    else                                                # Get formatted time from given seconds
         print_time "$1"
     fi
 }
@@ -144,17 +158,22 @@ do_size () {
     HAND_VAL="$1"
 
     [ -z "$1" ] && return
-    [ "$1" -lt "0" ] && HAND_VAL=$((HAND_VAL * -1))
+    CHECK=$(do_value "number" "$1")
+    [ "$CHECK" == "0" ] && return                       # Verify given value is pure number
+    [ "$1" -lt "0" ] && HAND_VAL=$((HAND_VAL * -1))     # Check if the value is negative, and change comparison value to positive to get correct results
 
-    if [ "$HAND_VAL" -lt "1000" ]; then
+    if [ "$HAND_VAL" -lt "1000" ]; then                 # Get size in Kb
         SAVESIZE="$1"
         SIZETYPE="kb"
-    elif [ "$HAND_VAL" -lt "1000000" ]; then
+    elif [ "$HAND_VAL" -lt "1000000" ]; then            # Get size in Mb
         SIZETYPE="Mb"
         SAVESIZE=$(bc <<<"scale=2; $1 / 1000")
-    else
+    elif [ "$HAND_VAL" -lt "1000000000" ]; then         # Get size in Gb
         SIZETYPE="Gb"
         SAVESIZE=$(bc <<<"scale=2; $1 / 1000000")
+    else                                                # Get size in Tb
+        SIZETYPE="Tb"
+        SAVESIZE=$(bc <<<"scale=2; $1 / 1000000000")
     fi
 
     echo "${SAVESIZE}${SIZETYPE}"
@@ -162,18 +181,23 @@ do_size () {
 
 ##########################################################################################
 # File handlers
+# 1 - command
+# 2 - filetype or string
+# 3 - possible source path, if not given, will use current dir
 ##########################################################################################
 do_file () {
     cnt=0
 
-    if   [ "$1" == "count" ]; then
+    SOURCEPATH="$3"
+    [ -z "$3" ] && SOURCEPATH="."
+
+    if   [ "$1" == "count" ] || [ "$1" == "c" ]; then                      # Get number of files by type in directory
         #cnt=$(ls *"$2" 2>/dev/null |wc -l)
-        cnt=$(find . -maxdepth 1 -name "*$2" |wc -l)
-    elif [ "$1" == "any" ]; then
-        #cnt=$(ls *"$2"* 2>/dev/null |wc -l)
-        cnt=$(find . -maxdepth 1 -name "*$2" |wc -l)
-    elif [ "$1" == "empty" ]; then
-        FULL=$(df -k "." |grep "/")
+        cnt=$(find "$SOURCEPATH" -maxdepth 1 -name "*$2" |wc -l)
+    elif [ "$1" == "any" ] || [ "$1" == "a" ]; then                        # Get number of files with string in directory
+        cnt=$(find "$SOURCEPATH" -maxdepth 1 -name "*$2*" |wc -l)
+    elif [ "$1" == "empty" ] || [ "$1" == "e" ]; then                      # Get HDD empty Kb
+        FULL=$(df -k "$SOURCEPATH" |grep "/")
         IFS=" "
         space_array=(${FULL//,/$IFS})
         cnt=${space_array[3]}
@@ -190,12 +214,29 @@ do_file () {
 # 2 - string to check
 ##########################################################################################
 do_value () {
-    if   [ "$1" == "number" ]; then
+    if   [ "$1" == "number" ] || [ "$1" == "n" ]; then     # Check if given string is plain numbers
         re='^[0-9]+$'
-    elif [ "$1" == "dim" ]; then
+    elif [ "$1" == "dim" ] || [ "$1" == "d" ]; then        # Check if given string is numbers and x
         re='^[0-9x]+$'
-    elif [ "$1" == "time" ]; then
+    elif [ "$1" == "time" ] || [ "$1" == "t" ]; then       # Check if given string is numbers and :
         re='^[0-9:]+$'
+    elif [ "$1" == "ip" ] || [ "$1" == "i" ]; then         # Check if given string is an IP address
+        IFS="."
+        INPUT="$2"
+        IPLIST=(${INPUT//./$IFS})
+        re='^[0-9]+$'
+        for ip in "${IPLIST[@]}"; do
+            if [[ "$ip" =~ $re ]]; then
+                if [ "$ip" -le "255" ] && [ "$ip" -ge "0" ]; then RET=1
+                else RET=0 && break; fi
+            else
+                RET=0
+                break
+            fi
+        done
+
+        echo "$RET"
+        return
     else
         return
     fi
@@ -206,20 +247,86 @@ do_value () {
 }
 
 ##########################################################################################
+# Remove whitespace from given string
+# 1 - Input string
+##########################################################################################
+remove_whitespace () {
+    CLEAR_STRING=""
+    INPUT="$1"
+
+    for (( i=0; i<${#INPUT}; i++ )); do
+        [ "${INPUT:$i:1}" != " " ] && [ "${INPUT:$i:1}" != $'\t' ] && [ "${INPUT:$i:1}" != $'\n' ] && [ "${INPUT:$i:1}" != $'\r' ] && INPUT="${INPUT:$i:${#INPUT}}" && break
+    done
+
+    for (( i=${#1}; i>=0; i-- )); do
+        [ "${INPUT:$i:1}" != " " ] && [ "${INPUT:$i:1}" != $'\t' ] && [ "${INPUT:$i:1}" != $'\n' ] && [ "${INPUT:$i:1}" != $'\r' ] && [ "${INPUT:$i:1}" != "" ] && break
+        CLEAR_STRING="${INPUT:0:$i}"
+    done
+
+    echo "$CLEAR_STRING"
+}
+
+##########################################################################################
 # String handlers
+# 1 - command
+# 2 - string
+# 3 - splitter string, max lenght or source format
+# 4 - target format
 ##########################################################################################
 do_string () {
-    if   [ "$1" == "split" ]; then
-        :
-    elif [ "$1" == "short" ]; then
-        :
-    elif [ "$1" == "filename" ]; then
-        :
-    elif [ "$1" == "ext" ]; then
-        :
+    CUTTER="$3"
+    OUTPUT=""
+
+    if   [ "$1" == "split" ] || [ "$1" == "s" ]; then      # Split string and get from the last splitter
+        echo "${2##*$CUTTER}"
+    elif [ "$1" == "first" ] || [ "$1" == "F" ]; then      # Split string and get from start to first occurerence
+        for (( i=0; i<${#2}; i++ )); do
+            if [[ "${2:$i:${#2}}" == "${3}"* ]]; then
+                echo "${2:0:$i}"
+                break
+            fi
+        done
+    elif [ "$1" == "short" ] || [ "$1" == "S" ]; then      # Split string to max length
+        echo "${2:0:$CUTTER}"
+    elif [ "$1" == "filename" ] || [ "$1" == "f" ]; then   # Get filename from string
+        FILENAME="${2%.*}"
+        [[ "$FILENAME" =~ "/" ]] && FILENAME=${FILENAME##*/}
+        echo "$FILENAME"
+    elif [ "$1" == "ext" ] || [ "$1" == "e" ]; then        # Get filename extension from string
+        echo "${2##*.}"
+    elif [ "$1" == "path" ] || [ "$1" == "p" ]; then       # Get path to file from string
+        echo "${2%/*}"
+    elif [ "$1" == "clean" ] || [ "$1" == "c" ]; then      # Remove all latin ascii characters from string
+        OUTPUT=$(echo "$2" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
+    elif [ "$1" == "iso" ] || [ "$1" == "i" ]; then        # Clean html string to ISO
+        OUTPUT=$(echo "$2" | recode html..ISO-8859-1)
+    elif [ "$1" == "convert" ] || [ "$1" == "C" ]; then    # Convert string from format to another format
+        OUTPUT=$(echo "$2" | recode ${3}..${4})
+    elif [ "$1" == "white" ] || [ "$1" == "w" ]; then      # Remove whitespace from string
+        OUTPUT=$(remove_whitespace "$2")
     else
         return
     fi
+
+    [ -n "$OUTPUT" ] && echo "$OUTPUT"
+}
+
+##########################################################################################
+# String comparison functions, return 1 if true, 0 if false
+# 1 - command
+# 2 - input string
+# 3 - comparison string
+##########################################################################################
+do_compare () {
+    RET=0
+
+    if   [ "$1" == "start" ] || [ "$1" == "s" ]; then
+        [[ "$2" == "$3"* ]] && RET=1
+    elif [ "$1" == "in" ] || [ "$1" == "i" ]; then
+        [[ "$2" =~ "$3" ]] && RET=1
+    fi
+
+    echo "$RET"
 }
 
 ##########################################################################################
@@ -232,23 +339,23 @@ do_video () {
     TRACKS=()
     OUTPUT=""
 
-    if   [ "$1" == "sub" ]; then
+    if   [ "$1" == "sub" ] || [ "$1" == "s" ]; then                               # Get subtitle info
         TRACKS=($(mediainfo '--Inform=Text;%StreamKindID%:%Language/String%\n;' "$2"))
-    elif [ "$1" == "audio" ]; then
+    elif [ "$1" == "audio" ] || [ "$1" == "a" ]; then                             # Get audio info
         TRACKS=($(mediainfo '--Inform=Audio;%StreamKindID%:%Language/String%\n;' "$2"))
-    elif [ "$1" == "len" ]; then
+    elif [ "$1" == "len" ] || [ "$1" == "l" ]; then                               # Get video length
         OUTPUT=$(mediainfo '--Inform=Video;%Duration%' "$2")
-    elif [ "$1" == "alen" ]; then
+    elif [ "$1" == "alen" ] || [ "$1" == "A" ]; then                              # Get audio length
         OUTPUT=$(mediainfo '--Inform=Audio;%Duration%' "$2")
-    elif [ "$1" == "x" ]; then
+    elif [ "$1" == "x" ]; then                                                          # Get video width
         OUTPUT=$(mediainfo '--Inform=Video;%Width%' "$2")
-    elif [ "$1" == "y" ]; then
+    elif [ "$1" == "y" ]; then                                                          # Get video height
         OUTPUT=$(mediainfo '--Inform=Video;%Height%' "$2")
     else
         return
     fi
 
-    if [ "${#TRACKS[@]}" -gt "0" ] && [ -n "$3" ]; then
+    if [ "${#TRACKS[@]}" -gt "0" ] && [ -n "$3" ]; then                                 # Search for corresponding sub languange or ID
         IS_VALUE=$(do_value "number" "$3")
 
         for i in "${TRACKS[@]}"; do
@@ -264,6 +371,61 @@ do_video () {
 }
 
 ##########################################################################################
+# Print out color options
+##########################################################################################
+color_help () {
+    printf "Possible colors: red (r), green (g), yellow (y), blue (b), purple (p), cyan (c), white (w), black (B)\n"
+    printf "                 If the color precedes bold (b), back (B) or under (u), it will affect the color\n"
+    printf "                 If all the previous options precede with set (s), then the change is permanent\n\n"
+    printf "Examples:        lib color green \"string\"          || lib C g \"string\"      String is printed in green text\n"
+    printf "                 lib color boldred \"string\"        || lib C br \"string\"     String is printed in bold red\n"
+    printf "                 lib color setunderyellow \"string\" || lib C suy \"string\"    String is printed with underlined yellow, and selected option kept\n"
+    printf "                 lib color backpurple \"string\"     || lib C Bp \"string\"     String is printed with purple background\n"
+}
+
+##########################################################################################
+# Print out string in color
+# 1 - color name (with possible option)
+# 2 - string to print out
+##########################################################################################
+Color_Off='\033[0m'       # Text color reset
+
+do_color () {
+    INPUT="$1"
+    TYPE="0;"
+    INTENSITY=3
+    PERM=0
+
+    if [ "$INPUT" == "help" ] || [ "$INPUT" == "h" ]; then color_help && return; fi
+
+    # Check if color change is to be permanent
+    if   [[ "$INPUT" == "set"* ]]; then INPUT="${INPUT:3:${#INPUT}}" && PERM=1
+    elif [[ "$INPUT" == "s"* ]];   then INPUT="${INPUT:1:${#INPUT}}" && PERM=1; fi
+
+    # Check and remove pre-option
+    if   [[ "$INPUT" == "bold"* ]];  then INPUT="${INPUT:4:${#INPUT}}" && TYPE="1;"
+    elif [[ "$INPUT" == "under"* ]]; then INPUT="${INPUT:5:${#INPUT}}" && TYPE="4;"
+    elif [[ "$INPUT" == "back"* ]];  then INPUT="${INPUT:4:${#INPUT}}" && TYPE="" && INTENSITY=4
+    elif [[ "$INPUT" == "b"* ]];     then INPUT="${INPUT:1:${#INPUT}}" && TYPE="1;"
+    elif [[ "$INPUT" == "B"* ]];     then INPUT="${INPUT:1:${#INPUT}}" && TYPE="" && INTENSITY=4
+    elif [[ "$INPUT" == "u"* ]];     then INPUT="${INPUT:1:${#INPUT}}" && TYPE="4;"; fi
+
+    # Select wanted color
+    if   [ "$INPUT" == "black" ]  || [ "$INPUT" == "B" ]; then COLOR="\033[${TYPE}${INTENSITY}0m"
+    elif [ "$INPUT" == "red" ]    || [ "$INPUT" == "r" ]; then COLOR="\033[${TYPE}${INTENSITY}1m"
+    elif [ "$INPUT" == "green" ]  || [ "$INPUT" == "g" ]; then COLOR="\033[${TYPE}${INTENSITY}2m"
+    elif [ "$INPUT" == "yellow" ] || [ "$INPUT" == "y" ]; then COLOR="\033[${TYPE}${INTENSITY}3m"
+    elif [ "$INPUT" == "blue" ]   || [ "$INPUT" == "b" ]; then COLOR="\033[${TYPE}${INTENSITY}4m"
+    elif [ "$INPUT" == "purple" ] || [ "$INPUT" == "p" ]; then COLOR="\033[${TYPE}${INTENSITY}5m"
+    elif [ "$INPUT" == "cyan" ]   || [ "$INPUT" == "c" ]; then COLOR="\033[${TYPE}${INTENSITY}6m"
+    elif [ "$INPUT" == "white" ]  || [ "$INPUT" == "w" ]; then COLOR="\033[${TYPE}${INTENSITY}7m"
+    else                                                       COLOR=""; fi
+
+    if [ "$PERM" == "0" ]; then printf "${COLOR}${2}${Color_Off}"
+    else                        printf "${COLOR}${2}"; fi
+}
+
+##########################################################################################
 # Initial handlers, and removal of the first option
 ##########################################################################################
 COMMAND="$1"
@@ -272,30 +434,30 @@ shift 1
 ##########################################################################################
 # Selections of the commands
 ##########################################################################################
-if   [ "$COMMAND" == "time" ]; then
+if   [ "$COMMAND" == "time" ] || [ "$COMMAND" == "t" ]; then
     do_time "$@"
-elif [ "$COMMAND" == "help" ]; then
+elif [ "$COMMAND" == "help" ] || [ "$COMMAND" == "h" ]; then
     print_help
-elif [ "$COMMAND" == "size" ]; then
+elif [ "$COMMAND" == "size" ] || [ "$COMMAND" == "s" ]; then
     do_size "$@"
-elif [ "$COMMAND" == "file" ]; then
+elif [ "$COMMAND" == "file" ] || [ "$COMMAND" == "f" ]; then
     do_file "$@"
-elif [ "$COMMAND" == "value" ]; then
+elif [ "$COMMAND" == "value" ] || [ "$COMMAND" == "v" ]; then
     do_value "$@"
-elif [ "$COMMAND" == "string" ]; then
+elif [ "$COMMAND" == "string" ] || [ "$COMMAND" == "S" ]; then
     do_string "$@"
-elif [ "$COMMAND" == "video" ]; then
+elif [ "$COMMAND" == "video" ] || [ "$COMMAND" == "V" ]; then
     do_video "$@"
-elif [ "$COMMAND" == "" ]; then
+elif [ "$COMMAND" == "compare" ] || [ "$COMMAND" == "c" ]; then
+    do_compare "$@"
+elif [ "$COMMAND" == "color" ] || [ "$COMMAND" == "C" ]; then
+    do_color "$@"
+elif [ "$COMMAND" == "" ] || [ "$COMMAND" == "" ]; then
     :
-elif [ "$COMMAND" == "" ]; then
-    :
-elif [ "$COMMAND" == "" ]; then
-    :
-elif [ "$COMMAND" == "" ]; then
+elif [ "$COMMAND" == "" ] || [ "$COMMAND" == "" ]; then
     :
 elif [ -z "$COMMAND" ]; then
     print_help
 else
-    echo "Error! Unknown command '$1'"
+    echo "Error! Unknown command '$COMMAND'"
 fi

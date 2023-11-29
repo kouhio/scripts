@@ -8,6 +8,8 @@ set_int () {
 
 trap set_int SIGINT SIGTERM
 
+SSIZE=$(lib file empty)
+
 for dir in */; do
     if [ -d "$dir" ]; then
         cd "$dir" || continue
@@ -16,5 +18,14 @@ for dir in */; do
     fi
 done
 
-#echo "executing $PWD $@"
+echo "Entering $(pwd)"
 $@
+
+ESIZE=$(lib file empty)
+if [ "$ESIZE" -ne "$SSIZE"]; then
+    SIZEC=$((ESIZE - SSIZE))
+    TOTSIZE=$(lib size $SIZEC)
+    echo -en "Change in HDD $TOTSIZE\n\n"
+else
+    echo -en "\n\n"
+fi

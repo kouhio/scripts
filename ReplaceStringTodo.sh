@@ -43,8 +43,7 @@ if [ -n "$1" ]; then
     read -rsn1 input
 
     if [ "$input" == "y" ]; then
-        for index in "${!array[@]}"
-        do
+        for index in "${!array[@]}"; do
             replace_data "${array[index]}" "$3"
         done
 
