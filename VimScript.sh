@@ -131,16 +131,16 @@ if [ "$#" -gt 1 ]; then
     # If has 2 inputs, but one file, then it's a row number or parameter
     if [ "$IS_ONE" -eq 1 ] && [ "$IS_OPEN" -eq 0 ] && [ "$IS_SWAP" -eq 0 ]; then
         if [ -z "$TAG_PATH" ]; then
-            ${VIM} $@
+            ${VIM} "$@"
         else
-            ${VIM} -c "$TAG_PATH" $@
+            ${VIM} -c "$TAG_PATH" "$@"
         fi
     elif [ -z "$FILES" ]; then
         if [ "$IS_OPEN" -eq 0 ] && [ "$IS_SWAP" -eq 0 ]; then
             if [ -z "$TAG_PATH" ]; then
-                ${VIM} $@
+                ${VIM} "$@"
             else
-                ${VIM} -c "$TAG_PATH" $@
+                ${VIM} -c "$TAG_PATH" "$@"
             fi
         else
             echo "All files are already open/swap files!"
@@ -171,9 +171,9 @@ else # One input given, see if it has row number
     if [ "$IS_OPEN" -eq 0 ]; then
         if [ -z "$ROW" ]; then
             if [ -z "$TAG_PATH" ]; then
-                ${VIM} $1
+                ${VIM} "$1"
             else
-                ${VIM} -c "$TAG_PATH" $1
+                ${VIM} -c "$TAG_PATH" "$1"
             fi
         else
             if [ -z "$TAG_PATH" ]; then

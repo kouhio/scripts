@@ -11,7 +11,7 @@ help () {
     exit
 }
 
-for i in $@; do
+for i in "$@"; do
     if [[ "$i" =~ "http" ]]; then SOURCE="$i"
     elif [[ "$i" =~ "fix" ]]; then FIX=1
     elif [[ "$i" =~ "-h" ]]; then help
@@ -27,7 +27,7 @@ done
 [ -z "$SOURCE" ] && echo "No source URL given!" && exit 1
 [[ "$SOURCE" =~ "https" ]] && SOURCE="${SOURCE/https/http}"
 echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT_FILE 'wget url $SOURCE -qO -'"
-LIST=$(wget url $SOURCE -qO -)
+LIST=$(wget url "$SOURCE" -qO -)
 tracks=()
 
 if [[ "$SOURCE" =~ "spotify" ]]; then

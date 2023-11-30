@@ -97,5 +97,5 @@ elif [ "$1" == "force" ]; then
     ${GIT} pull origin "$BRANCH"
 
 else
-    ${GIT} $@
+    ${GIT} "$@"
 fi

@@ -377,11 +377,11 @@ printBaseData() {
 # Remane all video files to mp4
 ##########################################################
 renameLocalFiles() {
-    rename 's/webm/mp4/' *
-    rename 's/flv/mp4/' *
-    rename 's/mkv/mp4/' *
-    rename 's/m4v/mp4/' *
-    rename 's/wmv/mp4/' *
+    rename 's/webm/mp4/' ./*
+    rename 's/flv/mp4/' ./*
+    rename 's/mkv/mp4/' ./*
+    rename 's/m4v/mp4/' ./*
+    rename 's/wmv/mp4/' ./*
 }
 
 ##########################################################
@@ -446,12 +446,12 @@ printEndData() {
 # Rename characters that arent't supported by playlist
 ##########################################################
 renameBadChars() {
-    rename "s/'//g" *
-    rename "s/’//g" *
-    rename "s/%//g" *
-    rename "s/@//g" *
-    rename "s/–//g" *
-    rename "s/-//g" *
+    rename "s/'//g" ./*
+    rename "s/’//g" ./*
+    rename "s/%//g" ./*
+    rename "s/@//g" ./*
+    rename "s/–//g" ./*
+    rename "s/-//g" ./*
 }
 
 

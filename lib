@@ -9,7 +9,7 @@ print_help () {
     printf "time (t)    | now (or empty)    |                   |                   |               | Print current time in seconds\n"
     printf "            | full (f)          | time in seconds   |                   |               | Print human readable time from value\n"
     printf "            | from (F)          | time in seconds   |                   |               | Calculate time between now and given value\n"
-    printf "            | sec (s)           | time split with : |                   |               | Transform split time to seconds\n"
+    printf "            | sec (s)           | time split with : | include decimals  |               | Transform split time to seconds (and less, if option 2 is set)\n"
     printf "            | run (r)           | time in seconds   |                   |               | Print time formatted based on the length of time\n\n"
     printf "size (s)    | size in kb        |                   |                   |               | Print size in human format\n\n"
     printf "file (f)    | count (c)         | filetype          |                   |               | Print number of files\n"
@@ -69,6 +69,7 @@ check_zero () {
 ##########################################################################################
 # Format : split time given in HH:MM:SS to seconds
 # 1 - Formatted time
+# 2 - Get full value, if not set, will just give the value before decimal point
 ##########################################################################################
 print_secs () {
     CALCTIME=0
@@ -105,7 +106,7 @@ print_secs () {
     fi
 
     CALCTIME=$calc_time
-    [ "$ADDTIME" != "0" ] && CALCTIME+=".${ADDTIME}"
+    [ "$ADDTIME" != "0" ] && [ -n "$2" ] && CALCTIME+=".${ADDTIME}"
 
     echo "$CALCTIME"
 }
@@ -130,7 +131,7 @@ running_time () {
 # Time functions
 # 1 - command or time in seconds
 # 2 - time in seconds
-# 3 - pid of app
+# 3 - pid of app / add fractals (values after decimal point)
 ##########################################################################################
 do_time () {
     if   [ "$1" == "now" ] || [ -z "$1" ]; then         # Get current time in seconds from epoch
@@ -138,7 +139,7 @@ do_time () {
     elif [ "$1" == "full" ] || [ "$1" == "f" ]; then    # Get formatted time from given time from epoch
         date -d@"${2}" -u +%T
     elif [ "$1" == "sec" ] || [ "$1" == "s" ]; then     # Get formatted time in seconds
-        print_secs "$2"
+        print_secs "$2" "$3"
     elif [ "$1" == "run" ] || [ "$1" == "r" ]; then     # Start loop and update running time with PID
         running_time "$2" "$3"
     elif [ "$1" == "from" ] || [ "$1" == "F" ]; then    # Get formatted time difference from start and now from seconds
@@ -278,7 +279,7 @@ do_string () {
     OUTPUT=""
 
     if   [ "$1" == "split" ] || [ "$1" == "s" ]; then      # Split string and get from the last splitter
-        echo "${2##*$CUTTER}"
+        echo "${2##*${CUTTER}}"
     elif [ "$1" == "first" ] || [ "$1" == "F" ]; then      # Split string and get from start to first occurerence
         for (( i=0; i<${#2}; i++ )); do
             if [[ "${2:$i:${#2}}" == "${3}"* ]]; then
@@ -301,7 +302,7 @@ do_string () {
     elif [ "$1" == "iso" ] || [ "$1" == "i" ]; then        # Clean html string to ISO
         OUTPUT=$(echo "$2" | recode html..ISO-8859-1)
     elif [ "$1" == "convert" ] || [ "$1" == "C" ]; then    # Convert string from format to another format
-        OUTPUT=$(echo "$2" | recode ${3}..${4})
+        OUTPUT=$(echo "$2" | recode "${3}".."${4}")
     elif [ "$1" == "white" ] || [ "$1" == "w" ]; then      # Remove whitespace from string
         OUTPUT=$(remove_whitespace "$2")
     else

@@ -23,6 +23,6 @@ set_int () {
 
 trap 'set_int 1 $1 $2' SIGINT SIGTERM
 
-$@
+"$@"
 
 set_int "0" "$1" "$2"

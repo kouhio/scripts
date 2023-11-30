@@ -8,13 +8,8 @@ COUNTED_ITEMS=0
 I_COUNTER=0
 TOTAL_SAVETIME="0"
 ERROR=0
-#LASTSTART=0
-
-R='\033[0;31m'
-G='\033[0;32m'
-Y='\033[0;33m'
-O='\033[0m'
 COUNT=1
+#LASTSTART=0
 
 ################################################################
 # Print out help
@@ -30,8 +25,8 @@ help () {
     exit 1
 }
 
-[ -z "$1" ] && echo -e ${R}"No input filetype given!"${O} && help
-[ ! -f "$2" ] && echo -e ${R}"audio input file '$2' incorrect!"${O} && help
+[ -z "$1" ] && lib C r "No input filetype given!\n" && help
+[ ! -f "$2" ] && lib C r "audio input file '$2' incorrect!\n" && help
 
 ################################################################
 # add mp3s to database
@@ -39,7 +34,7 @@ help () {
 AUDIO_LENGTH=$(mediainfo '--Inform=Audio;%Duration%' "$2")
 AUDIO_LENGTH=$((AUDIO_LENGTH / 1000))
 AUDIO_TENTH=$((AUDIO_LENGTH / 10))
-INPUT=$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
+$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
 
 ################################################################
 # Rewrite the do.sh file
@@ -74,7 +69,7 @@ set_int () {
     TOTALSIZE=$((TOTALSIZE / 1000))
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE / 1000))
 
-    echo -e "${Y}*** Totally saved $TOTALSIZE / $GLOBAL_FILESAVE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files *** ${O}"
+    lib C y "*** Totally saved $TOTALSIZE / $GLOBAL_FILESAVE Mb and saved time: $(date -d@${TOTAL_SAVETIME} -u +%T) in $I_COUNTER files ***\n"
 
     [ -z "$1" ] && exit 1
     exit 0
@@ -86,7 +81,7 @@ set_int () {
 endtime () {
     ENDTIME=$(date +%s)
     TOTALTIME=$((ENDTIME - STARTTIME))
-    echo -en " in $(date -d@${TOTALTIME} -u +%T)${O}\n"
+    lib C w " in $(date -d@${TOTALTIME} -u +%T)\n"
 }
 
 #############################################################################
@@ -112,7 +107,7 @@ get_info_and_cut () {
     STARTTIME=$(date +%s)
     VIDEO_LENGTH=$(mediainfo '--Inform=Video;%Duration%' "$1")
     AUDIO_MIDDLE=$((VIDEO_LENGTH / 2))
-    [ -z "$AUDIO_LENGTH" ] && echo -e ${R}"incorrect audio $3 - len:'$AUDIO_LENGTH'"${O} && exit 1
+    [ -z "$AUDIO_LENGTH" ] && lib C r "incorrect audio $3 - len:'$AUDIO_LENGTH'\n" && exit 1
     OUTPUTFILE="$2"
     [ "$2" == "do.sh" ] && OUTPUTFILE="tempfile.txt"
 
@@ -152,14 +147,14 @@ get_info_and_cut () {
     done
 
     if [ -z "$I_LENGTH" ] || [ -z "$I_START" ] || [ -z "$I_COMPLEN" ]; then
-        echo -en "${Y}-> Skipping not found len:$I_LENGTH start:$I_START complen:$I_COMPLEN ${O}"
+        lib C y "-> Skipping not found len:$I_LENGTH start:$I_START complen:$I_COMPLEN "
         endtime
         return 0
     fi
 
     I_LENGTH="${I_LENGTH%.*}"
     if [ "$I_LENGTH" -lt "$AUDIO_TENTH" ]; then
-        echo -en "${Y}-> Skipping too short len:${I_LENGTH}/${AUDIO_TENTH} start:$I_START complen:$I_COMPLEN ${O}"
+        lib C y "-> Skipping too short len:${I_LENGTH}/${AUDIO_TENTH} start:$I_START complen:$I_COMPLEN "
         endtime
         return 0
     fi
@@ -182,7 +177,7 @@ get_info_and_cut () {
     fi
 
     if [ "$NEWSTART" -ge "$AUDIO_MIDDLE" ]; then
-        echo -en "${Y}-> Skipping too far in the video $NEWSTART / $AUDIO_MIDDLE ${O}\n"
+        lib C y "-> Skipping too far in the video $NEWSTART / $AUDIO_MIDDLE \n"
         endtime
         return 0
     fi
@@ -212,15 +207,15 @@ get_info_and_cut () {
 
         # Start is at the beginning, skip too short intro alltogether
         if [ "$NEWSTART" -eq "0" ]; then
-            echo -en ${Y}"-> Removing front:$((AUDIO_LENGTH + TIME_CORRECTION))s"${O}
-            [ -n "$4" ] && [ "$4" != "0" ] && echo -en ${Y}" end:${4}s"${O}
+            lib C y "-> Removing front:$((AUDIO_LENGTH + TIME_CORRECTION))s"
+            [ -n "$4" ] && [ "$4" != "0" ] && lib C y " end:${4}s"
             packAll.sh "$1" "quit" "c=$((AUDIO_LENGTH + TIME_CORRECTION))-${TIMECUT},D" >/dev/null 2>&1
             error=$?
 
         # Comparison audio in the middle of the video, remove it from there
         else
             printf "${Y}-> removing %8s-%-8s" "${STARTHANDLE}" "${ENDHANDLE}"
-            [ "$ENDHANDLE2" != "0" ] && printf "${Y} trim to:%-8s${O}" "${ENDHANDLE2}"
+            [ "$ENDHANDLE2" != "0" ] && lib C y " trim to:%-8s$" "${ENDHANDLE2}"
             packAll.sh "${1}" "quit" C=0-${STARTHANDLE},${ENDHANDLE}-${ENDHANDLE2},D >/dev/null 2>&1
             error=$?
         fi
@@ -228,16 +223,16 @@ get_info_and_cut () {
         if [ "$error" -eq "0" ]; then
             C_LENGTH="$AUDIO_LENGTH"
             [ -n "$4" ] && [ "$4" != "0" ] && C_LENGTH=$((C_LENGTH + "$4"))
-            echo -en ${G}"-> successful, saved ${C_LENGTH}s"${O}
+            lib C g "-> successful, saved ${C_LENGTH}s"
             TOTAL_SAVETIME=$((TOTAL_SAVETIME + C_LENGTH))
             I_COUNTER=$((I_COUNTER + 1))
         else
-            echo -en ${R}"-> failed!"${O}
+            lib C r "-> failed!"
         fi
 
     # Output file has been given, write removal timeframes to given file in the format of individualPack.sh
     else
-        echo -en "${G}found start:$STARTHANDLE end:${ENDHANDLE} " && [ -n "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2} "
+        lib C g "found start:$STARTHANDLE end:${ENDHANDLE} " && [ -n "$4" ] && [ "$4" != "0" ] && echo -en "trim:${ENDHANDLE2} "
 
         if [ -n "$5" ]; then
             CUTSTR="b=$ENDHANDLE"
@@ -281,6 +276,6 @@ done
 
 shopt -u nocaseglob
 
-rename "s/_01//" *"${1}"
+rename "s/_01//" ./*"${1}"
 
 set_int 1
