@@ -179,11 +179,16 @@ write_silencedata () {
 
 #**************************************************************************************************************
 # Find target directoryname in trackfiles starting with D:
+# 1 - Possible Target ID (for multiple albums)
 #**************************************************************************************************************
 find_target_in_file () {
+    SEEKER=1
+
     while IFS='' read -r line || [[ -n "$line" ]]; do
         if [[ $line =~ "D:" ]]; then
             TARGET_DIR="${line##*:}"
+            [ "$1" == "$SEEKER" ] && break
+            SEEKER=$((SEEKER + 1))
         fi
     done < "$NAMEPATH"
 }
@@ -196,10 +201,24 @@ find_name_in_file () {
     [ -n "$INFO_FROM_FILE" ] && return
 
     cnt=1
+    albcnt=0
+    albcheck="$TARGETID"
+
     while IFS='' read -r line || [[ -n "$line" ]]; do
         if [[ $line =~ "D:" ]]; then
+            albcnt=$((albcnt + 1))
+
+            # There is more than one album in the trackfile, update data to new album, reset tracknumber and update NAMECOUNT check value to one smaller
+            if [ "$cnt" -gt "1" ] && [ "$albcnt" -gt "$albcheck" ]; then
+                TARGETID=$((TARGETID + 1))
+                TRACKNUMBER=1
+                TRACKNUM=1
+                NAMECOUNT=$((NAMECOUNT - 1))
+                find_target_in_file "$TARGETID"
+            fi
             continue
         fi
+
         if [ "$cnt" -eq "$1" ]; then
             CURRENT_NAME="$line"
             break
@@ -218,57 +237,64 @@ find_name_in_file () {
 # 1 - filename
 # 2 - starttime
 # 3 - duration
-# 4 - number
+# 4 - number in the file
+# 5 - tracknumber
 #**************************************************************************************************************
 split_to_file () {
 
     error_code=0
-    OUTPUT=$(printf "%02d_$1" "$4")
-    if  [ -n "$TARGET_DIR" ]; then
-        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
-    fi
+    TRACKNUM="$5"
+    [ -z "$TRACKNUM" ] && TRACKNUM="$4"
+    OUTPUT=$(printf "%02d - $1" "$4")
 
     if [ -n "$TARGET_EXT" ]; then
         if [ -z "$NAMEPATH" ]; then
-            PACK_OUTPUT=$(printf "%02d_${1%.*}.$TARGET_EXT" "$4")
+            PACK_OUTPUT=$(printf "%02d - ${1%.*}.$TARGET_EXT" "$4")
         else
             find_name_in_file "$4"
-            PACK_OUTPUT=$(printf "%02d_${CURRENT_NAME}.$TARGET_EXT" "$4")
+            PACK_OUTPUT=$(printf "%02d - ${CURRENT_NAME}.$TARGET_EXT" "$TRACKNUM")
             CURRENT_NAME=""
         fi
         [ -n "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
     elif [ -n "$NAMEPATH" ]; then
         find_name_in_file "$4"
-        OUTPUT=$(printf "%02d_$CURRENT_NAME" "$4")
-        CURRENT_NAME=""i
-        [ -n "$TARGET_DIR" ] && OUTPUT="${TARGET_DIR}/${OUTPUT}"
+        PACK_OUTPUT=$(printf "%02d - $CURRENT_NAME" "$TRACKNUM")
+        CURRENT_NAME=""
+        [ -n "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
+    fi
+
+    if  [ -n "$TARGET_DIR" ]; then
+        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
     fi
 
     ORG_EXT="${1##*.}"
+    pack_error=0
 
     if [ "$ORG_EXT" == "mp3" ]; then
-        echo "Extracting mp3 from $1! | Start: $2 Duration: $3, Min: $MIN_DURATION"
+        echo "Extracting mp3 from $1! | Start:$(lib time full $2) Duration:$(lib time full $3), Min:$MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" # -v quiet >/dev/null 2>&1 || error_code=$?
     else
-        echo "Extracting $OUTPUT | Start: $2 Duration: $3, Min: $MIN_DURATION"
+        echo "Extracting $OUTPUT | Start:$(lib time full $2) Duration:$(lib time full $3), Min:$MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
-        if [ -n "$TARGET_EXT" ]; then
+        if [ -n "$TARGET_EXT" ] && [ "$error_code" -eq "0" ]; then
             if [ "$TARGET_EXT" == "mp3" ]; then
-                echo "Packing to mp3 with lame $OUTPUT to $PACK_OUTPUT"
+                echo "  Packing to mp3 with lame '$OUTPUT' to '$PACK_OUTPUT'"
                 lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
                 if [ $error_code -eq 0 ]; then
                     rm "$OUTPUT"
+                    pack_error=1
                 fi
             else
-                echo "Packing target type $TARGET_EXT not supported, yet!"
+                echo "  Packing target type $TARGET_EXT not supported, yet!"
             fi
         fi
     fi
 
     if [ $error_code -ne 0 ]; then
         Color.sh red
-        echo "ffmpeg failed to extract $4 audio from $1"
+        if [ "$pack_error" == "0" ]; then echo "ffmpeg failed to extract $4 audio from $1"
+        else                              echo "lame failed to pack $OUTPUT -> $PACK_OUTPUT"; fi
         Color.sh
         ERROR=1
         exit 1
@@ -287,14 +313,13 @@ split_file_by_silence () {
     START=0
     END=0
     FILENUMBER=1
+    TRACKNUMBER=1
+    TARGETID=1
+    LASTTARGET=0
     TOTAL_LENGTH=$(ffprobe -i "$2" -show_entries format=duration -v quiet -of csv="p=0")
 
     if [ "$MIN_DURATION" -le 0 ]; then
         MIN_DURATION="$DURATION"
-    fi
-
-    if [ -n "$NAMEPATH" ] && [ -z "$TARGET_DIR" ]; then
-        find_target_in_file
     fi
 
     for index in "${!array[@]}"; do
@@ -306,37 +331,45 @@ split_file_by_silence () {
             END=$(bc <<< "${array[index + 1]} - 0.25")
         fi
 
+        if [ -n "$NAMEPATH" ] && [ "$LASTTARGET" != "$TARGETID" ]; then
+            find_target_in_file "$TARGETID"
+            LASTTARGET="$TARGETID"
+        fi
+
         if [ "$END" != "0" ] && [ "$START" != "0" ]; then
             if (( $(echo "$START < $END" |bc -l) )); then
                 # There is no silence in the beginning, so the first file start from the beginning
                 if (( $(echo "$START < $MIN_DURATION" |bc -l) )); then
                     FILENUMBER=$((FILENUMBER - 1))
+                    TRACKNUMBER=$((TRACKNUMBER - 1))
                 else
-                    split_to_file "$2" "0" "$START" "$FILENUMBER"
+                    split_to_file "$2" "0" "$START" "$FILENUMBER" "$TRACKNUMBER"
                 fi
                 START=0
             else
                 DURATION_2=$(bc <<< "$START - $END")
                 if  (( $(echo "$DURATION_2 < $MIN_DURATION" |bc -l) )); then
                     FILENUMBER=$((FILENUMBER - 1))
+                    TRACKNUMBER=$((TRACKNUMBER - 1))
                 else
-                    split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
+                    split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER" "$TRACKNUMBER"
                 fi
                 START=0
                 END=0
             fi
             FILENUMBER=$((FILENUMBER + 1))
+            TRACKNUMBER=$((TRACKNUMBER + 1))
         fi
     done
 
     if [ $START != 0 ] && [ $FILENUMBER == 1 ] && [ $END = 0 ]; then
         #there is only one file and silence at the end, remove silence
-        split_to_file "$2" "0" "$START" "$FILENUMBER"
+        split_to_file "$2" "0" "$START" "$FILENUMBER" "$TRACKNUMBER"
     elif [ $END != "0" ]; then
         # The is no silence at the end of the file, so the last file is created here
         DURATION_2=$(bc <<< "$TOTAL_LENGTH - $END")
         if  (( $(echo "$DURATION_2 >= $MIN_DURATION" |bc -l) )); then
-            split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER"
+            split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER" "$TRACKNUMBER"
         fi
     fi
 
@@ -417,6 +450,7 @@ split_file_by_input_file () {
     START=0
     END=0
     FILENUMBER=1
+    TRACKNUMBER=1
     TOTAL_LENGTH=$(ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0")
 
     if [ "$MIN_DURATION" -le 0 ]; then
@@ -436,6 +470,7 @@ split_file_by_input_file () {
 
         if [[ ${inputs[index]} =~ "D:" ]]; then
             TARGET_DIR="${line##*:}"
+            TRACKNUMBER=1
             continue
         fi
         CURRENT_NAME="$line"
@@ -457,10 +492,11 @@ split_file_by_input_file () {
             END=$((END - START))
         fi
 
-        split_to_file "$1" "$START" "$END" "$FILENUMBER"
+        split_to_file "$1" "$START" "$END" "$FILENUMBER" "$TRACKNUMBER"
         START=0
         END=0
         FILENUMBER=$((FILENUMBER + 1))
+        TRACKNUMBER=$((TRACKNUMBER + 1))
     done
 
     if [ $ERROR == "0" ] && [ $DELETE == "1" ] && [ "$FILENUMBER" -gt "1" ]; then

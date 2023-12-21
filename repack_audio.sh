@@ -26,8 +26,7 @@ set_int () {
         rm "${file}.new.${OUTPUT}"
     fi
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
-    TOTALSAVE=$((TOTALSAVE / 1000))
-    echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb"
+    echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size $TOTALSAVE)"
     exit 1
 }
 
@@ -114,7 +113,7 @@ for file in *".$INPUT"; do
            mv "${file}.new.${OUTPUT}" "${FILE}.${OUTPUT}"
 
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
-           printf "repacked succesfully, saved %-6d total:$TOTALSAVE\n" "$((INPUTSIZE - OUTPUTSIZE))"
+           printf "repacked succesfully, saved %-6s total:%s\n" "$(lib size $((INPUTSIZE - OUTPUTSIZE)))" "$(lib size $TOTALSAVE)"
            SUCCESS=$((SUCCESS + 1))
            [ -n "$TARGET" ] && echo "$file" >> "$TARGET"
         fi
@@ -127,6 +126,5 @@ done
 
 shopt -u nocaseglob
 GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
-TOTALSAVE=$((TOTALSAVE / 1000))
-echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $TOTALSAVE Mb"
+echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size $TOTALSAVE)"
 

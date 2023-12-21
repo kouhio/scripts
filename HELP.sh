@@ -20,7 +20,7 @@ printFind() {
 printVim () {
     echo -e "VIM things:\n"
     echo    "Search for multiple strings at once                    :\\vSTRING|STRING"
-    echo -e "Search two different string in one row                 :STRING1.*STRING2"
+    echo -e "Search two strings in one row                          :STRING1.*STRING2"
     echo -e "Search for STRING1 that doesn't continue with STRING2  :STRING1\(STRING2\)\@!"
     echo    "Search for STRING that's not case sensitive            :STRING\c"
     echo    "Seach for function without comment                     :\n}\n\n\(\/\)\@!"
@@ -41,6 +41,9 @@ printVim () {
     echo -e "search for rows not ending in STRING                   ^.*\\(STRING\\)\\@<!$\n"
     echo -e "duplicate each line                                    :g/^/norm yyp"
     echo -e "join each other row                                    :%norm J"
+    echo -e "soft all rows alphabetically                           :%!sort"
+    echo -e "sort all rows numerically                              :%!sort -n"
+    echo -e "sort all visually selected rows                        :!sort"
 }
 
 printGit () {

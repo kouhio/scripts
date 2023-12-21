@@ -134,10 +134,14 @@ running_time () {
 # 3 - pid of app / add fractals (values after decimal point)
 ##########################################################################################
 do_time () {
+    FRACTAL=""
+    [[ "$2" =~ "." ]] && FRACTAL=".${2##*.}"
+
     if   [ "$1" == "now" ] || [ -z "$1" ]; then         # Get current time in seconds from epoch
         date +%s
     elif [ "$1" == "full" ] || [ "$1" == "f" ]; then    # Get formatted time from given time from epoch
-        date -d@"${2}" -u +%T
+        OUTPUT="$(date -d@"${2}" -u +%T)$FRACTAL"
+        echo "$OUTPUT"
     elif [ "$1" == "sec" ] || [ "$1" == "s" ]; then     # Get formatted time in seconds
         print_secs "$2" "$3"
     elif [ "$1" == "run" ] || [ "$1" == "r" ]; then     # Start loop and update running time with PID

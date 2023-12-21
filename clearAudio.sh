@@ -34,7 +34,8 @@ help () {
 AUDIO_LENGTH=$(mediainfo '--Inform=Audio;%Duration%' "$2")
 AUDIO_LENGTH=$((AUDIO_LENGTH / 1000))
 AUDIO_TENTH=$((AUDIO_LENGTH / 10))
-$(python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2") && echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
+python3 ~/dev/audfprint/audfprint.py new --dbase tembase "$2" >/dev/null 2>&1
+echo "Audio comparison database from '$2', len:${AUDIO_LENGTH}s"
 
 ################################################################
 # Rewrite the do.sh file
