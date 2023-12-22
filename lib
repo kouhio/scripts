@@ -8,6 +8,7 @@ print_help () {
     printf "COMMAND     | OPTION 1          | OPTION 2          | OPTION 3          | OPTION 4      | Function\n"
     printf "time (t)    | now (or empty)    |                   |                   |               | Print current time in seconds\n"
     printf "            | full (f)          | time in seconds   |                   |               | Print human readable time from value\n"
+    printf "            | zone (z)          | time in seconds   |                   |               | Print human readable time from value into current timezone\n"
     printf "            | from (F)          | time in seconds   |                   |               | Calculate time between now and given value\n"
     printf "            | sec (s)           | time split with : | include decimals  |               | Transform split time to seconds (and less, if option 2 is set)\n"
     printf "            | run (r)           | time in seconds   |                   |               | Print time formatted based on the length of time\n\n"
@@ -141,6 +142,9 @@ do_time () {
         date +%s
     elif [ "$1" == "full" ] || [ "$1" == "f" ]; then    # Get formatted time from given time from epoch
         OUTPUT="$(date -d@"${2}" -u +%T)$FRACTAL"
+        echo "$OUTPUT"
+    elif [ "$1" == "zone" ] || [ "$1" == "<" ]; then    # Get formatted time from given time from epoch to current timezone
+        OUTPUT="$(date -d@"${2}" +%T)$FRACTAL"
         echo "$OUTPUT"
     elif [ "$1" == "sec" ] || [ "$1" == "s" ]; then     # Get formatted time in seconds
         print_secs "$2" "$3"

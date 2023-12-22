@@ -98,7 +98,7 @@ fi
 
 if [ -n "$OUTPUT_FILE" ]; then
     echo " -> Found $BAND - $YEAR - $ALBUM with ${#tracks[@]} tracks"
-    echo "D:$BAND - $YEAR - $ALBUM" > "$OUTPUT_FILE"
+    echo "D:$BAND - $YEAR - $ALBUM" >> "$OUTPUT_FILE"
     for index in "${tracks[@]}"; do
         echo "$index" >> "$OUTPUT_FILE"
     done

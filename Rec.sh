@@ -36,6 +36,34 @@ get_sink_monitor() {
 }
 
 #**********************************************************************************
+# Format time into future from current time, get timeout and endtime
+#**********************************************************************************
+format_time() {
+    TIME_START=$(lib time)
+
+    if [[ "$1" =~ "m" ]] || [[ "$1" =~ "h" ]] || [[ "$1" =~ "s" ]] || [[ "$1" =~ "d" ]]; then TIMEOUT="$1"
+    else TIMEOUT="${1}m"; fi
+
+    TIMEHANDLER=${TIMEOUT%?}
+
+    if   [[ "$TIMEOUT" =~ "m" ]]; then
+        calc=$((TIMEHANDLER * 60))
+        RUNTIME=$((TIME_START + calc))
+    elif [[ "$TIMEOUT" =~ "h" ]]; then
+        calc=$((TIMEHANDLER * 3600))
+        RUNTIME=$((TIME_START + calc))
+    elif [[ "$TIMEOUT" =~ "s" ]]; then
+        RUNTIME=$((TIME_START + TIMEHANDLER))
+    elif [[ "$TIMEOUT" =~ "d" ]]; then
+        calc=$((TIMEHANDLER * 86400))
+        RUNTIME=$((TIME_START + calc))
+    fi
+    echo "start:$TIME_START -> handler:$TIMEHANDLER | calc:$calc, RUN:$RUNTIME"
+
+    TIME_END=$(lib time zone $RUNTIME)
+}
+
+#**********************************************************************************
 # Record it raw, and convert to a wav
 # 1 - Possible timeout value for recording
 #**********************************************************************************
@@ -46,10 +74,9 @@ record_audio_stream() {
         echo "Close this window to stop (with ctrl+c) recording"
         arecord -f cd |tee "$WAV" >/dev/null 2>&1
     else
-        if [[ "$1" =~ "m" ]] || [[ "$1" =~ "h" ]] || [[ "$1" =~ "s" ]] || [[ "$1" =~ "d" ]]; then TIMEOUT="$1"
-        else TIMEOUT="${1}m"; fi
+        format_time "$1"
 
-        echo "This process will terminate in $TIMEOUT. Started at $(date +%T)."
+        echo "This process will terminate in $TIMEOUT. Started at $(date +%T). Stopping at $TIME_END"
         timeout -v "$TIMEOUT" arecord -f cd |tee "$WAV" >/dev/null 2>&1
         recording_interrupt
     fi
