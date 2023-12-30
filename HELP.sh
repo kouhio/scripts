@@ -15,6 +15,7 @@ printFind() {
     echo -e "FIND things:\n"
     echo -e "Find only files                                -type f"
     echo -e "Ignore case search                             -iname \"STRING\""
+    echo -e "Execute command on found items                 -exec COMMAND {} \;"
 }
 
 printVim () {
@@ -129,6 +130,11 @@ printBash () {
     echo -en "Find all file extensions      find . -type f -name '*.*' | sed 's|.*\.||' | sort -u\n"
 }
 
+printRename () {
+    echo -en "Remove all after char                 rename \"s/CHAR.*//\" *\n"
+    echo -en "Insert string to beginning of file    rename \"s/^/STRING/\" *\n"
+}
+
 if [ "$1" == "grep" ]; then
     printGrep
 elif [ "$1" == "vi" ] || [ "$1" == "vim" ]; then
@@ -145,6 +151,8 @@ elif [ "$1" == "bash" ]; then
     printBash
 elif [ "$1" == "find" ]; then
     printFind
+elif [ "$1" == "rename" ]; then
+    printRename
 else
-    echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash"
+    echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash / find / rename"
 fi

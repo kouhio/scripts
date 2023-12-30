@@ -210,8 +210,6 @@ do_file () {
         IFS=" "
         space_array=(${FULL//,/$IFS})
         cnt=${space_array[3]}
-    else
-        return
     fi
 
     echo "$cnt"
@@ -247,6 +245,7 @@ do_value () {
         echo "$RET"
         return
     else
+        echo "0"
         return
     fi
 

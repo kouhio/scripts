@@ -27,6 +27,7 @@ help () {
 
 [ -z "$1" ] && lib C r "No input filetype given!\n" && help
 [ ! -f "$2" ] && lib C r "audio input file '$2' incorrect!\n" && help
+[ -n "$3" ] && CHECKER=$(lib v n "$3") && [ "$CHECKER" -ne "1" ] && lib C r "Input type '$3' invalid time value\n" && help
 
 ################################################################
 # add mp3s to database
