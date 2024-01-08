@@ -1289,8 +1289,11 @@ simply_pack_file () {
 
     if   [ "$AUDIO_PACK" == "1" ]; then printf "$PRINTLINE packing $EXT_CURR to $CONV_CHECK "
     elif [ "$MP3OUT" == 1 ]; then       printf "$PRINTLINE extracting $CONV_CHECK "
-    elif [ "$COPY_ONLY" == "0" ]; then  printf "$PRINTLINE packing (%04dx%04d -> $PACKSIZE) " "${X}" "${Y}"
+    elif [ "$COPY_ONLY" == "0" ]; then  printf "$PRINTLINE packing (%04dx%04d->$PACKSIZE) " "${X}" "${Y}"
     else                                printf "$PRINTLINE copying (%04dx%04d) " "${X}" "${Y}"; fi
+
+    FILEDURATION=$(lib V d "$FILE")
+    printf "[%s] " "$FILEDURATION"
 
     if [ "$AUDIO_PACK" == "1" ]; then
         ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
@@ -1671,7 +1674,7 @@ check_file_conversion () {
                 echo -en "${Green} Success in $TIMERVALUE${Color_Off} "
             else
                 check_valuetype "$ENDSIZE"
-                printf "${Green} Success! Saved %-6.6s ${SIZETYPE} in $TIMERVALUE${Color_Off}\n" "$SAVESIZE"
+                printf "${Green}Saved %-6.6s ${SIZETYPE} in $TIMERVALUE${Color_Off}\n" "$SAVESIZE"
             fi
             handle_file_rename 1
         else

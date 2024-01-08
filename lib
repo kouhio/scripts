@@ -11,11 +11,13 @@ print_help () {
     printf "            | zone (z)          | time in seconds   |                   |               | Print human readable time from value into current timezone\n"
     printf "            | from (F)          | time in seconds   |                   |               | Calculate time between now and given value\n"
     printf "            | sec (s)           | time split with : | include decimals  |               | Transform split time to seconds (and less, if option 2 is set)\n"
-    printf "            | run (r)           | time in seconds   |                   |               | Print time formatted based on the length of time\n\n"
+    printf "            | run (r)           | time in seconds   |                   |               | Print time formatted based on the length of time\n"
+    printf "            | time in seconds   |                   |                   |               | Print time formatted to HH:MM:SS\n\n"
     printf "size (s)    | size in kb        |                   |                   |               | Print size in human format\n\n"
     printf "file (f)    | count (c)         | filetype          |                   |               | Print number of files\n"
     printf "            | any (a)           | string in file    |                   |               | Print number of files with given string\n"
-    printf "            | empty (e)         |                   |                   |               | Get empty HD space\n\n"
+    printf "            | empty (e)         |                   |                   |               | Get empty HD space\n"
+    printf "            | change (C)        | previous hd size  |                   |               | Get size change in HD from previously read HD space\n\n"
     printf "value (v)   | number (n)        | value to check    |                   |               | Check if value is a number (1 = true)\n"
     printf "            | dim (d)           | value to check    |                   |               | Check if value is a dimensioni (1 = true)\n"
     printf "            | ip (i)            | value to check    |                   |               | Check if value is an IP address (1 = true)\n"
@@ -23,6 +25,7 @@ print_help () {
     printf "video (V)   | sub (s)           | path to file      | id or language    |               | Get subtitle ID or Language\n"
     printf "            | audio (a)         | path to file      | id or language    |               | Get audio ID or language\n"
     printf "            | len (l)           |                   |                   |               | Get length of video\n"
+    printf "            | duration (d)      |                   |                   |               | Get length of video in formatted mode\n"
     printf "            | alen (A)          |                   |                   |               | Get length of audio\n"
     printf "            | x                 |                   |                   |               | Get video width\n"
     printf "            | y                 |                   |                   |               | Get video height\n\n"
@@ -210,6 +213,12 @@ do_file () {
         IFS=" "
         space_array=(${FULL//,/$IFS})
         cnt=${space_array[3]}
+    elif [ "$1" == "change" ] || [ "$1" == "C" ]; then
+        CURRENT=$(lib file empty)
+        PREVIOUS="$2"
+        CALC=$((CURRENT - PREVIOUS))
+        do_size "$CALC"
+        return
     fi
 
     echo "$cnt"
@@ -353,6 +362,11 @@ do_video () {
         TRACKS=($(mediainfo '--Inform=Audio;%StreamKindID%:%Language/String%\n;' "$2"))
     elif [ "$1" == "len" ] || [ "$1" == "l" ]; then                               # Get video length
         OUTPUT=$(mediainfo '--Inform=Video;%Duration%' "$2")
+    elif [ "$1" == "duration" ] || [ "$1" == "d" ]; then                          # Get video length in seconds
+        OUTPUT=$(mediainfo '--Inform=Video;%Duration%' "$2")
+        OUTPUT="${OUTPUT%.*}"
+        OUTPUT=$((OUTPUT / 1000))
+        OUTPUT=$(do_time $OUTPUT)
     elif [ "$1" == "alen" ] || [ "$1" == "A" ]; then                              # Get audio length
         OUTPUT=$(mediainfo '--Inform=Audio;%Duration%' "$2")
     elif [ "$1" == "x" ]; then                                                          # Get video width
