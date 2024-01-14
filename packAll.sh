@@ -701,7 +701,7 @@ combine_split_files() {
     calculate_duration
     calculate_time_taken
     calculate_time_given "$TIME_SHORTENED"
-    printf "${Green} Success in $TIMERVALUE/$TIMER_TOTAL_PRINT ${Yellow}${RUNNING_FILENAME}${Color_Off} Shortened:$TIMER_SECOND_PRINT\n"
+    printf "${Green}Success in $TIMERVALUE/$TIMER_TOTAL_PRINT ${Yellow}${RUNNING_FILENAME}${Color_Off} Shortened:$TIMER_SECOND_PRINT\n"
     FILE="$LE_ORG_FILE"
 }
 
@@ -1293,7 +1293,7 @@ simply_pack_file () {
     else                                printf "$PRINTLINE copying (%04dx%04d) " "${X}" "${Y}"; fi
 
     FILEDURATION=$(lib V d "$FILE")
-    printf "[%s] " "$FILEDURATION"
+    printf "[%08s] " "$FILEDURATION"
 
     if [ "$AUDIO_PACK" == "1" ]; then
         ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
@@ -1635,6 +1635,8 @@ check_file_conversion () {
 
     #if destination file exists
     check_if_files_exist
+    calculate_duration
+
     if [ "$FILE_EXISTS" == 1 ]; then
         if [ "$AUDIO_PACK" == "1" ]; then NEW_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE$CONV_TYPE")
         else                              NEW_DURATION=$(mediainfo '--Inform=Video;%Duration%' "$FILE$CONV_TYPE"); fi
@@ -1654,7 +1656,6 @@ check_file_conversion () {
 
         #if video length matches (with one second error tolerance) and destination file is smaller than original, then
         if [ -z "$AUDIO_DURATION" ]; then
-            calculate_duration
             handle_file_rename 0
             echo -en "${Red} FAILED! Target has no Audio!${Color_Off}\n"
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
@@ -1671,17 +1672,17 @@ check_file_conversion () {
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
             if [ "$MASSIVE_SPLIT" == 1 ]; then
-                echo -en "${Green} Success in $TIMERVALUE${Color_Off} "
+                echo -en "${Green}Success in $TIMERVALUE${Color_Off} "
             else
-                check_valuetype "$ENDSIZE"
-                printf "${Green}Saved %-6.6s ${SIZETYPE} in $TIMERVALUE${Color_Off}\n" "$SAVESIZE"
+                #check_valuetype "$ENDSIZE"
+                #printf "${Green}Saved %-6.6s ${SIZETYPE} in $TIMERVALUE${Color_Off}\n" "$SAVESIZE"
+                printf "${Green}Saved %8s in %s${Color_Off}\n" "$(lib size $ENDSIZE)" "$(lib t F $process_start_time)"
             fi
             handle_file_rename 1
         else
             check_alternative_conversion
         fi
     else
-        calculate_duration
         echo -en "${Red} No destination file!${Color_Off} in $TIMERVALUE\n"
         [ ! -d "./Nodest" ] && mkdir "Nodest"
         mv "$FILE" "./Nodest"

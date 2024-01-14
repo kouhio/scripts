@@ -60,6 +60,8 @@ eachDir.sh              - Run given input command & parameters in all subdirecto
 
 AllDirs.sh              - Run given command in each directory and their subdirectories
 
+AllFiles.sh             - Run command on each file in the directory
+
 Repeat.sh               - Repeat given command until break is called
 
 Time.sh                 - Calculate time to run given commandline process

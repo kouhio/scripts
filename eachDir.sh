@@ -38,7 +38,8 @@ for d in */ ; do
 
     if [ "$error" == "0" ]; then
         echo -en "\nRunning in $d\n"
-        source "$@"
+        #source "$@"
+        "$@"
     else
         echo -en "\nFailed to enter $d\n"
     fi

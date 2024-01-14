@@ -172,7 +172,8 @@ do_size () {
     [ -z "$1" ] && return
     CHECK=$(do_value "number" "$1")
     [ "$CHECK" == "0" ] && return                       # Verify given value is pure number
-    [ "$1" -lt "0" ] && HAND_VAL=$((HAND_VAL * -1))     # Check if the value is negative, and change comparison value to positive to get correct results
+    [[ "$1" =~ "." ]] && HAND_VAL=${HAND_VAL%.*}
+    [ "$HAND_VAL" -lt "0" ] && HAND_VAL=$((HAND_VAL * -1))     # Check if the value is negative, and change comparison value to positive to get correct results
 
     if [ "$HAND_VAL" -lt "1000" ]; then                 # Get size in Kb
         SAVESIZE="$1"
@@ -231,7 +232,7 @@ do_file () {
 ##########################################################################################
 do_value () {
     if   [ "$1" == "number" ] || [ "$1" == "n" ]; then     # Check if given string is plain numbers
-        re='^[0-9]+$'
+        re='^[0-9.-]+$'
     elif [ "$1" == "dim" ] || [ "$1" == "d" ]; then        # Check if given string is numbers and x
         re='^[0-9x]+$'
     elif [ "$1" == "time" ] || [ "$1" == "t" ]; then       # Check if given string is numbers and :
