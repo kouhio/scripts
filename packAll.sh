@@ -88,7 +88,6 @@ ERROR_WHILE_MORPH=0
 APP_NAME=/usr/bin/ffmpeg        # current application name to be used
 COMMAND_LINE=""                 # command line options to be set up later
 COMMAND_ADD=""                  # command line options, that will be set up each time
-APP_SETUP=0                     # variable to see, if the setup has already been set
 CURRENT_TIMESAVE=0              # Time saved during editing session
 SPLITTER_TIMESAVE=0             # Time saved during splitting
 
@@ -111,6 +110,7 @@ BUGME=0                         # Debug output commands
 MAX_SHORT_TIME=""               # Maximum accepted time for shortening
 TOTAL_ERR_CNT=0                 # Number of errors occured
 ERROR_WHILE_SPLITTING=0         # Splitting error handler
+PROCESS_INTERRUPTED=0           # Interruption handler for external access
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
 [ -z "$NO_EXIT_EXTERNAL" ] && NO_EXIT_EXTERNAL=0
@@ -216,6 +216,7 @@ set_int () {
         print_total
     fi
 
+    PROCESS_INTERRUPTED=1
     [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
 }
 
@@ -484,7 +485,6 @@ new_massive_file_split () {
         MASSIVE_COUNTER=0
 
         for index in "${!array[@]}"; do
-            APP_SETUP=0
             if [ "$SPLIT_P2P" -gt 0 ]; then
                 IFS="-"
                 array2=(${array[index]//-/$IFS})
@@ -1228,8 +1228,6 @@ setup_file_packing () {
     fi
 
     COMMAND_LINE+="-metadata title= "
-
-    APP_SETUP=1
 }
 
 #***************************************************************************************************************
@@ -1274,7 +1272,7 @@ setup_add_packing () {
 simply_pack_file () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    [ "$APP_SETUP" == "0" ] && setup_file_packing
+    setup_file_packing
     setup_add_packing
 
     short_name
@@ -1584,6 +1582,8 @@ check_alternative_conversion () {
         else
             PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"
         fi
+        NEW_DURATION=0
+        DURATION_CHECK=0
     elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then
         RETVAL=1
         ERROR_WHILE_MORPH=1
@@ -1718,7 +1718,6 @@ handle_file_packing () {
 
     [ "$CROP" == 0 ] && print_info
     XP=$(mediainfo '--Inform=Video;%Width%' "$FILE")
-
     if [ "$REPACK" == 1 ] && [ "$DIMENSION_PARSED" == 0 ]; then
         if [ "$HEVC_CONV" == 1 ]; then PACKSIZE="${XP}:${Y}"
         else                           PACKSIZE="${XP}x${Y}"; fi
