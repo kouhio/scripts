@@ -26,11 +26,11 @@ KEPT_FILES=0
 ##########################################################
 # Push string to target file
 ##########################################################
-printShit () {
+printToFile () {
     if [ -z "$2" ]; then
         echo "$@" >> "$FILE"
     else
-        echo "  $1" >> "$FILE"
+        echo "  $@" >> "$FILE"
     fi
 }
 
@@ -38,16 +38,16 @@ printShit () {
 # End of process output
 ##########################################################
 printSavedData () {
-    printShit "ENDSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')" "$1"
-    printShit "TOTALSIZE=\$((ENDSIZE - STARTSIZE))" "$1"
-    printShit "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
-    printShit "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
-    printShit "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)" "$1"
-    printShit "SET=\$(date +%s)" "$1"
-    printShit "STT=\$((SET - STT))" "$1"
+    printToFile "ENDSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')" "$1"
+    printToFile "TOTALSIZE=\$((ENDSIZE - STARTSIZE))" "$1"
+    printToFile "TOTALSIZE=\$((TOTALSIZE / 1000))" "$1"
+    printToFile "GLOBAL_FILESAVE=\$((GLOBAL_FILESAVE / 1000))" "$1"
+    printToFile "ENDTIMER=\$(date -d@\${GLOBAL_TIMESAVE} -u +%T)" "$1"
+    printToFile "SET=\$(date +%s)" "$1"
+    printToFile "STT=\$((SET - STT))" "$1"
 
-    printShit "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)" "$1"
-    echo " " >> $FILE
+    printToFile "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)" "$1"
+    echo "" >> $FILE
 }
 
 ##########################################################
@@ -59,7 +59,6 @@ printTerminatorFunction () {
     printSavedData "1"
     echo -e "  exit 1" >> "$FILE"
     echo -e "}\n" >> "$FILE"
-    echo -e "trap cleanup INT TERM\n" >> "$FILE"
     echo -e "#BEGIN" >> "$FILE"
 }
 
@@ -179,7 +178,7 @@ addNewFiles() {
             index=$((index + 1))
             if [ $index -ge 11 ]; then
                 index=1
-                echo " " >> $TMPFILE
+                echo "" >> $TMPFILE
             fi
         fi
     done
@@ -340,35 +339,36 @@ verifyOldFile() {
 printBaseData() {
     echo "#!/bin/bash" > $FILE
 
-    printShit "STARTSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')"
-    printShit "GLOBAL_FILESAVE=0"
-    printShit "GLOBAL_TIMESAVE=0"
-    printShit "NO_EXIT_EXTERNAL=1"
-    printShit "EXIT_EXT_VAL=0"
-    printShit "COUNTED_ITEMS=0"
-    printShit "ERROR=0"
-    printShit "STT=\$(date +%s)"
+    printToFile "STARTSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')"
+    printToFile "GLOBAL_FILESAVE=0"
+    printToFile "GLOBAL_TIMESAVE=0"
+    printToFile "NO_EXIT_EXTERNAL=1"
+    printToFile "EXIT_EXT_VAL=0"
+    printToFile "COUNTED_ITEMS=0"
+    printToFile "ERROR_CNT=0"
+    printToFile "STT=\$(date +%s)"
 
-    printShit ""
-    printShit "PACK () {"
-    printShit "  INPUTFILE=\"\$1\""
-    printShit "  shift 1"
-    printShit "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
-    printShit "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
-    printShit "    [ ! -f \"\$1\" ] && return 0"
-    printShit "    printf \"%03d/%03d :: Removing \$1\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
-    printShit "    rm \"\$1\""
-    printShit "  elif [ \"\$INPUTFILE\" == \"mv\" ]; then"
-    printShit "    [ ! -f \"\$1\" ] && return 0"
-    printShit "    CLEARNAME=\$(echo \"\$1\" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')"
-    printShit "    printf \"%03d/%03d :: Renaming '\$1' to '\$CLEARNAME'\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
-    printShit "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
-    printShit "  elif [ -f \"\$INPUTFILE\" ]; then"
-    printShit "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
-    printShit "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
-    printShit "    [ \$ERROR -eq 0 ] && ERROR=\$?"
-    printShit "  fi"
-    printShit "}"
+    printToFile ""
+    printToFile "PACK () {"
+    printToFile "  INPUTFILE=\"\$1\""
+    printToFile "  shift 1"
+    printToFile "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
+    printToFile "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
+    printToFile "    [ ! -f \"\$1\" ] && return 0"
+    printToFile "    printf \"%03d/%03d :: Removing \$1\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printToFile "    rm \"\$1\""
+    printToFile "  elif [ \"\$INPUTFILE\" == \"mv\" ]; then"
+    printToFile "    [ ! -f \"\$1\" ] && return 0"
+    printToFile "    CLEARNAME=\$(echo \"\$1\" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')"
+    printToFile "    printf \"%03d/%03d :: Renaming '\$1' to '\$CLEARNAME'\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printToFile "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
+    printToFile "  elif [ -f \"\$INPUTFILE\" ]; then"
+    printToFile "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
+    printToFile "    [ \$ERROR -ne 0 ] && ERROR_CNT=\$((ERROR_CNT + 1))"
+    printToFile "  fi"
+    printToFile "  [ -z \"\$PROCESS_INTERRUPTED\" ] && \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
+    printToFile "}"
 
     printTerminatorFunction
 }
@@ -421,7 +421,7 @@ goThroughAllFiles() {
             index=$((index + 1))
             if [ $index -ge 11 ]; then
                 index=1
-                echo " " >> $FILE
+                echo "" >> $FILE
             fi
         fi
     done
@@ -435,11 +435,11 @@ goThroughAllFiles() {
 ##########################################################
 printEndData() {
     echo "#END" >> $FILE
-    echo " " >> $FILE
-    printShit "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ] && [ \"\$ERROR\" -eq \"0\" ]; then"
-    printShit "  rm $FILE"
-    printShit "  rm $VLC"
-    printShit "fi"
+    echo "" >> $FILE
+    printToFile "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ] && [ \"\$ERROR_CNT\" -eq \"0\" ]; then"
+    printToFile "  rm $FILE"
+    printToFile "  rm $VLC"
+    printToFile "fi"
 }
 
 ##########################################################
@@ -453,7 +453,6 @@ renameBadChars() {
     rename "s/–//g" ./*
     rename "s/-//g" ./*
 }
-
 
 ##########################################################
 # Update max filecount to the script
