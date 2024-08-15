@@ -1,45 +1,51 @@
 #!/bin/bash
 
 printGrep() {
+    STRING="${1:-STRING}"
+    STRING2="${2:-STRING2}"
     echo -e "GREP things:\n"
-    echo -e "Exclude STRING from search                     -v STRING\n"
+    echo -e "Exclude STRING from search                     -v $STRING\n"
     echo -e "Print information:                             -n rownumber in file"
     echo -e "                                               -c count of found items\n"
-    echo -e "Search for multiple patters:                   -e STRING1 -e STRING2 -e STRING..."
-    echo -e "                                               -E 'STRING|STRING2|...'\n"
-    echo -e "Ignore string case:                            -i STRING\n"
+    echo -e "Search for multiple patters:                   -e $STRING -e STRING2 -e $STRING..."
+    echo -e "                                               -E '$STRING|$STRING2|...'\n"
+    echo -e "Ignore string case:                            -i $STRING\n"
     echo -e "Search for tab:                                -P '\\\t' *"
 }
 
 printFind() {
+    STRING="${1:-FILENAME}"
     echo -e "FIND things:\n"
     echo -e "Find only files                                -type f"
-    echo -e "Ignore case search                             -iname \"STRING\""
-    echo -e "Execute command on found items                 -exec COMMAND {} \;"
+    echo -e "Ignore case search                             -iname \"$STRING\""
+    echo -e "Execute command on found items                 -exec $STRING {} \;"
 }
 
 printVim () {
+    STRING="${1:-STRING}"
+    STRING2="${2:-STRING2}"
     echo -e "VIM things:\n"
-    echo    "Search for multiple strings at once                    :\\vSTRING|STRING"
-    echo -e "Search two strings in one row                          :STRING1.*STRING2"
-    echo -e "Search for STRING1 that doesn't continue with STRING2  :STRING1\(STRING2\)\@!"
-    echo    "Search for STRING that's not case sensitive            :STRING\c"
+    echo    "Search for multiple strings at once                    :\\v$STRING|$STRING2"
+    echo -e "Search two strings in one row                          :$STRING.*$STRING2"
+    echo -e "Search for STRING1 that doesn't continue with STRING2  :$STRING\($STRING2\)\@!"
+    echo    "Search for STRING that's not case sensitive            :$STRING\c"
     echo    "Seach for function without comment                     :\n}\n\n\(\/\)\@!"
     echo -e "\nMultiple file handling:\n :ls -> list files | :b(N) -> jump to file (N) | :bn / :bp -> move between files | :bd -> close current file\n"
-    echo -e "Replace with autoindent                                :%s/STRING/REPLACEMENT_STRING/ |normal=\`\`"
-    echo -e "Do replace on only rows between                        :ROW_START,ROW_ENDs/STRING1/STRING2/g"
-    echo -e "Ignore whitespace in search                            :/STRING1_s*STRING2\n"
+    echo -e "Replace with autoindent                                :%s/$STRING/$STRING2/ |normal=\`\`"
+    echo -e "Do replace on only rows between                        :ROW_START,ROW_ENDs/$STRING/$STRING2/g"
+    echo -e "Ignore whitespace in search                            :/${STRING}_s*$STRING2\n"
     echo -e "Remove all trailing whitespace                         :%s/\s\+$//e"
-    echo -e "Remove all rows containing string                      :g/STRING/d"
-    echo -e "Remove all rows not having STRING                      :%g!/STRING/d"
-    echo -e "Remove everything after string                         :%s/STRING.*g"
+    echo -e "Remove all rows containing string                      :g/$STRING/d"
+    echo -e "Remove all rows not having STRING                      :%g!/$STRING/d"
+    echo -e "Remove everything after string                         :%s/$STRING.*g"
     echo -e "Remove carriage return ^M                              :%s/\\r//\n"
     echo -e "Special search options                                 :\\+ repeat given string | \$ end of the line\n"
     echo -e "ctrl+v -> paint all rows -> g -> ctrl+a (to increment all values)"
-    echo -e "ctrl+v -> paint all rows / test -> c -> write new text to replace painted text -> esc\n"
+    echo -e "ctrl+v -> paint all rows / test -> c -> write new text to replace painted text -> esc"
+    echo -e "ctrl+v -> paint all rows / test -> I -> insert new text to start of painted text -> esc\n"
     echo -e "search for rows longer than LEN                        \\%>LENv.\\+"
     echo -e "search for rows less than LEN                          ^.\\{,LEN}$/"
-    echo -e "search for rows not ending in STRING                   ^.*\\(STRING\\)\\@<!$\n"
+    echo -e "search for rows not ending in STRING                   ^.*\\($STRING\\)\\@<!$\n"
     echo -e "duplicate each line                                    :g/^/norm yyp"
     echo -e "join each other row                                    :%norm J"
     echo -e "soft all rows alphabetically                           :%!sort"
@@ -114,45 +120,70 @@ printAwk () {
 }
 
 printBash () {
-    echo -en "Get size of array             \${#ARRAY[@]}\n"
-    echo -en "Get length of string          \${#STRING}\n"
-    echo -en "Remove string beginning       \${STRING:POS}\n"
-    echo -en "Get substring                 \${STRING:POS:EPOS}\n"
-    echo -en "Split string, get start       \${STRING%.*}\n"
-    echo -en "Split string, get end         \${STRING##*.}\n"
-    echo -en "Split string at length        \$(STRING:START_POSITION:STRING:LENGTH)\n"
-    echo -en "Replace all substrings        \${STRING//SUBS/REPLACEMENT}\n\n"
-    echo -en "Loop array                    for ITEM_STRING in \"\${ARRAY[@]}\"; do -> done\n"
-    echo -en "Loop array with value         for ITEM_VALUE in \"\${!ARRAY[@]}\"; do -> done\n"
-    echo -en "Get array item with value     \${ARRAY[index]}\n\n"
-    echo -en "Split string into array       ARRAY=(\${STRING//,/\$IFS})\n"
-    echo -en "Set IFS for enter             NEW_LINE=$'\\\x0A'; export IFS=\"\${NEW_LINE}\";\n\n"
-    echo -en "Find all file extensions      find . -type f -name '*.*' | sed 's|.*\.||' | sort -u\n"
+    STRING="${1:-STRING}"
+    ARRAY="${2:-ARRAY}"
+    ITEM="${2:-ITEM}"
+    echo -en "Get size of array                         \${#$STRING[@]}\n"
+    echo -en "Get length of string                      \${#$STRING}\n"
+    echo -en "Remove string beginning                   \${$STRING:POS}\n"
+    echo -en "Get substring                             \${$STRING:POS:EPOS}\n"
+    echo -en "Split string, get start                   \${$STRING%.*}\n"
+    echo -en "Split string, get end                     \${$STRING##*.}\n"
+    echo -en "Split string at length                    \$($STRING:START_POSITION:STR_LENGTH)\n"
+    echo -en "Remove string from end                    \$($STRING%REM_STR)\n"
+    echo -en "Lowercase string                          \${$STRING,,}\n"
+    echo -en "Uppercase string                          \${$STRING^^}\n"
+    echo -en "Replace all substrings                    \${$STRING//SUBS/REPLACEMENT}\n\n"
+    echo -en "Loop array                                for $ITEM in \"\${$STRING[@]}\"; do -> done\n"
+    echo -en "Loop array with value                     for $ITEM in \"\${!$STRING[@]}\"; do -> done\n"
+    echo -en "Get array item with value                 \${$ARRAY[index]}\n\n"
+    echo -en "Split string into array                   $ARRAY=(\${$STRING//,/\$IFS})\n"
+    echo -en "Split string into array                   mapfile -t $ARRAY < <(printf \"%s\" \"$STRING\")\n"
+    echo -en "Split input into array                    mapfile -t $ARRAY <<<\$($STRING)\n"
+    echo -en "Split string into array with delimiter    mapfile -t -d ' ' $ARRAY < <(printf \"%s\" \"$STRING\")\n"
+    echo -en "Set IFS for enter                         NEW_LINE=$'\\\x0A'; export IFS=\"\${NEW_LINE}\";\n\n"
+    echo -en "Find all file extensions                  find . -type f -name '*.*' | sed 's|.*\.||' | sort -u\n"
 }
 
 printRename () {
-    echo -en "Remove all after char                 rename \"s/CHAR.*//\" *\n"
-    echo -en "Insert string to beginning of file    rename \"s/^/STRING/\" *\n"
+    STRING="${1:-STRING}"
+    echo -en "Remove all after char                 rename \"s/${STRING}.*//\" *\n"
+    echo -en "Insert string to beginning of file    rename \"s/^/$STRING/\" *\n"
 }
 
-if [ "$1" == "grep" ]; then
-    printGrep
-elif [ "$1" == "vi" ] || [ "$1" == "vim" ]; then
-    printVim
-elif [ "$1" == "git" ]; then
-    printGit
-elif [ "$1" == "yocto" ] || [ "$1" == "yoki" ] || [ "$1" == "cgx" ]; then
-    printYocto
-elif [ "$1" == "cmake" ]; then
-    printCmake
-elif [ "$1" == "awk" ]; then
-    printAwk
-elif [ "$1" == "bash" ]; then
-    printBash
-elif [ "$1" == "find" ]; then
-    printFind
-elif [ "$1" == "rename" ]; then
-    printRename
+printScreen () {
+    echo -en "Scroll within screen:             ctrl+a -> ESC\n"
+}
+
+printRPM () {
+    echo -en "List files in an RPM:             rpm -ql\n"
+}
+
+option="$1"
+shift
+if [ "$option" == "grep" ]; then
+    printGrep "$@"
+elif [ "$option" == "vi" ] || [ "$option" == "vim" ]; then
+    printVim "$@"
+elif [ "$option" == "git" ]; then
+    printGit "$@"
+elif [ "$option" == "yocto" ] || [ "$option" == "yoki" ] || [ "$option" == "cgx" ]; then
+    printYocto "$@"
+elif [ "$option" == "cmake" ]; then
+    printCmake "$@"
+elif [ "$option" == "awk" ]; then
+    printAwk "$@"
+elif [ "$option" == "bash" ]; then
+    printBash "$@"
+elif [ "$option" == "find" ]; then
+    printFind "$@"
+elif [ "$option" == "rename" ]; then
+    printRename "$@"
+elif [ "$option" == "screen" ]; then
+    printScreen "$@"
+elif [ "$option" == "rpm" ]; then
+    printRPM "$@"
 else
-    echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash / find / rename"
+    echo -e "Choose: grep / vi / git / yocto / cmake / awk / bash / find / rename / screen / rpm"
+    help2.sh "$1"
 fi
