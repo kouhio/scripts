@@ -72,6 +72,7 @@ SUBFILE=""                      # Path to subtitle file to be burned into target
 SUBERR=0                        # Subfile error checker
 WRITEOUT=""                     # Target filename for file info printing
 NEWNAME=""                      # New target filename, if not set, will use input filename
+DELIMITER=""                    # Delimiter to split the filename into pieces with splitting function
 TARGET_DIR="."                  # Target directory for successful file
 
 process_start_time=0            # Time in seconds, when processing started
@@ -251,6 +252,7 @@ print_help () {
     echo "sub=         -    subtitle file to be burned into video, or if the file itself has subtitles embedded, the number of the wanted subtitle track (starting from 0), or self:SUB_EXT"
     echo "w(rite)=     -    Write printing output to file"
     echo "n(ame)=      -    Give file a new target name (without file extension)"
+    echo "N=           -    Split filename with delimiter when using c= -option"
     echo -en "T(arget)=    -    Target directory for the target file\n\n"
     echo "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc"
     echo "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc"
@@ -400,19 +402,32 @@ massive_filecheck () {
     MASSIVE_SIZE_COMP=0
     TOO_SMALL_FILE=0
 
-    while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
-        RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-        make_running_name
-        if [ -f "${TARGET_DIR}/${RUNNING_FILENAME}" ]; then
-            CFT=$(mediainfo '--Inform=Video;%Duration%' "${TARGET_DIR}/${RUNNING_FILENAME}")
+    if [ -n "$DELIMITER" ] && [ -n "$MASS_SPLIT" ]; then
+        DELIM_ITEM=0
+        for CHECKITEM in "${SN_NAMES[@]}"; do
+            DELIMNAME="${TARGET_DIR}/${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[$((DELIM_ITEM))]}$CONV_TYPE"
+            CFT=$(mediainfo '--Inform=Video;%Duration%' "$DELIMNAME")
             MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
-            MSC=$(du -k "${TARGET_DIR}/$RUNNING_FILENAME" | cut -f1)
+            MSC=$(du -k "$DELIMNAME" | cut -f1)
             [ "$MSC" -lt "3000" ] && TOO_SMALL_FILE=$((TOO_SMALL_FILE + 1))
             MASSIVE_SIZE_COMP=$((MASSIVE_SIZE_COMP + MSC))
-        else
-            break
-        fi
-    done
+            DELIM_ITEM=$((DELIM_ITEM + 1))
+        done
+    else
+        while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
+            RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+            make_running_name
+            if [ -f "${TARGET_DIR}/${RUNNING_FILENAME}" ]; then
+                CFT=$(mediainfo '--Inform=Video;%Duration%' "${TARGET_DIR}/${RUNNING_FILENAME}")
+                MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
+                MSC=$(du -k "${TARGET_DIR}/$RUNNING_FILENAME" | cut -f1)
+                [ "$MSC" -lt "3000" ] && TOO_SMALL_FILE=$((TOO_SMALL_FILE + 1))
+                MASSIVE_SIZE_COMP=$((MASSIVE_SIZE_COMP + MSC))
+            else
+                break
+            fi
+        done
+    fi
 
     [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
     [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
@@ -468,6 +483,14 @@ new_massive_file_split () {
     FILECOUNT=1
     MASSIVE_SPLIT=1
     KEEPORG=1
+
+    if [ -n "$DELIMITER" ]; then
+        SN_BEGIN="${FILE%% *}"
+        SN_END="${FILE#* }"
+        SN_END="${SN_END%.*}"
+        mapfile -t -d ${DELIMITER} SN_NAMES < <(printf "%s" "$SN_END")
+        DELIM_ITEM=0
+    fi
 
     if [ -f "$FILE" ]; then
         EXT_CURR="${FILE##*.}"
@@ -992,6 +1015,7 @@ parse_values () {
             SPLIT_AND_COMBINE=1
             new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "cut" ] || [ "$HANDLER" == "c" ]; then
+            MASS_SPLIT=1
             new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "print" ] || [ "$HANDLER" == "p" ]; then
             PRINT_INFO=$VALUE
@@ -1001,6 +1025,8 @@ parse_values () {
             WRITEOUT="$VALUE"
         elif [ "$HANDLER" == "n" ] || [ "$HANDLER" == "name" ]; then
             NEWNAME="$VALUE"
+        elif [ "$HANDLER" == "N" ]; then
+            DELIMITER="$VALUE"
         elif [ "$HANDLER" == "T" ] || [ "$HANDLER" == "Target" ]; then
             TARGET_DIR="$VALUE"
             mkdir -p "$TARGET_DIR"
@@ -1062,6 +1088,7 @@ parse_file () {
 parse_data () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
+    MASS_SPLIT=""
     if [ -n "$1" ]; then
         if [ "$CHECKRUN" == 0 ]; then
             parse_file "$1"
@@ -1287,11 +1314,13 @@ simply_pack_file () {
 
     if   [ "$AUDIO_PACK" == "1" ]; then printf "$PRINTLINE packing $EXT_CURR to $CONV_CHECK "
     elif [ "$MP3OUT" == 1 ]; then       printf "$PRINTLINE extracting $CONV_CHECK "
-    elif [ "$COPY_ONLY" == "0" ]; then  printf "$PRINTLINE packing (%04dx%04d->$PACKSIZE) " "${X}" "${Y}"
+    elif [ "$COPY_ONLY" == "0" ]; then  printf "$PRINTLINE packing (%04dx%04d->%04dx%04d) " "${X}" "${Y}" "$X_WIDTH" "$Y_HEIGHT"
     else                                printf "$PRINTLINE copying (%04dx%04d) " "${X}" "${Y}"; fi
 
     FILEDURATION=$(lib V d "$FILE")
-    printf "[%08s] " "$FILEDURATION"
+    DURLEN="${#FILEDURATION}"
+    DURLEN=$((9 - DURLEN))
+    printf "[%s]%${DURLEN}s" "$FILEDURATION" " "
 
     if [ "$AUDIO_PACK" == "1" ]; then
         ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
@@ -1320,6 +1349,8 @@ simply_pack_file () {
     ERROR=0
     [ -n "$CMD_PRINT" ] && printf "$Yellow '$COMMAND_LINE' '$COMMAND_ADD' $Color_Off"
     [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_NAME -i \"$FILE\" $COMMAND_LINE $COMMAND_ADD \"${FILE}${CONV_TYPE}\"$Color_Off\n"
+#TODO: non-stop runtime update, needs to store the printout somewhere
+
     $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
     ERROR=$?
 }
@@ -1466,18 +1497,23 @@ make_running_name () {
 move_to_a_running_file () {
     [ "$DEBUG_PRINT" == 1 ] && echo "${FUNCNAME[0]}"
 
-    RUNNING_FILE_NUMBER=1
-    make_running_name
+    if [ -n "$DELIMITER" ] && [ -n "$MASS_SPLIT" ]; then
+        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE"
+        DELIM_ITEM=$((DELIM_ITEM + 1))
+    else
+        RUNNING_FILE_NUMBER=1
+        make_running_name
 
-    if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-        while true; do
-            RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-            make_running_name
-            [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-        done
+        if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+            while true; do
+                RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+                make_running_name
+                [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
+            done
+        fi
+
+        mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
     fi
-
-    mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${RUNNING_FILENAME}"
 }
 
 #***************************************************************************************************************
@@ -1491,7 +1527,10 @@ handle_file_rename () {
         [ "$KEEPORG" == "0" ] && delete_file "$FILE"
 
         if [ "$KEEPORG" == "0" ]; then
-            if [ "$EXT_CURR" == "$CONV_CHECK" ]; then
+            if [ -n "$DELIMITER" ] && [ -n "$MASS_SPLIT" ]; then
+                mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE"
+                DELIM_ITEM=$((DELIM_ITEM + 1))
+            elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then
                 if [ -z "$NEWNAME" ]; then mv "$FILE$CONV_TYPE" "${TARGET_DIR}/${FILE}"
                 else                       mv "$FILE$CONV_TYPE" "${TARGET_DIR}/$NEWNAME$CONV_TYPE"; fi
             else
@@ -1540,6 +1579,8 @@ calculate_packsize () {
     # Correct to a multiplier of 8
     SCALE=$((SCALE - SCALECORR))
 
+    X_WIDTH="$WIDTH"
+    Y_HEIGHT="$SCALE"
     PACKSIZE="$WIDTH"x"$SCALE"
 }
 
@@ -1718,6 +1759,8 @@ handle_file_packing () {
 
     [ "$CROP" == 0 ] && print_info
     XP=$(mediainfo '--Inform=Video;%Width%' "$FILE")
+    X_WIDTH="$XP"
+    Y_HEIGHT="$Y"
     if [ "$REPACK" == 1 ] && [ "$DIMENSION_PARSED" == 0 ]; then
         if [ "$HEVC_CONV" == 1 ]; then PACKSIZE="${XP}:${Y}"
         else                           PACKSIZE="${XP}x${Y}"; fi
