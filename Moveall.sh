@@ -88,6 +88,7 @@ for D in *; do
     size=${#D}
     if [ -d "${D}" ] && [ "$size" -gt "0" ]; then
         DIRECTORY="${D,,}"
+        mapfile -t -d '-' DIRLIST < <(printf "%s" "$DIRECTORY")
         for f in *; do
             if [ -f "$f" ]; then
                 EXT="${f##*.}"
@@ -95,10 +96,12 @@ for D in *; do
                     if [ "$index" == "$EXT" ]; then
                         FILENAME="${f//./ }"
                         FILENAME="${FILENAME,,}"
-                        if [[ "${FILENAME}" =~ "${DIRECTORY}" ]]; then
-                            mv "${f}" "${D}/"
-                            echo "Moving '$f' to '$D'"
-                        fi
+                        for dir in "${DIRLIST[@]}"; do
+                            if [[ "${FILENAME}" =~ "${dir// / }" ]]; then
+                                mv "${f}" "${D}/"
+                                echo "Moving '$f' to '$D'"
+                            fi
+                        done
                     fi
                 done
             fi
