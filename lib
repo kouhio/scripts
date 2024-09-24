@@ -121,10 +121,15 @@ print_secs () {
 # 2 - pid of application
 ##########################################################################################
 running_time () {
+    FIRST=1
     while [ -n "$1" ] && [ -n "$2" ]; do
         NOW=$(date +%s)
         DIFFER=$((NOW - $1))
-        printf "\033[8D$(date -d@${DIFFER} -u +%T)"
+        #LEN="${#2}"
+        #LEN=$((LEN + 9))
+        LEN=8
+        if [ "$FIRST" == "0" ]; then printf "\033[${LEN}D$(date -d@${DIFFER} -u +%T)"
+        else FIRST=0 && printf "$(date -d@${DIFFER} -u +%T)"; fi
         kill -s 0 "$2" >/dev/null 2>&1                  # Check if the PID is still active
         [ "$?" -ne "0" ] && break
         sleep 1
