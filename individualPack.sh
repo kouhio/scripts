@@ -22,6 +22,7 @@ REN_FILES=0
 RENLIST=()
 KEEP_PLAYLIST=0
 KEPT_FILES=0
+LIST_OUTSIDE_FILES=0
 
 ##########################################################
 # Push string to target file
@@ -265,6 +266,7 @@ updateExistingFile () {
                 REN_FILES=$((REN_FILES + 1))
             else
                 echo "$line" >> "$TMPFILE"
+
                 if [ "$KEEP_PLAYLIST" == "1" ]; then
                     printVLCStart
                     printVLCFile "$file"
@@ -307,6 +309,8 @@ parsePackData() {
         #    FILE="$var"
         elif [ "$var" == "-i" ]; then
             IGNORE_SIZE=true
+        elif [ "$var" == "list" ]; then
+            LIST_OUTSIDE_FILES=1
         elif [[ "$var" =~ $re ]]; then
             #xss=$(grep -o "x" <<< "$var" | wc -l)
             SIZE=$(echo "$var" | cut -d x -f 1)
@@ -367,7 +371,7 @@ printBaseData() {
     printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
     printToFile "    [ \$ERROR -ne 0 ] && ERROR_CNT=\$((ERROR_CNT + 1))"
     printToFile "  fi"
-    printToFile "  [ -z \"\$PROCESS_INTERRUPTED\" ] && \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
+    printToFile "  [ -n \"\$PROCESS_INTERRUPTED\" ] && [ \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
     printToFile "}"
 
     printTerminatorFunction
@@ -478,6 +482,15 @@ updateFileCount() {
 # Main functionality
 ##########################################################
 parsePackData "$@"
+if [ "$LIST_OUTSIDE_FILES" == "1" ]; then
+    for f in *"${EXT}"*; do
+        CHECK=$(grep "$f" "$FILE")
+        [ -z "$CHECK" ] && printf "%s\n" "$f"
+    done
+
+    exit 0
+fi
+
 verifyOldFile
 if [ $FILE_UPDATED == false ]; then
     renameBadChars
