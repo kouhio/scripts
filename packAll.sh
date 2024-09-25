@@ -109,6 +109,8 @@ CUTTING=0                       # If any cutting is being done, set this value
 # Reset all runtime handlers
 #***************************************************************************************************************
 reset_handlers () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     REPACK=0                        # Repack file instead of changing dimensions
     REPACK_GIVEN=0                  # Repack value holder
     COPY_ONLY=1                     # Don't pack file, just copy data
@@ -131,6 +133,7 @@ reset_handlers () {
     START_POSITION=0                # File to start handling from
     COMMAND_LINE=""                 # command line options to be set up later
     COMMAND_ADD=""                  # command line options, that will be set up each time
+    VAL_HAND=0                      # Splitting timer value handler
 }
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -196,7 +199,7 @@ print_total () {
         elif [ -n "$SUBFILE" ]; then                               printf "Burned subs to $SUCCESFULFILECNT files (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT\n"
         else                                                       printf "Handled $SUCCESFULFILECNT files to $CONV_CHECK (size change: $SAVESIZE ${SIZETYPE}) in $TIMER_TOTAL_PRINT\n"; fi
 
-        [ "$MISSING" -gt "0" ] && printf "Number of files disappeared during process: $MISSING\n" && RETVAL=1
+        [ "$MISSING" -gt "0" ] && printf "Number of files disappeared during process: $MISSING\n" && RETVAL=17
     fi
 }
 
@@ -206,10 +209,10 @@ print_total () {
 remove_interrupted_files () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
-    [ -f "$FILE$CONV_TYPE" ]     && delete_file "$FILE$CONV_TYPE"
-    [ -f "$FILE"_1"$CONV_TYPE" ] && delete_file "$FILE"_1"$CONV_TYPE"
-    [ -f "$FILE"_2"$CONV_TYPE" ] && delete_file "$FILE"_2"$CONV_TYPE"
-    [ -f "$NEWNAME" ] && delete_file "$NEWNAME"
+    [ -f "$FILE$CONV_TYPE" ]     && delete_file "$FILE$CONV_TYPE" "22"
+    [ -f "$FILE"_1"$CONV_TYPE" ] && delete_file "$FILE"_1"$CONV_TYPE" "23"
+    [ -f "$FILE"_2"$CONV_TYPE" ] && delete_file "$FILE"_2"$CONV_TYPE" "24"
+    [ -f "$NEWNAME" ] && delete_file "$NEWNAME" "25"
 }
 
 #***************************************************************************************************************
@@ -223,11 +226,12 @@ set_int () {
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
     calculate_duration
-    printf " Main conversion interrupted in ${TIMERVALUE}!\n"
+    printf "\n${Yellow}Main conversion interrupted in ${TIMERVALUE}!${Color_Off}\n"
     remove_interrupted_files
+    remove_broken_split_files
     EXIT_EXT_VAL=1
 
-    [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && rm "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
+    [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "26"
 
     [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
 
@@ -308,6 +312,8 @@ print_help () {
 # 3 - first or last
 #**************************************************************************************************************
 find_image_pos () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     [[ ! "$APP_STRING" =~ "ffmpeg" ]] && printf "Can't seek images without ffmpeg!\n" && exit 1
     [ "$DEBUG_PRINT" == 1 ] && printf "Seeking time from '$1' by '$2'\n"
     IMAGEPOS=$($APP_NAME -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
@@ -339,24 +345,22 @@ check_and_crop () {
 
         if [ -n "$XC" ] && [ -n "$YC" ]; then
             CB=$(printf "$CROP_DATA" | cut -d = -f 2)
-            C1=$(printf "$CB" | cut -d : -f 1)
-            C2=$(printf "$CB" | cut -d : -f 2)
-            C3=$(printf "$CB" | cut -d : -f 3)
-            C4=$(printf "$CB" | cut -d : -f 4)
+            mapfile -t -d ':' CA < <(printf "%s" "$CB")
 
-            if [ "$C1" -ge "0" ] && [ "$C2" -ge "0" ]; then
-                if [ "$XC" -ne "$C1" ] || [ "$YC" -ne "$C2" ] || [ "$C3" -gt "0" ] || [ "$C4" -gt "0" ]; then
-                    if [ "$C1" -ge "320" ] && [ "$C2" -ge "240" ]; then
+            if [ "${CA[0]}" -ge "0" ] && [ "${CA[1]}" -ge "0" ]; then
+                if [ "$XC" -ne "${CA[0]}" ] || [ "$YC" -ne "${CA[1]}" ] || [ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]; then
+                    if [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ]; then
                         print_info
                         short_name
-                        printf "$PROCESS_NOW : $FILEprint Cropping black borders ->($CROP_DATA) \t"
+                        PROCESS_NOW=$(date +%T)
+                        printf "$PROCESS_NOW : $FILEprint ${APP_STRING} Cropping black borders ->($CROP_DATA) \t"
                         [ "$BUGME" -eq "1" ] && printf "\n    $Purple$APP_STRING -i \"$FILE\" -vf \"$CROP_DATA\"$Color_Off\n"
                         COMMAND_LINE="-vf $CROP_DATA"
                         run_pack_app
                         calculate_duration
                         check_file_conversion
                     else
-                        printf "${Yellow}$FILE ${Red}Cropping to ${C1}x${C2} ($C3 $C4) makes video too small! Skipping!${Color_Off}\n"
+                        printf "${Yellow}$FILE ${Red}Cropping to ${CA[0]}x${CA[1]} (${CA[2]} ${CA[3]}) makes video too small! Skipping!${Color_Off}\n"
                     fi
                 fi
             fi
@@ -393,14 +397,35 @@ check_zero () {
 #**************************************************************************************************************
 # Delete file / scrub file
 # 1 - path to filename
+# 2 - track to source
 #***************************************************************************************************************
 delete_file () {
-    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]} '$1' src:$2\n"
 
     if [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then   scrub -r "$1" >/dev/null 2>&1
         elif [ "$SCRUB" == "2" ]; then scrub -r "$1"
-        else                           rm "$1"; fi
+        else                           rm -fr "$1"; fi
+    fi
+}
+
+#**************************************************************************************************************
+# If splitting breaks, remove broken files
+#**************************************************************************************************************
+remove_broken_split_files () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
+    RUNNING_FILE_NUMBER=1
+    make_running_name
+
+    if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
+        delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "1"
+        while true; do
+            RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
+            make_running_name
+            [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
+            delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "2"
+        done
     fi
 }
 
@@ -412,9 +437,9 @@ massive_filecheck () {
 
     if [ "$ERROR_WHILE_SPLITTING" != "0" ] || [ "$ERROR_WHILE_MORPH" != "0" ]; then
         printf "${Red}Something went wrong with splitting $FILE${Color_Off}\n"
-        ERROR_WHILE_SPLITTING=0
-        RETVAL=1
-        return 0;
+        RETVAL=18
+        remove_broken_split_files
+        return
     fi
 
     MASSIVE_TIME_COMP=0
@@ -457,13 +482,13 @@ massive_filecheck () {
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ -n "$MAX_SHORT_TIME" ] && [ "$TIME_SHORTENED" -gt "$MAX_SHORT_TIME" ]; then
         printf "${Red}Cutting over max-time:${TIME_SHORTENED}s > ${MAX_SHORT_TIME}s, aborting!${Color_Off}\n"
-        RETVAL="1"
+        RETVAL=19
     elif [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
 
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
             OSZ=$(du -k "$FILE" | cut -f1)
-            delete_file "$FILE"
+            [ "$ERROR_WHILE_SPLITTING" == "0" ] && delete_file "$FILE" "3"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             check_valuetype "$OSZ"
             FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
@@ -478,7 +503,7 @@ massive_filecheck () {
 
     else
         printf "${Red}Something wrong with cut-out time ($MASSIVE_TIME_COMP < $MASSIVE_TIME_CHECK) Small files: $TOO_SMALL_FILE${Color_Off}\n"
-        RETVAL=1
+        RETVAL=20
     fi
 }
 
@@ -499,6 +524,7 @@ new_massive_file_split () {
         fi
     fi
 
+    ERROR_WHILE_SPLITTING=0
     MASSIVE_TIME_CHECK=0
     FILECOUNT=1
     MASSIVE_SPLIT=1
@@ -518,19 +544,18 @@ new_massive_file_split () {
         XSS=$(mediainfo '--Inform=Video;%Width%' "$FILE")
         LEN=${LEN%.*}
         LEN=$((LEN / 1000))
+        ORG_LEN="$LEN"
 
         SPLIT_P2P=$(grep -o "-" <<< "$1" | wc -l)
 
-        IFS=","
-        DO_THE_SPLITS="$1"
-        array=(${DO_THE_SPLITS//,/$IFS})
+        mapfile -t -d ',' array < <(printf "%s" "$1")
         SPLIT_MAX=${#array[@]}
         MASSIVE_COUNTER=0
 
+        handled_index=0
         for index in "${!array[@]}"; do
             if [ "$SPLIT_P2P" -gt 0 ]; then
-                IFS="-"
-                array2=(${array[index]//-/$IFS})
+                mapfile -t -d '-' array2 < <(printf "%s" "${array[index]}")
 
                 if [ "${array2[0]}" == "D" ]; then
                     KEEPORG=0
@@ -540,25 +565,29 @@ new_massive_file_split () {
                 [ "$index" -ne "0" ] && printf "\n"
 
                 calculate_time "${array2[0]}"
-                [ "$ERROR" != "0" ] && break
                 BEGTIME=$CALCTIME
+                verify_time_position "$ORG_LEN" "$BEGTIME" "Beginning massive time"
+                [ "$ERROR" != "0" ] && ERROR_WHILE_SPLITTING=13 && break
+
                 calculate_time "${array2[1]}" "1"
                 ENDTIME=$CALCTIME
-                [ "$ERROR" != "0" ] && break
+                verify_time_position "$ORG_LEN" "$ENDTIME" "Beginning massive time"
+                [ "$ERROR" != "0" ] && ERROR_WHILE_SPLITTING=14 && break
 
                 if [ -z "$XSS" ] || [ -z "$WIDTH" ]; then
                     printf "Something wrong with width w:$WIDTH s:$XSS\ŋ"
                     ERROR_WHILE_SPLITTING=1
-                    RETVAL=1
-                    continue
+                    RETVAL=21
+                    break
                 fi
 
                 #printf "1 - e:$ENDTIME b:$BEGTIME w:$WIDTH x:$XSS\n"
 
                 if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ] [ "$WIDTH" -ge "$XSS" ]; then
-                    ERROR_WHILE_SPLITTING=1
+                    ERROR_WHILE_SPLITTING=2
                     printf "${Red}Split error $FILE - Time: $ENDTIME <= $BEGTIME - Size: $WIDTH >= $XSS${Color_Off}\n"
-                    RETVAL=1
+                    RETVAL=22
+                    break
                 else
                     if [ "$CALCTIME" != "0" ]; then
                         ENDTIME=$((LEN - CALCTIME))
@@ -581,9 +610,9 @@ new_massive_file_split () {
                 [ "$ERROR" != "0" ] && break
                 SPLIT_POINT2=$CALCTIME
                 if [ "$SPLIT_POINT2" -le "$SPLIT_POINT" ] && [ $SPLIT_POINT2 != "0" ] || [ "$WIDTH" -ge "$XSS" ]; then
-                    ERROR_WHILE_SPLITTING=1
+                    ERROR_WHILE_SPLITTING=3
                     printf "${Red}Split error $FILE - Time: $SPLIT_POINT2 <= $SPLIT_POINT, - Size: $WIDTH <= $XSS${Color_Off}\n"
-                    RETVAL=1
+                    RETVAL=23
                 else
                     if [ "$index" == 0 ]; then
                         BEGTIME=0
@@ -607,7 +636,8 @@ new_massive_file_split () {
                     fi
                     check_workmode
                     pack_file
-               fi
+                fi
+                handled_index=$((handled_index + 1))
             fi
 
             MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
@@ -624,8 +654,8 @@ new_massive_file_split () {
             fi
         fi
 
-        [ "$index" == "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
-        [ "$index" -le "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
+        [ "$handled_index" -eq "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
+        [ "$handled_index" -eq "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
 
     else
         printf "File '$FILE' not found, cannot multisplit!\n"
@@ -652,8 +682,7 @@ make_or_remove_split_files() {
 
         if [ -z "$1" ]; then
             [ ! -f "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" ] && break
-            rm "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE"
-
+            delete_file "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" "4"
         else
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
 
@@ -680,7 +709,7 @@ remove_combine_files() {
         make_running_name
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-        rm "${TARGET_DIR}/$RUNNING_FILENAME"
+        delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "5"
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
@@ -694,9 +723,9 @@ combine_split_files() {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
     if [ "$SPLITTING_ERROR" != "0" ]; then
-        printf "Failed to separate all asked parts, not combining!"
-        rm "${TARGET_DIR}/packcombofile.txt"
-        rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
+        printf "Failed to separate all asked parts, not combining (err:$SPLITTING_ERROR)!"
+        delete_file "${TARGET_DIR}/packcombofile.txt" "6"
+        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "7"
         [ "$EXIT_VALUE" == "1" ] && exit 1
         return 0
     fi
@@ -706,12 +735,12 @@ combine_split_files() {
     cd "$TARGET_DIR" || return
 
     ERROR=0
-    printf "%-${PACKLEN}.${PACKLEN}s Combining $COMBINE_RUN_COUNT split files " " "
+    printf "%${PACKLEN}s Combining $COMBINE_RUN_COUNT split files " " "
     $APP_NAME -f concat -i "packcombofile.txt" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
     cd "$CURRDIR" || return
-    rm "${TARGET_DIR}/packcombofile.txt"
+    delete_file "${TARGET_DIR}/packcombofile.txt" "8"
 
     if [ "$ERROR" -eq "0" ]; then
         LE_ORG_FILE="$FILE"
@@ -719,7 +748,7 @@ combine_split_files() {
         make_or_remove_split_files
     else
         printf "${Red}Failed${Color_Off}\n"
-        rm "${TARGET_DIR}/tmp_combo$CONV_TYPE"
+        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "9"
         [ "$EXIT_VALUE" == "1" ] && exit 1
         return
     fi
@@ -780,12 +809,12 @@ combineFiles () {
         $APP_NAME -f concat -safe 0 -i "packcombofile.txt" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
         ERROR=$?
 
-        rm "packcombofile.txt"
+        delete_file "packcombofile.txt" "10"
 
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
                 for file in "${COMBINELIST[@]}"; do
-                    [ -f "$file" ] && rm "$file"
+                    [ -f "$file" ] && delete_file "$file" "11"
                 done
 
                 printf "${Green}Combined $FILESCOUNT files to ${TARGET_DIR}/${NEWNAME}_${CONV_TYPE},${Color_Off} deleted all sourcefiles\n"
@@ -799,7 +828,7 @@ combineFiles () {
             exit 1
         fi
     else
-        [ -f "packcombofile.txt" ] && rm "packcombofile.txt"
+        [ -f "packcombofile.txt" ] && delete_file "packcombofile.txt" "12"
         printf "${Red}No input files given to combine! Filecount:$FILESCOUNT${Color_Off}\n"
         exit 1
     fi
@@ -850,7 +879,7 @@ mergeFiles () {
 
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
-                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && rm "$file"; done
+                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && delete_file "$file" "13"; done
                 NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" | cut -f1)
                 NEWSIZE=$(((ORGSIZE - NEWSIZE) / 1000))
                 [ "$NEWNAME" != "$ORIGNAME" ] && mv "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "${TARGET_DIR}/${ORIGNAME}"
@@ -862,7 +891,7 @@ mergeFiles () {
             exit 0
         else
             printf "${Red}Failed!${Color_Off} in $TIMER_TOTAL_PRINT\n"
-            rm "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
+            delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "14"
             exit 1
         fi
     else
@@ -874,12 +903,14 @@ mergeFiles () {
 #***************************************************************************************************************
 # Separate and calculate given time into seconds and set to corresponting placeholder
 # 1 - time value in hh:mm:ss / mm:ss / ss or a filename
+# 2 - ???
 #***************************************************************************************************************
 calculate_time () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     re='^[0-9:.]+$'
     ERROR=0
-    [[ ! "$1" =~ $re ]] && ERROR=5 && printf "\n${FUNCNAME[0]} -> not correct: $1\n" && return
+    [[ ! "$1" =~ $re ]] && ERROR=11 && printf "${Red}${FUNCNAME[0]} -> not correct: $1${Color_Off}\n" && return
 
     CALCTIME=0
     ADDTIME=0
@@ -898,31 +929,22 @@ calculate_time () {
                 MAINTIME="$1"
             fi
 
-            t1=$(printf "$MAINTIME" | cut -d : -f 1)
-            t2=$(printf "$MAINTIME" | cut -d : -f 2)
-            t3=$(printf "$MAINTIME" | cut -d : -f 3)
+            mapfile -t -d ':' TA < <(printf "%s" "$MAINTIME")
 
-            occ=$(grep -o ":" <<< "$MAINTIME" | wc -l)
+            for i in "${!TA[@]}"; do
+                check_zero "${TA[$i]}"
+                TA[$i]=$ZERORETVAL
+            done
 
-            check_zero "$t1"
-            t1=$ZERORETVAL
-            check_zero "$t2"
-            t2=$ZERORETVAL
-            check_zero "$t3"
-            t3=$ZERORETVAL
-
-            if [ "$occ" == "0" ]; then
-                calc_time=$MAINTIME
-            elif [ "$occ" == "1" ]; then
-                t1=$((t1 * 60))
-                calc_time=$((t1 + t2))
-            else
-                t1=$((t1 * 3600))
-                t2=$((t2 * 60))
-                calc_time=$((t1 + t2 + t3))
+            if [ "${#TA[@]}" == "2" ]; then
+                TA[0]=$((${TA[0]} * 60))
+            elif [ "${#TA[@]}" -gt "2" ]; then
+                TA[0]=$((${TA[0]} * 3600))
+                TA[1]=$((${TA[1]} * 60))
             fi
 
-            CALCTIME=$calc_time
+            for i in "${TA[@]}"; do CALCTIME=$((CALCTIME + i)); done
+
             [ "$ADDTIME" != "0" ] && CALCTIME+=".${ADDTIME}"
         fi
     fi
@@ -1012,6 +1034,7 @@ parse_handlers () {
 #***************************************************************************************************************
 parse_values () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     ARRAY_INSERT=0
 
     if [ -n "$1" ]; then
@@ -1101,7 +1124,7 @@ parse_values () {
         else
             printf "Unknown value $1\n"
             ERROR=7
-            RETVAL=1
+            RETVAL=2
             [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
         fi
         check_workmode
@@ -1157,11 +1180,12 @@ parse_file () {
 # Handle other options
 #***************************************************************************************************************
 handle_sub_files () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     if [ -n "$SUBFILE" ]; then
         SINGULAR=1
         if [ -f "${FILE}" ]; then
             burn_subs "$FILE" "$SUBFILE"
-            PACKLOOP=$((PACKLOOP + 1))
         elif [ "$FILECOUNT" -gt 0 ] || [ "$MULTIFILECOUNT" -gt 0 ]; then
             SINGULAR=0
             shopt -s nocaseglob
@@ -1171,13 +1195,14 @@ handle_sub_files () {
                     CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
                     print_info
                     burn_subs "$f" "$SUBFILE"
+                    PACKLOOP=0
                 fi
             done
             shopt -u nocaseglob
         else
             ERROR=3
             printf "${Red}File(s) '$1' not found (other files)!${Color_Off}\n"
-            RETVAL=2
+            RETVAL=3
         fi
     fi
 }
@@ -1186,10 +1211,11 @@ handle_sub_files () {
 # Pack sizechange only
 #***************************************************************************************************************
 handle_filesize_change () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     if [ "$FILECOUNT" -le 1 ] && [ "$MULTIFILECOUNT" -le 1 ]; then
         pack_file
         FILE="${filename}${CONV_TYPE}"
-        PACKLOOP=$((PACKLOOP + 1))
     elif [ "$FILECOUNT" -gt 0 ]; then
         EXT_CURR="$FILE"
         shopt -s nocaseglob
@@ -1197,6 +1223,7 @@ handle_filesize_change () {
             FILE="$f"
             CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
             pack_file
+            PACKLOOP=0
         done
         shopt -u nocaseglob
     elif [ "$MULTIFILECOUNT" -gt 0 ]; then
@@ -1206,13 +1233,14 @@ handle_filesize_change () {
                 FILE="$f"
                 CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
                 pack_file
+                PACKLOOP=0
             fi
         done
         shopt -u nocaseglob
     else
         ERROR=4
         printf "${Red}File(s) '$1' not found (filesize change)!${Color_Off}\n"
-        RETVAL=2
+        RETVAL=4
     fi
 }
 
@@ -1220,6 +1248,8 @@ handle_filesize_change () {
 # Handle cutting settings
 #***************************************************************************************************************
 handle_cuttings () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     if [ -f "$FILE" ]; then
         FILECOUNT=0
         pack_file
@@ -1230,6 +1260,7 @@ handle_cuttings () {
             FILE="$f"
             CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
             pack_file
+            PACKLOOP=0
         done
         shopt -u nocaseglob
     elif [ "$MULTIFILECOUNT" -gt 0 ]; then
@@ -1239,13 +1270,14 @@ handle_cuttings () {
                 FILE="$f"
                 CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
                 pack_file
+                PACKLOOP=0
             fi
         done
         shopt -u nocaseglob
     else
         ERROR=5
         printf "${Red}File(s) '$1' not found (cutting)!${Color_Off}\n"
-        RETVAL=2
+        RETVAL=5
     fi
 }
 
@@ -1350,7 +1382,14 @@ short_name () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
     NAMENOEXT="${FILE%.*}"
-    FILEprint=$(printf "%-35s %-5s" "${NAMENOEXT:0:35}" "${EXT_CURR:0:3}")
+    if [ "${#FILE}" -lt "41" ]; then
+        FILEprint=$(printf "%-41s" "$FILE")
+    elif [ "${#NAMENOEXT}" -lt "35" ]; then
+        PART_LEN=$((40 - ${#NAMENOEXT} - ${#EXT_CURR}))
+        FILEprint=$(printf "%s.%s%${PART_LEN}s" "${NAMENOEXT}" "${EXT_CURR}" " ")
+    else
+        FILEprint=$(printf "%-35s.%-5s" "${NAMENOEXT:0:35}" "${EXT_CURR:0:3}")
+    fi
 }
 
 #***************************************************************************************************************
@@ -1362,9 +1401,15 @@ setup_file_packing () {
 
     COMMAND_LINE=""
 
-    if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then COMMAND_LINE+="-ss $BEGTIME "; fi
+    if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then
+        verify_time_position "$DUR" "$BEGTIME" "Beginning time"
+        [ "$ERROR" != "0" ] && return
+        COMMAND_LINE+="-ss $BEGTIME "
+    fi
 
     if [ "$WORKMODE" == "2" ] || [ "$WORKMODE" == "3" ]; then
+        verify_time_position "$DUR" "$ENDTIME" "Ending time"
+        [ "$ERROR" != "0" ] && return
         ENDO=$((DUR - ENDTIME - BEGTIME))
         COMMAND_LINE+="-t $ENDO "
     fi
@@ -1393,7 +1438,8 @@ setup_file_packing () {
         INCREMENTOR=0
 
         if [ -n "$VIDEOTRACK" ] && [ "$AUDIOSTUFF" -eq "0" ]; then
-            IFS=':' read -r -a video_array <<< "$VIDEOTRACK"
+            mapfile -t -d ':' video_array < <(printf "%s" "$VIDEOTRACK")
+
             for video in "${video_array[@]}"; do
                 COMMAND_LINE+="-map $INCREMENTOR:v:$video "
                 INCREMENTOR=$((INCREMENTOR + 1))
@@ -1404,7 +1450,8 @@ setup_file_packing () {
         fi
 
         if [ -n "$AUDIOTRACK" ]; then
-            IFS=':' read -r -a audio_array <<< "$AUDIOTRACK"
+            mapfile -t -d ':' audio_array < <(printf "%s" "$VIDEOTRACK")
+
             for audio in "${audio_array[@]}"; do
                 COMMAND_LINE+="-map $INCREMENTOR:a:$audio "
                 INCREMENTOR=$((INCREMENTOR + 1))
@@ -1421,8 +1468,12 @@ setup_file_packing () {
 # Find correct mapping positions for video on audio, if no streams have been set
 #***************************************************************************************************************
 setup_add_packing () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     COMMAND_ADD=""
     VIDEOID="-1"
+
+    AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
 
     if [ "$AUDIOSTUFF" -eq "0" ]; then
         if [ -z "$VIDEOTRACK" ]; then
@@ -1459,8 +1510,10 @@ setup_add_packing () {
 # 2 - pid of application
 ##########################################################################################
 loop_pid_time () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     FIRST=1
-    LEN=0
+    STR_LEN=0
     while [ -n "$1" ] && [ -n "$2" ]; do
         NOW=$(date +%s)
         DIFFER=$((NOW - $1))
@@ -1468,14 +1521,14 @@ loop_pid_time () {
         PRINTOUT="$(date -d@${DIFFER} -u +%T) "
         if [[ "$line" == *"time="* ]]; then
             PRINT_ITEM="${line##*time=}"
-            PRINT_ITEM="${PRINT_ITEM% bitrate*}"
+            PRINT_ITEM="${PRINT_ITEM%%.*}"
             PRINTOUT+="file:${PRINT_ITEM}/${FILEDURATION}"
         fi
-        printf "\033[${LEN}D$PRINTOUT"
+        printf "\033[${STR_LEN}D$PRINTOUT"
         kill -s 0 "$2" >/dev/null 2>&1                  # Check if the PID is still active
         [ "$?" -ne "0" ] && break
         sleep 1
-        LEN="${#PRINTOUT}"
+        STR_LEN="${#PRINTOUT}"
     done
 }
 
@@ -1484,6 +1537,8 @@ loop_pid_time () {
 # Check ffmpeg output for errors and act accordingly
 #***************************************************************************************************************
 check_output_errors () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     err1=$(grep "Invalid data found when processing input" "$PACKFILE")
     err2=$(grep "Bitstream filter not found" "$PACKFILE")
     err3=$(grep "not found" "$PACKFILE")
@@ -1502,13 +1557,29 @@ check_output_errors () {
 
         [ "$ERROR" == "0" ] && ERROR=9
         if [ "$EXIT_VALUE" == "1" ]; then
-            rm -fr "$PACKFILE"
+            delete_file "$PACKFILE" "15"
             handle_file_rename 0
             exit 1
         fi
-        RETVAL=1
+        RETVAL=6
     fi
-    rm -fr "$PACKFILE"
+    delete_file "$PACKFILE" "16"
+}
+
+#***************************************************************************************************************
+# Verify that time position is withing the timelimit
+# 1 - file time
+# 2 - position time
+# 3 - error reason
+#***************************************************************************************************************
+verify_time_position () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
+    if [ "$2" -ge "$1" ]; then
+        printf "${Red}${3} ${2}s exceeds the file time ${1}s${Color_Off}\n"
+        ERROR=13
+        RETVAL=7
+    fi
 }
 
 #***************************************************************************************************************
@@ -1518,15 +1589,17 @@ simply_pack_file () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
     setup_file_packing
+    [ "$ERROR" != "0" ] && return
     setup_add_packing
     short_name
 
     [ "$DURATION_TIME" -gt 0 ] && ENDTIME=$((ORIGINAL_DURATION - DURATION_TIME))
     [ "$MASSIVE_SPLIT" == 1 ] && [ "$NO_EXIT_EXTERNAL" == "1" ] && [ "$MASSIVE_COUNTER" -gt "0" ] && printf "           "
 
-    PACKLEN="${#PRINTLINE}"
-    [ "$PACKLOOP" -gt "0" ] && PRINTLINE=$(printf "%${#PACKLEN}s" " ")
+    PROCESS_NOW=$(date +%T)
     PRINTLINE="$PROCESS_NOW : $FILEprint ${APP_STRING}"
+    PACKLEN="${#PRINTLINE}"
+    [ "$PACKLOOP" -gt "0" ] && PRINTLINE=$(printf "%${PACKLEN}s" " ")
 
     [ "$EXIT_REPEAT" == "2" ] && PRINTLINE+=" retrying"
 
@@ -1534,22 +1607,29 @@ simply_pack_file () {
     elif [ "$MP3OUT" == 1 ]; then         PRINTLINE+=$(printf " extracting $CONV_CHECK ")
     elif [ "${X}" == "${X_WIDTH}" ]; then PRINTLINE+=$(printf " repacking (%04dx%04d) " "$X" "$Y")
     elif [ "$COPY_ONLY" == "0" ]; then    PRINTLINE+=$(printf " packing (%04dx%04d->%04dx%04d) " "${X}" "${Y}" "$X_WIDTH" "$Y_HEIGHT")
+    elif [ "$CUTTING_TIME" -gt 0 ]; then  PRINTLINE+=$(printf " cutting (%04dx%04d) " "${X}" "${Y}")
     else                                  PRINTLINE+=$(printf " copying (%04dx%04d) " "${X}" "${Y}"); fi
 
+    ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
+    ORG_DUR=$((ORIGINAL_DURATION / 1000))
     if [ "$AUDIO_PACK" == "1" ]; then
-        ORIGINAL_DURATION=$(mediainfo '--Inform=Audio;%Duration%' "$FILE")
         calculate_time_given $((ORIGINAL_DURATION / 1000))
         PRINTLINE+=$(printf " duration:%-6.6s " "$TIMER_SECOND_PRINT")
     elif [ "$MASSIVE_SPLIT" == 1 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        PRINTLINE+=$(printf "splitting to %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT")
+        PRINTLINE+=$(printf "splitting to %-6.6s (mode:$WORKMODE) " "$TIMER_SECOND_PRINT")
         MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
         calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME))
-        PRINTLINE+=$(printf "%-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT")
+        PRINTLINE+=$(printf "%-6.6s (mode:$WORKMODE) " "$TIMER_SECOND_PRINT")
     elif [ "$CUTTING_TIME" -gt 0 ]; then
         calculate_time_given "$CUTTING_TIME"
-        PRINTLINE+=$(printf "shortened by %-6.6s (mode: $WORKMODE) " "$TIMER_SECOND_PRINT")
+        PRINTLINE+=$(printf "shortened by %-6.6s (mode:$WORKMODE) " "$TIMER_SECOND_PRINT")
+    fi
+
+    if [ "$CUTTING_TIME" -gt 0 ]; then
+        verify_time_position "$ORG_DUR" "$VAL_HAND" "Cutting time"
+        [ "$ERROR" != "0" ] && return
     fi
 
     if [ -n "$SUBFILE" ] && [ "$SUBERR" = "0" ]; then
@@ -1567,8 +1647,9 @@ simply_pack_file () {
 # Run APP NAME with given options
 #***************************************************************************************************************
 run_pack_app () {
+    [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+
     process_start_time=$(date +%s)
-    PROCESS_NOW=$(date +%T)
     FILEDURATION=$(lib V d "$FILE")
 
     ERROR=0
@@ -1582,13 +1663,14 @@ run_pack_app () {
         loop_pid_time "$process_start_time" "$PIDOF"
         ERROR=$?
         check_output_errors
-        printf "\r%s %${LEN}s\r%s" "$PRINTLINE" " " "$PRINTLINE"
+        printf "\r%s %${STR_LEN}s\r%s" "$PRINTLINE" " " "$PRINTLINE"
     else
         #$APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
         $APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE
         ERROR=$?
         check_output_errors
     fi
+    PACKLOOP=$((PACKLOOP + 1))
 }
 
 #***************************************************************************************************************
@@ -1606,9 +1688,9 @@ get_sub_info () {
     SUBVAL=$((SUBVAL + 1))
     SINGLESUB=$(printf "%s" "$SUBDATA" |grep -e "Text #$SUBVAL" -m 1 -A 12)
     [ -z "$SINGLESUB" ] && SINGLESUB=$(printf "%s" "$SUBDATA" |grep -e "Text" -m 1 -A 12)
-    SUBLANG=$(printf "$SINGLESUB" |grep -e "Language")
+    SUBLANG=$(printf "%s" "$SINGLESUB" |grep -e "Language")
     SUBLANG="${SUBLANG##*: }"
-    SUBTITLE=$(printf "$SINGLESUB" |grep -e "Title")
+    SUBTITLE=$(printf "%s" "$SINGLESUB" |grep -e "Title")
     SUBTITLE="${SUBTITLE##*: }"
 
     if [ -z "$SUBLANG" ]; then
@@ -1625,7 +1707,7 @@ get_sub_info () {
         [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1
     elif [ -z "$3" ]; then 
         PRINTLINE+=$(printf "Language:$SUBLANG ")
-        [ -n "$SUBTITLE" ] && PRINTLINE+=$(printf "Title:'$SUBTITLE' ")
+        [ -n "$SUBTITLE" ] && PRINTLINE+=$(printf "Title:'${SUBTITLE:0:20}' ")
     fi
 }
 
@@ -1643,7 +1725,7 @@ burn_subs () {
     fi
 
     MKVSUB=""
-    RETVAL=1
+    RETVAL=0
     SUB="$2"
 
     if [ "$SUB" == "self:" ]; then
@@ -1656,10 +1738,11 @@ burn_subs () {
 
     if [ -f "$1" ]; then
         if [ -f "$SUB" ]; then
+            FILE="$1"
             short_name
 
-            PRINTLINE=$(printf "$(date +%T) '${1:0:40}' burning subs ")
-            [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB" || PRINTLINE+=$(printf "'$SUB' ")
+            PRINTLINE=$(printf "$(date +%T) : %-41s ${APP_STRING} burning subs " "${FILEprint}")
+            [ -n "$MKVSUB" ] && get_sub_info "$SUB" "$MKVSUB" || PRINTLINE+=$(printf "File:'$SUB' ")
             ERROR=0
 
             if [ "$SUBERR" == "0" ]; then
@@ -1678,26 +1761,31 @@ burn_subs () {
                 NEWSIZE=$((ORGSIZE + SUBSIZE - NEWSIZE))
                 TOTALSAVE=$((TOTALSAVE + NEWSIZE))
                 NEWSIZE=$((NEWSIZE / 1000))
+                PACKLOOP=$((PACKLOOP + 1))
 
                 if [ "$ERROR" -eq "0" ]; then
-                    RETVAL=0
-                    printf "${Green}Success${Color_Off} "
+                    printf "${Green}Success${Color_Off}"
                     if [ "$KEEPORG" == "0" ]; then
-                        rm "$1"
-                        [ -f "$SUB" ] && rm "$SUB"
+                        delete_file "$1" "17"
+                        [ -f "$SUB" ] && delete_file "$SUB" "18"
                         mv "${FILE}${CONV_TYPE}" "${TARGET_DIR}/${filename}${CONV_TYPE}"
                         FILE="${filename}${CONV_TYPE}"
-                        printf " -> '${FILE:0:40}' "
                     fi
-                    printf "${Color_Off} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT${Color_Off}\n"
+                    printf "${Green} saved ${NEWSIZE}Mb in $TIMER_TOTAL_PRINT${Color_Off}\n"
                     SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
-                else printf "${Red}Failed ($ERROR) in ${TIMER_TOTAL_PRINT}${Color_Off}\n" && rm "${FILE}${CONV_TYPE}"; fi
+                else
+                    printf "${Red}Failed ($ERROR) in ${TIMER_TOTAL_PRINT}${Color_Off}\n"
+                    delete_file "${FILE}${CONV_TYPE}" "19"
+                    RETVAL=8
+                fi
+            else
+                printf "${Yellow}%11s${1:0:40} Subfile file:$SUB mkv:$MKVSUB not found!${Color_Off}\n" " "
             fi
         else
-            printf "${Red}Subfile $SUB not found!${Color_Off}\n"
+            printf "${Red}%11s${1:0:40} Subfile file:$SUB mkv:$MKVSUB not found!${Color_Off}\n" " "
         fi
     else
-        printf "${Red}File $1 not found (subs)!${Color_Off}\n"
+        printf "${Red}%11s${1:0:40} not found (subs)!${Color_Off}\n" " "
         ERROR=2
     fi
 
@@ -1756,7 +1844,7 @@ handle_file_rename () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
     if [ "$1" -gt 0 ] && [ "$ERROR" -eq 0 ] ; then
-        [ "$KEEPORG" == "0" ] && delete_file "$FILE"
+        [ "$KEEPORG" == "0" ] && delete_file "$FILE" "20"
 
         if [ "$KEEPORG" == "0" ]; then
             if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
@@ -1781,11 +1869,11 @@ handle_file_rename () {
         calculate_duration
         [ "$ERROR" -ne "0" ] && printf "${Red}Something went wrong, keeping original!${Color_Off} in $TIMERVALUE\n"
 
-        delete_file "$FILE$CONV_TYPE"
+        delete_file "$FILE$CONV_TYPE" "21"
 
         if [ "$EXT_CURR" == "$CONV_CHECK" ] && [ "$COPY_ONLY" == "0" ]; then
             [ ! -d "./Failed" ] && mkdir "Failed"
-            RETVAL=1
+            RETVAL=9
             mv "$FILE" "./Failed"
         fi
 
@@ -1830,7 +1918,7 @@ handle_error_file () {
     printf "${Red}Something corrupted with $FILE${Color_Off} in $TIMERVALUE\n"
 
     [ "$EXIT_VALUE" == "1" ] && exit 1
-    RETVAL=1
+    RETVAL=10
 }
 
 #***************************************************************************************************************
@@ -1859,11 +1947,11 @@ check_alternative_conversion () {
         NEW_DURATION=0
         DURATION_CHECK=0
     elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-        RETVAL=1
+        RETVAL=11
         ERROR_WHILE_MORPH=1
         PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
     elif [ "$IGNORE_UNKNOWN" == "0" ]; then
-        RETVAL=1
+        RETVAL=12
         ERROR_WHILE_MORPH=1
         PRINT_ERROR_DATA="Unknown"
     else
@@ -1933,7 +2021,7 @@ check_file_conversion () {
             handle_file_rename 0
             printf "${Red} FAILED! Target has no Audio!${Color_Off}\n"
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
-            SPLITTING_ERROR=1
+            SPLITTING_ERROR=2
             [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
         elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             ORIGINAL_SIZE=$ORIGINAL_HOLDER
@@ -1957,11 +2045,13 @@ check_file_conversion () {
             check_alternative_conversion
         fi
     else
-        printf "${Red} No destination file!${Color_Off} in $TIMERVALUE\n"
-        [ ! -d "./Nodest" ] && mkdir "Nodest"
-        mv "$FILE" "./Nodest"
+        if [ "$ERROR" != 13 ]; then
+            printf "${Red}No destination file!${Color_Off} in $TIMERVALUE\n"
+            [ ! -d "./Nodest" ] && mkdir "Nodest"
+            mv "$FILE" "./Nodest"
+        fi
         remove_interrupted_files
-        RETVAL=1
+        RETVAL=13
         [ "$EXIT_VALUE" == "1" ] && exit 1
     fi
 }
@@ -2024,10 +2114,20 @@ get_space_left () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
 
     FULL=$(df -k "${TARGET_DIR}" |grep "/")
+    mapfile -t -d ' ' space_array < <(printf "%s" "$FULL")
+    f_cnt=0
+    SPACELEFT=0
 
-    IFS=" "
-    space_array=(${FULL//,/$IFS})
-    SPACELEFT=${space_array[3]}
+    # Seek out the fourth column, since it's split by spaces
+    for m_cnt in "${!space_array[@]}"; do
+        if [ -n "${space_array[$m_cnt]}" ]; then
+            f_cnt=$((f_cnt + 1))
+            if [ "$f_cnt" -ge "4" ]; then
+                SPACELEFT=${space_array[$m_cnt]}
+                break
+            fi
+        fi
+    done
 }
 
 #***************************************************************************************************************
@@ -2035,6 +2135,7 @@ get_space_left () {
 #***************************************************************************************************************
 pack_file () {
     [ "$DEBUG_PRINT" == 1 ] && printf "${FUNCNAME[0]}\n"
+    process_start_time=$(date +%s)
 
     [ "$FILECOUNT" == "0" ] && EXT_CURR="${FILE##*.}"
     [ "$START_POSITION" -gt "$CURRENTFILECOUNTER" ] && return
@@ -2069,7 +2170,9 @@ pack_file () {
                 REPACK="$REPACK_GIVEN"
             elif [ "$PRINT_ALL" == 1 ]; then
                 printf "${Yellow}$FILE cannot be packed $X <= $WIDTH${Color_Off}\n"
-                RETVAL=1
+                RETVAL=14
+            else
+                printf "${Yellow}%11s$FILE already at desired size wanted:${WIDTH} current:${X}${Color_Off}\n" " "
             fi
         elif [ "$PRINT_ALL" == 1 ]; then
             print_info
@@ -2111,6 +2214,7 @@ calculate_time_given () {
 
     if [ -z "$1" ]; then
         TIMER_SECOND_PRINT="0"
+        VAL_HAND=0
     else
         VAL_HAND="$1"
         [ "$1" -lt "0" ] && VAL_HAND=$((VAL_HAND * -1))
@@ -2170,6 +2274,7 @@ verify_commandline_input() {
 # The MAIN VOID function
 #***************************************************************************************************************
 
+reset_handlers
 verify_necessary_programs
 verify_commandline_input "$@"
 
@@ -2206,19 +2311,19 @@ elif [ "$COMBINEFILE" == "3" ]; then
 
 elif [ "$CHECKRUN" == "0" ]; then
     print_help
-    RETVAL=1
+    RETVAL=15
 
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ "${#SUB_RUN[@]}" -gt "0" ]; then
         reset_handlers
         for var in "${SUB_RUN[@]}"; do parse_data "$var"; done
-        handle_sub_files
+        [ "$ERROR" == "0" ] && handle_sub_files
     fi
 
     if [ "${#CROP_RUN[@]}" -gt "0" ]; then
         reset_handlers
         for var in "${CROP_RUN[@]}"; do parse_data "$var"; done
-        handle_filesize_change
+        [ "$ERROR" == "0" ] && handle_filesize_change
     fi
 
     if [ "${#PACK_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
@@ -2228,17 +2333,17 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
             CUT_RUN=()
         fi
-        handle_filesize_change
+        [ "$ERROR" == "0" ] && handle_filesize_change
     fi
 
     if [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
         reset_handlers
         for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
-        if [ "${SPLIT_AND_COMBINE}" == "0" ] && [ "${MASS_SPLIT}" == "0" ]; then handle_cuttings; fi
+        if [ "${SPLIT_AND_COMBINE}" == "0" ] && [ "${MASS_SPLIT}" == "0" ] && [ "$ERROR" == "0" ]; then handle_cuttings; fi
     fi
 
     if [ "${#CUT_RUN[@]}" -eq "0" ] && [ "${#PACK_RUN[@]}" -eq "0" ] && [ "${#SUB_RUN[@]}" -eq "0" ]; then
-        handle_filesize_change
+        [ "$ERROR" == "0" ] && handle_filesize_change
     fi
 
     if [ "$CURRENTFILECOUNTER" -gt "1" ]; then print_total
@@ -2246,7 +2351,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 else
     printf "${Red}No file(s) found!${Color_Off}\n"
     ERROR=8
-    RETVAL=1
+    RETVAL=16
 fi
 
 [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
