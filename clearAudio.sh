@@ -2,12 +2,12 @@
 
 STARTSIZE=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
 GLOBAL_FILESAVE=0
-NO_EXIT_EXTERNAL=1
-EXIT_EXT_VAL=0
-COUNTED_ITEMS=0
+export NO_EXIT_EXTERNAL=1
+export EXIT_EXT_VAL=0
+export COUNTED_ITEMS=0
 I_COUNTER=0
 TOTAL_SAVETIME="0"
-ERROR=0
+export ERROR=0
 COUNT=1
 #LASTSTART=0
 
@@ -119,9 +119,7 @@ get_info_and_cut () {
     I_OUTPUT=$(python3 ~/dev/audfprint/audfprint.py match --dbase tembase "$1" --find-time-range)
 
     NEW_LINE=$'\x0A';
-    export IFS="${NEW_LINE}";
-    data_array=()
-    data_array=(${I_OUTPUT///$IFS})
+    mapfile -t -d "$NEW_LINE" data_array < <(printf "%s" "$I_OUTPUT")
 
     for index in "${!data_array[@]}"; do
         if [[ "${data_array[index]}" =~ "Matched" ]]; then
@@ -130,8 +128,7 @@ get_info_and_cut () {
         fi
     done
 
-    data_array=()
-    data_array=(${ITEM// /$IFS})
+    mapfile -t -d "$NEW_LINE" data_array < <(printf "%s" "$ITEM")
     I_LENGTH=""
     I_START=""
     I_COMPLEN=""

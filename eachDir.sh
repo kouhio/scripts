@@ -35,9 +35,9 @@ set_interrupt () {
 trap set_interrupt SIGINT SIGTERM
 
 if [ "$SUB" -eq "0" ]; then
-    mapfile -t DIR_LIST <<< "$(find -type d | sort)"
+    mapfile -t DIR_LIST <<< "$(find "." -type d | sort)"
 else
-    mapfile -t DIR_LIST <<< "$(find -type d -maxdepth 1 | sort)"
+    mapfile -t DIR_LIST <<< "$(find "." -type d -maxdepth 1 | sort)"
 fi
 
 D_MAX="${#DIR_LIST[@]}"

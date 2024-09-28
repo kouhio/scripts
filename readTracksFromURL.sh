@@ -16,7 +16,7 @@ for i in "$@"; do
     elif [[ "$i" =~ "fix" ]]; then FIX=1
     elif [[ "$i" =~ "-h" ]]; then help
     elif [ -z "$OUTPUT_FILE" ]; then
-        if [[ "$i" =~ ".txt" ]]; then OUTPUT_FILE="$i"
+        if [[ "$i" == *".txt" ]]; then OUTPUT_FILE="$i"
         else OUTPUT_FILE="${i}.txt"; fi
     else
         echo "Unknown setting $i"
@@ -65,10 +65,10 @@ if [[ "$SOURCE" =~ "spotify" ]]; then
     done
 elif [[ "$SOURCE" =~ "discogs" ]]; then
     echo -en "Parsing discogs"
-    BAND=$(echo $LIST |grep -o -P '(?<=\"artist\":\").*?(?=\",\"year\")')
+    BAND=$(echo "$LIST" |grep -o -P '(?<=\"artist\":\").*?(?=\",\"year\")')
     [ "$FIX" -eq "1" ] && BAND=$(echo "$BAND" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
-    YEAR=$(echo $LIST |grep -o -P '(?<=\"year\":).*?(?=,\"ids\")')
-    ALBUM=$(echo $LIST |grep -o -P '(?<=\"title\":\").*?(?=\",\"artist\")')
+    YEAR=$(echo "$LIST" |grep -o -P '(?<=\"year\":).*?(?=,\"ids\")')
+    ALBUM=$(echo "$LIST" |grep -o -P '(?<=\"title\":\").*?(?=\",\"artist\")')
     ALBUM=$(echo "$ALBUM" |head -1)
     [ "$FIX" -eq "1" ] && ALBUM=$(echo "$ALBUM" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
 
@@ -81,12 +81,12 @@ elif [[ "$SOURCE" =~ "discogs" ]]; then
     for index in "${array[@]}"; do
         if [[ "$index" =~ ",\"position\":" ]]; then
             if [[ "$index" =~ "\"Track\",\"title\":" ]]; then
-                ITEM=$(echo $index |grep -o -P '(?<=\"Track\",\"title\":\").*?(?=\",\"position\":\")')
-                POS=$(echo $index |grep -o -P '(?<=\",\"position\":\").*?(?=\",\"durationInSeconds\":)')
+                ITEM=$(echo "$index" |grep -o -P '(?<=\"Track\",\"title\":\").*?(?=\",\"position\":\")')
+                POS=$(echo "$index" |grep -o -P '(?<=\",\"position\":\").*?(?=\",\"durationInSeconds\":)')
                 if [[ ! "$POS" =~ [A-Za-z] ]]; then
                     [ "$POS" -ne "$POSITION" ] && echo "Item position mismatch '$ITEM' Read:$POS Current:$POSITION"
                 fi
-                tracks+=($ITEM)
+                tracks+=("$ITEM")
                 POSITION=$((POSITION + 1))
             fi
         fi

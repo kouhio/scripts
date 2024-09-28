@@ -35,7 +35,7 @@ set_int () {
         rm "${file}.new.${OUTPUT}"
     fi
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
-    echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size $TOTALSAVE)"
+    echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size "$TOTALSAVE")"
     exit 1
 }
 
@@ -91,7 +91,7 @@ handle_file () {
     if [ "$error" == 0 ]; then
         OUTPUTSIZE=$(du -k "${file}.new.${OUTPUT}" | cut -f1)
         if [ "$OUTPUTSIZE" -gt "$INPUTSIZE" ] && [ "$IGNORE" == "0" ]; then
-            echo "new size bigger than original $(lib size $OUTPUTSIZE) > $(lib size $INPUTSIZE)"
+            echo "new size bigger than original $(lib size "$OUTPUTSIZE") > $(lib size "$INPUTSIZE")"
             DIDNTSAVE=$((DIDNTSAVE + 1))
             [ "$DELETE" == "0" ] && rm "${file}.new.${OUTPUT}"
             [ "$DELETE" == "1" ] && rm "${file}" && mv "${file}.new.${OUTPUT}" "${file}"

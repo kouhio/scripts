@@ -28,10 +28,10 @@ if [ -n "$1" ]; then
         REPLACE="$2"
     fi
 
-    array=(${TYPES// / })
+    mapfile -t -d " " TYPES < <(printf "%s" "$TYPES")
 
     if [ -n "$4" ]; then
-        array+=($4)
+        array+=("$4")
     fi
 
     if [ "$INPUT" == "$REPLACE" ]; then
@@ -48,7 +48,7 @@ if [ -n "$1" ]; then
         done
 
         if [ -n "$2" ]; then
-            if [[ ! "$INPUT" =~ "$REPLACE" ]]; then
+            if [[ ! "$INPUT" == *"$REPLACE"* ]]; then
                 VERIFY=$(grep "${INPUT}" -r)
                 [ -n "$VERIFY" ] && echo "Failed to replace ${INPUT}"
             fi

@@ -36,12 +36,12 @@ fi
 
 findTags
 
-FILES=""
+FILES=()
 COUNT=1
 IS_ONE=0
 IS_OPEN=0
 IS_SWAP=0
-VI_PARAMS=""
+VI_PARAMS=()
 
 # 1 - given string
 get_rownumber () {
@@ -52,7 +52,7 @@ get_rownumber () {
 
     # Check if input is a parameter
     if [[ "$1" == "-"* ]]; then
-        VI_PARAMS+="$1 "
+        VI_PARAMS+=("$1")
         return
     fi
 
@@ -67,7 +67,7 @@ get_rownumber () {
 
     # Check if the rownumber is given in the string
     if [[ "$1" == *":"* ]]; then
-        array=(${1//:/ })
+        mapfile -t -d ":" array < <(printf "%s" "$1")
         FILE=${array[0]}
         ROW=${array[1]}
     else
@@ -115,7 +115,7 @@ get_rownumber () {
         [ -z "$TYPE" ] && return 1
 
         # Add file to array
-        FILES+="$FILE "
+        FILES+=("$FILE")
     fi
 
     COUNT=$((COUNT + 1))
@@ -135,7 +135,7 @@ if [ "$#" -gt 1 ]; then
         else
             ${VIM} -c "$TAG_PATH" "$@"
         fi
-    elif [ -z "$FILES" ]; then
+    elif [ "${#FILES[@]}" -eq "0" ]; then
         if [ "$IS_OPEN" -eq 0 ] && [ "$IS_SWAP" -eq 0 ]; then
             if [ -z "$TAG_PATH" ]; then
                 ${VIM} "$@"
@@ -147,9 +147,9 @@ if [ "$#" -gt 1 ]; then
         fi
     else
         if [ -z "$TAG_PATH" ]; then
-            ${VIM} $VI_PARAMS $FILES
+            ${VIM} "${VI_PARAMS[@]}" "${FILES[@]}"
         else
-            ${VIM} -c "$TAG_PATH" $VI_PARAMS $FILES
+            ${VIM} -c "$TAG_PATH" "${VI_PARAMS[@]}" "${FILES[@]}"
         fi
     fi
 else # One input given, see if it has row number

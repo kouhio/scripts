@@ -162,8 +162,7 @@ parse_arguments () {
 
     SHORT="i:d:s:e:o:h"
 
-    PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
-    if [[ $? -ne 0 ]]; then
+    if ! PARSED=$(getopt --options $SHORT --name "$0" -- "$@"); then
         print_help
         exit 1
     fi

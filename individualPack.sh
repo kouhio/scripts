@@ -13,9 +13,9 @@ NEW_FILES=0
 FOUND=false
 VLC="playlist.xspf"
 [ -f "$VLC" ] && rm "$VLC"
-GLOBAL_FILESAVE=0
-GLOBAL_TIMESAVE=0
-GLOBAL_FILECOUNT=0
+export GLOBAL_FILESAVE=0
+export GLOBAL_TIMESAVE=0
+export GLOBAL_FILECOUNT=0
 TOTAL_FILES=0
 INPUTSTR=""
 REN_FILES=0
@@ -29,9 +29,9 @@ LIST_OUTSIDE_FILES=0
 ##########################################################
 printToFile () {
     if [ -z "$2" ]; then
-        echo "$@" >> "$FILE"
+        echo "$1" >> "$FILE"
     else
-        echo "  $@" >> "$FILE"
+        echo "  $1" >> "$FILE"
     fi
 }
 
@@ -55,12 +55,14 @@ printSavedData () {
 # When ctrl+c is pressed, use this process
 ##########################################################
 printTerminatorFunction () {
-    echo -e "\ncleanup () {" >> "$FILE"
-    echo -e "  echo \"Terminated, quitting process!\"" >> "$FILE"
-    printSavedData "1"
-    echo -e "  exit 1" >> "$FILE"
-    echo -e "}\n" >> "$FILE"
-    echo -e "#BEGIN" >> "$FILE"
+    {
+        echo -e "\ncleanup () {"
+        echo -e "  echo \"Terminated, quitting process!\""
+        printSavedData "1"
+        echo -e "  exit 1"
+        echo -e "}\n"
+        echo -e "#BEGIN"
+    } >> $FILE
 }
 
 ##########################################################
@@ -119,14 +121,16 @@ rawurlencode() {
 printVLCFile() {
     rawurlencode "$1"
     RUNID=$((NEW_FILES + KEPT_FILES))
-    echo -e "\t\t<track>" >> $VLC
-    echo -e "\t\t\t<location>${VLC_FILENAME}</location>" >> $VLC
-    #echo -e "\t\t\t<title>$1</title>" >> $VLC
-    #echo -e "\t\t\t<duration>5000</duration>" >> $VLC
-    echo -e "\t\t\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">" >> $VLC
-    echo -e "\t\t\t\t<vlc:id>$RUNID</vlc:id>" >> $VLC
-    echo -e "\t\t\t</extension>" >> $VLC
-    echo -e "\t\t</track>" >> $VLC
+    {
+        echo -e "\t\t<track>"
+        echo -e "\t\t\t<location>${VLC_FILENAME}</location>"
+        #echo -e "\t\t\t<title>$1</title>"
+        #echo -e "\t\t\t<duration>5000</duration>"
+        echo -e "\t\t\t<extension application=\"http://www.videolan.org/vlc/playlist/0\">"
+        echo -e "\t\t\t\t<vlc:id>$RUNID</vlc:id>"
+        echo -e "\t\t\t</extension>"
+        echo -e "\t\t</track>"
+    } >> $VLC
 }
 
 ##########################################################
@@ -159,7 +163,10 @@ addNewFiles() {
                 continue
             fi
 
-            if verifyFileNotInList "$f" ; then
+            if verifyFileNotInList "$f" ; then continue; fi
+            INTEGRITY=$(ffmpeg -i "$f" 2>&1)
+            if [[ "$INTEGRITY" == *"Invalid data found when processing input"* ]]; then
+                printf "Something wrong with '%s' (add new)\n" "$f"
                 continue
             fi
             X=$(mediainfo '--Inform=Video;%Width%' "$f")
@@ -196,7 +203,7 @@ renfile() {
     GUNTHER=1
     CLEARNAME=$(echo "$1" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     #CLEARNAME=$(echo "$1" | tr -dc '[:alnum:]\n\r ' | tr '[:upper:]' '[:lower:]')
-    [[ "$1" =~ ".mp4" ]] && CLEARNAME="${CLEARNAME/.mp4/}"
+    [[ "$1" == *".mp4" ]] && CLEARNAME="${CLEARNAME/.mp4/}"
     [[ "$CLEARNAME" =~ "_1" ]] && CLEARNAME="${CLEARNAME/_1/}"
 
     if [ "$1" != "$CLEARNAME" ] && [ "$1" != "${CLEARNAME}.mp4" ]; then
@@ -210,7 +217,7 @@ renfile() {
         fi
     fi
 
-    [[ "$1" =~ ".mp4" ]] && CLEARNAME="${CLEARNAME}.mp4"
+    [[ "$1" == *".mp4" ]] && CLEARNAME="${CLEARNAME}.mp4"
     [ "$1" != "$CLEARNAME" ] && mv "$1" "$CLEARNAME"
 }
 
@@ -344,13 +351,17 @@ printBaseData() {
     echo "#!/bin/bash" > $FILE
 
     printToFile "STARTSIZE=\$(df --output=avail \"\$PWD\" | sed '1d;s/[^0-9]//g')"
-    printToFile "GLOBAL_FILESAVE=0"
-    printToFile "GLOBAL_TIMESAVE=0"
-    printToFile "NO_EXIT_EXTERNAL=1"
-    printToFile "EXIT_EXT_VAL=0"
+    printToFile "export GLOBAL_FILESAVE=0"
+    printToFile "export GLOBAL_TIMESAVE=0"
+    printToFile "export NO_EXIT_EXTERNAL=1"
+    printToFile "export EXIT_EXT_VAL=0"
+    printToFile "export EXTERNAL_CALL=1"
+    printToFile "export ERROR=0"
+    printToFile "export PROCESS_INTERRUPTED=0"
     printToFile "COUNTED_ITEMS=0"
     printToFile "ERROR_CNT=0"
     printToFile "STT=\$(date +%s)"
+    printToFile "ERROR_2=0"
 
     printToFile ""
     printToFile "PACK () {"
@@ -368,10 +379,11 @@ printBaseData() {
     printToFile "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
     printToFile "  elif [ -f \"\$INPUTFILE\" ]; then"
     printToFile "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
-    printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
-    printToFile "    [ \$ERROR -ne 0 ] && ERROR_CNT=\$((ERROR_CNT + 1))"
+    printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\" || ERROR_2=\$?"
+    printToFile "    if [ \$ERROR -ne 0 ] || [ \$ERROR_2 -ne 0 ]; then ERROR_CNT=\$((ERROR_CNT + 1)); fi"
+    printToFile "    ERROR_2=0"
     printToFile "  fi"
-    printToFile "  [ -n \"\$PROCESS_INTERRUPTED\" ] && [ \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
+    printToFile "  [ \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
     printToFile "}"
 
     printTerminatorFunction
@@ -405,6 +417,12 @@ goThroughAllFiles() {
 
             renfile "$f"
 
+            INTEGRITY=$(ffmpeg -i "$f" 2>&1)
+            if [[ "$INTEGRITY" == *"Invalid data found when processing input"* ]]; then
+                printf "Something wrong with '%s' (go through all)\n" "$f"
+                continue
+            fi
+            X=$(mediainfo '--Inform=Video;%Width%' "$f")
             X=$(mediainfo '--Inform=Video;%Width%' "$CLEARNAME")
             [ -z "$X" ] && X=0
             [ "$SIZE" == "0" ] && SIZE="10000"

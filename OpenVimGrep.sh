@@ -19,8 +19,8 @@ else
     fi
 fi
 
-array=(${DATA// /})
-FILES=""
+mapfile -t -d " " array < <(printf "%s" "$DATA")
+FILES=()
 
 for index in "${!array[@]}"
 do
@@ -32,13 +32,13 @@ do
         [ "$EXT" == "bin" ] && continue
         [ "$EXT" == "swp" ] && continue
         [ "$SPLIT" == "tags" ] && continue
-        [[ "$SPLIT" =~ ".git" ]] && continue
-        FILES+="$SPLIT "
+        [[ "$SPLIT" == *".git"* ]] && continue
+        FILES+=("$SPLIT")
     fi
 done
 
-if [ -n "$FILES" ]; then
-    VimScript.sh $FILES
+if [ "${#FILES[@]}" -gt "0" ]; then
+    VimScript.sh "${FILES[@]}"
 else
     echo "No files with '$1' found!"
 fi

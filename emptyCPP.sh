@@ -59,8 +59,7 @@ parse_arguments () {
 
     SHORT="hf:e:H:a:o:OS"
 
-    PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
-    if [[ $? -ne 0 ]]; then
+    if ! PARSED=$(getopt --options $SHORT --name "$0" -- "$@"); then
         print_help
         exit 1
     fi
@@ -133,10 +132,8 @@ if [ -n "$FILENAME" ]; then
                 echo "#ifndef __${UPPER}_H__"
                 echo -e "#define __${UPPER}_H__\n"
                 if [ -n "$SOURCES" ]; then
-                    IFS=" "
-                    array=(${SOURCES//,/$IFS})
-                    for index in "${!array[@]}"
-                    do
+                    mapfile -t -d " " array < <(printf "%s" "$SOURCES")
+                    for index in "${!array[@]}"; do
                         echo -e "#include \"${array[index]}\""
                     done
                     echo -e "\n"

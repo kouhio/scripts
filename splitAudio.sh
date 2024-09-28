@@ -29,10 +29,10 @@ for f in *".$input"; do
     echo "handling '$f'"
     filename="${f%.*}"
     #ext="${f##*.}"
-    settings="-T $filename"
+    settings=("-T" "$filename")
     err_cod=0
-    [ -f "${filename}.txt" ] && settings="-F ${filename}.txt"
-    findSilence.sh "$f" -d 5 -t mp3 -m 10 $settings -s "$@"
+    [ -f "${filename}.txt" ] && settings=("-F" "${filename}.txt")
+    findSilence.sh "$f" -d 5 -t mp3 -m 10 "${settings[@]}" -s "$@"
     err_cod=$?
     cnt=$((cnt + 1))
     [ "$err_cod" -eq "0" ] && [ -f "$f" ] && mv "${filename}."* "$savedir/"

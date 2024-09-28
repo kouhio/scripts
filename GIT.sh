@@ -29,12 +29,12 @@ if [ "$1" == "delete" ]; then
 
     BRANCH=$(${GIT} branch -a)
     if [ "$REMOTE" -eq "0" ]; then
-        if [[ "$BRANCH" =~ "/$2" ]]; then ${GIT} push origin --delete "$2"
+        if [[ "$BRANCH" == *"/$2"* ]]; then ${GIT} push origin --delete "$2"
         else echo "No branch '$2' found! Cannot remote delete!"; fi
 
     else echo "Cannot delete remote from gerrit!"; fi
 
-    if [[ "$BRANCH" =~ "$2" ]]; then ${GIT} branch -D "$2"
+    if [[ "$BRANCH" == *"$2"* ]]; then ${GIT} branch -D "$2"
     else echo "No branch '$2' found! Cannot locally delete!"; fi
 
 ##############################################################################################

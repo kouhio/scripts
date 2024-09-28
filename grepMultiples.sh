@@ -20,7 +20,7 @@ init() {
 # 2 - The seconds part to verify the same data (if null, skipped)
 ########################################################################
 verify() {
-    array=(${1// / })
+    mapfile -t -d " " array < <(printf "%s" "$1")
 
     if [ -z "${array[2]}" ]; then
         [ -n "$TARGET" ] && echo "$1" >> "$TARGET"

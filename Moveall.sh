@@ -22,8 +22,8 @@ if [ "$PWD" == "$HOME" ]; then
     exit 1
 fi
 
-array=(${extensions//})
-array2=(${skiplist//})
+mapfile -t -d " " array < <(printf "%s" "$extensions")
+mapfile -t -d " " array2 < <(printf "%s" "$skiplist")
 sinput=""
 
 for D in *; do
@@ -97,7 +97,7 @@ for D in *; do
                         FILENAME="${f//./ }"
                         FILENAME="${FILENAME,,}"
                         for dir in "${DIRLIST[@]}"; do
-                            if [[ "${FILENAME}" =~ "${dir// / }" ]]; then
+                            if [[ "${FILENAME}" == *"${dir// / }"* ]]; then
                                 mv "${f}" "${D}/"
                                 echo "Moving '$f' to '$D'"
                             fi

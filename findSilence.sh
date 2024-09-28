@@ -69,8 +69,7 @@ parse_arguments () {
 
     SHORT="d:n:m:f:F:t:T:sDhi:S:"
 
-    PARSED=$(getopt --options $SHORT --name "$0" -- "$@")
-    if [[ $? -ne 0 ]]; then
+    if ! PARSED=$(getopt --options $SHORT --name "$0" -- "$@"); then
         print_help
         exit 1
     fi
@@ -118,13 +117,13 @@ parse_arguments () {
             -S)
                 INFO_FROM_FILE="$2"
                 NAMEPATH="$2"
-                NAMECOUNT=$(cat "$NAMEPATH" |wc -l)
+                NAMECOUNT=$(wc -l < "$NAMEPATH")
                 NAMECOUNT=$((NAMECOUNT - 1))
                 shift 2
                 ;;
             -F)
                 NAMEPATH="$2"
-                NAMECOUNT=$(cat "$NAMEPATH" |wc -l)
+                NAMECOUNT=$(wc -l < "$NAMEPATH")
                 NAMECOUNT=$((NAMECOUNT - 1))
                 shift 2
                 ;;
@@ -149,8 +148,7 @@ parse_arguments () {
 # 1 - input string
 #**************************************************************************************************************
 print_info () {
-    IFS=" "
-    array=(${1//,/$IFS})
+    mapfile -t -d " " array < <(printf "%s" "$1")
 
     OUTPUT_DATA=""
     for index in "${!array[@]}"; do
@@ -271,10 +269,10 @@ split_to_file () {
     pack_error=0
 
     if [ "$ORG_EXT" == "mp3" ]; then
-        echo "Extracting mp3 from $1! | Start:$(lib time full $2) Duration:$(lib time full $3), Min:$MIN_DURATION"
+        echo "Extracting mp3 from $1! | Start:$(lib time full "$2") Duration:$(lib time full "$3"), Min:$MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" # -v quiet >/dev/null 2>&1 || error_code=$?
     else
-        echo "Extracting $OUTPUT | Start:$(lib time full $2) Duration:$(lib time full $3), Min:$MIN_DURATION"
+        echo "Extracting $OUTPUT | Start:$(lib time full "$2") Duration:$(lib time full "$3"), Min:$MIN_DURATION"
         ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
         if [ -n "$TARGET_EXT" ] && [ "$error_code" -eq "0" ]; then
@@ -309,7 +307,7 @@ split_to_file () {
 #**************************************************************************************************************
 split_file_by_silence () {
     SILENCEDATA="$1"
-    array=(${1//})
+    mapfile -t array < <(printf "%s" "$1")
     START=0
     END=0
     FILENUMBER=1
@@ -462,7 +460,8 @@ split_file_by_input_file () {
         ROWSDATA+=" ${line// /_}"
     done < "$INFO_FROM_FILE"
 
-    inputs=(${ROWSDATA//\// })
+    mapfile -t -d "/" inputs < <(printf "%s" "$ROWSDATA")
+    #inputs=(${ROWSDATA//\// })
 
     for index in "${!inputs[@]}"; do
 
@@ -517,7 +516,7 @@ check_file () {
     if [ -n "$TIMELEN" ]; then
 
         if [ -f "$1" ]; then
-            SILENCEDATA=$(ffmpeg -i "$1" -af silencedetect=noise=$NOISE:d=$DURATION -f null - 2>&1 >/dev/null |grep "silence")
+            SILENCEDATA=$(ffmpeg -i "$1" -af "silencedetect=noise=$NOISE:d=$DURATION" -f null - 2>&1 >/dev/null |grep "silence")
             if [ -n "$SILENCEDATA" ]; then
                 if [ $SPLIT == 1 ]; then
                     split_file_by_silence "$SILENCEDATA" "$1"
