@@ -90,9 +90,6 @@ BUGME=0                         # Debug output commands
 MAX_SHORT_TIME=""               # Maximum accepted time for shortening
 TOTAL_ERR_CNT=0                 # Number of errors occured
 ERROR_WHILE_SPLITTING=0         # Splitting error handler
-export PROCESS_INTERRUPTED=0    # Interruption handler for external access
-export ERROR=0                  # Global error indicator
-export EXIT_EXT_VAL             # External exit value handler
 filename=""                     # Current filename without extension
 PRINTLINE=""                    # Status output string handler
 
@@ -101,6 +98,9 @@ PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocki
 CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
 
+export PROCESS_INTERRUPTED=0    # Interruption handler for external access
+export ERROR=0                  # Global error indicator
+export EXIT_EXT_VAL             # External exit value handler
 #***************************************************************************************************************
 # Reset all runtime handlers
 #***************************************************************************************************************
@@ -230,6 +230,7 @@ set_int () {
     remove_broken_split_files
     delete_file "$PACKFILE" "27"
     EXIT_EXT_VAL=1
+    ERROR=66
 
     [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "26"
 
@@ -503,7 +504,7 @@ massive_filecheck () {
             printf "%sSaved %-6.6s and %s with splitting%s\n" "$CY" "$(check_valuetype "$OSZ")" "$(calculate_time_given "$FINAL_TIMESAVE")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
         else
-            printf "%sFinished%s\n" "$CY" "$CO"
+            printf "%sFinished%s%${STR_LEN}s" "$CY" "$CO" " "
         fi
 
     else
@@ -1242,7 +1243,7 @@ print_file_info () {
             TOTALSAVE=$((TOTALSAVE + SIZE))
 
             printf "%s%s X:%04d Y:%04d Size:%-6.6s Lenght:%s\n" "$(print_info)" "$(short_name)" "${X}" "${Y}" "$(check_valuetype "${SIZE}")" "$(calculate_time_given "$LEN")"
-            [ -n "$WRITEOUT" ] && printf "packAll.sh \"%s\" \n" "$FILE" >> "$WRITEOUT"
+            [ -n "$WRITEOUT" ] && printf "%s \"%s\" \n" "${0}" "$FILE" >> "$WRITEOUT"
         else
             printf "%s is corrupted\n" "$FILE"
         fi
@@ -1433,6 +1434,7 @@ loop_pid_time () {
             elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$CUTTING_INDICATOR")"
             else PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
         fi
+        [ "$PROCESS_INTERRUPTED" == "1" ] && break
         printf "\033[${STR_LEN}D%s" "$PRINTOUT"
         if ! kill -s 0 "$2" >/dev/null 2>&1; then break; fi
         sleep 1
@@ -1445,6 +1447,7 @@ loop_pid_time () {
 #***************************************************************************************************************
 check_output_errors () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ ! -f "$PACKFILE" ] && return
 
     app_err=$(grep 'Invalid data found when processing input|not found|error in an external library|invalid format character|Unknown error' "$PACKFILE")
 
@@ -1454,7 +1457,7 @@ check_output_errors () {
 
         if [ "$EXIT_VALUE" == "1" ]; then
             delete_file "$PACKFILE" "15"
-            handle_file_rename 0
+            handle_file_rename 0 6
             exit 1
         fi
         RETVAL=6
@@ -1556,20 +1559,12 @@ run_pack_app () {
     [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s %s \"%s%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "${COMMAND_LINE[*]}" "${COMMAND_ADD[*]}" "${FILE}" "${CONV_TYPE}" "$CO"
 
     printf "%s " "${PRINTLINE}"
-    if [ "$NO_EXIT_EXTERNAL" == "0" ]; then
-        $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${COMMAND_ADD[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
-        PIDOF=$!
-        loop_pid_time "$process_start_time" "$PIDOF"
-        ERROR=$?
-        check_output_errors
-        printf "\r%s %${STR_LEN}s\r%s" "$PRINTLINE" " " "$PRINTLINE"
-    else
-        printf "[%s] " "${FILEDURATION}"
-        #$APP_NAME -i "$FILE" $COMMAND_LINE $COMMAND_ADD "${FILE}${CONV_TYPE}" -v quiet >/dev/null 2>&1
-        $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${COMMAND_ADD[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE
-        ERROR=$?
-        check_output_errors
-    fi
+    $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${COMMAND_ADD[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
+    PIDOF=$!
+    loop_pid_time "$process_start_time" "$PIDOF"
+    [ "$PROCESS_INTERRUPTED" == "1" ] && return
+    check_output_errors
+    printf "\r%s %${STR_LEN}s\r%s" "$PRINTLINE" " " "$PRINTLINE"
 }
 
 #***************************************************************************************************************
@@ -1652,7 +1647,6 @@ burn_subs () {
                 else COMMAND_LINE=("-vf" "subtitles=$SUB"); fi
                 [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s%s\n" "$CP" "$APP_STRING" "$1" "${COMMAND_LINE[*]}" "$CO"
                 run_pack_app
-                ERROR=$?
 
                 ORGSIZE=$(du -k "$1" | cut -f1)
                 SUBSIZE=0
@@ -1762,7 +1756,7 @@ handle_file_rename () {
             move_to_a_running_file
         fi
     else
-        [ "$ERROR" -ne "0" ] && printf "%sSomething went wrong, keeping original!%s in %s\n" "$CR" "$CO" "$(calculate_duration)"
+        [ "$ERROR" -ne "0" ] && printf "%sSomething went wrong, keeping original!%s in %s err:%s src:%s\n" "$CR" "$CO" "$(calculate_duration)" "$ERROR" "$2"
 
         delete_file "$FILE$CONV_TYPE" "21"
 
@@ -1845,7 +1839,7 @@ check_alternative_conversion () {
     if [ "$COPY_ONLY" != 0 ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
-            handle_file_rename 1
+            handle_file_rename 1 1
             printf " %sConverted. %ss and %s in %s" "$CG" "$((ORIGINAL_DURATION - NEW_DURATION))" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")" "$(calculate_duration)"
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         else
@@ -1862,12 +1856,12 @@ check_alternative_conversion () {
         ERROR_WHILE_MORPH=1
         PRINT_ERROR_DATA="Unknown"
     else
-        handle_file_rename 1
+        handle_file_rename 1 2
         printf "%sWarning, ignoring unknown error:%s in %s, saved:%s" "$CY" "$ERROR" "$(calculate_duration)" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")"
     fi
 
     if [ -n "$PRINT_ERROR_DATA" ]; then
-        handle_file_rename 0
+        handle_file_rename 0 3
         printf "%s FAILED!" "$CR"
         [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:%s>%s" "$xNEW_DURATION" "$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:%s>%s" "$xNEW_FILESIZE" "$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
@@ -1876,7 +1870,7 @@ check_alternative_conversion () {
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
         SPLITTING_ERROR=1
         [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
-        ERROR=1
+        ERROR=91
     fi
 
     printf "%s\n" "$CO"
@@ -1889,6 +1883,7 @@ check_alternative_conversion () {
 #***************************************************************************************************************
 check_file_conversion () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$PROCESS_INTERRUPTED" == "1" ] && return
 
     #if destination file exists
     FILE_EXISTS=0
@@ -1913,7 +1908,7 @@ check_file_conversion () {
 
         #if video length matches (with one second error tolerance) and destination file is smaller than original, then
         if [ -z "$AUDIO_DURATION" ]; then
-            handle_file_rename 0
+            handle_file_rename 0 4
             printf "%s FAILED! Target has no Audio!%s\n" "$CR" "$CO"
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
             SPLITTING_ERROR=2
@@ -1930,7 +1925,7 @@ check_file_conversion () {
             else
                 printf "%sSaved %8s in %s%s " "$CG" "$(lib size $ENDSIZE)" "$(lib t F "$process_start_time")" "$CO"
             fi
-            handle_file_rename 1
+            handle_file_rename 1 5
         else
             check_alternative_conversion
         fi
@@ -2198,6 +2193,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         loop_start_time=$(date +%s)
         RUNTIMES=0
         DURATION_CUT=0
+        ERROR=0
         CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
 
         if [ "$PRINT_INFO" -gt "0" ]; then
@@ -2261,7 +2257,6 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 
         [ "$ERROR" == "0" ] && SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
         [ -z "$GLOBAL_FILECOUNT" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
-        ERROR=0
     done
     shopt -u nocaseglob
 
