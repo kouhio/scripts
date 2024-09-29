@@ -92,8 +92,8 @@ TOTAL_ERR_CNT=0                 # Number of errors occured
 ERROR_WHILE_SPLITTING=0         # Splitting error handler
 filename=""                     # Current filename without extension
 PRINTLINE=""                    # Status output string handler
+PACKLEN=59                      # Length of packloop base printout
 
-PACKLEN=0                       # Length of packloop base printout
 PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocking run
 CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
@@ -500,8 +500,7 @@ massive_filecheck () {
             [ "$ERROR_WHILE_SPLITTING" == "0" ] && delete_file "$FILE" "3"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-            [ -n "$EXTERNAL_CALL" ] && PACKLEN=$((PACKLEN + 4))
-            printf "%sSaved %-6.6s and %s with splitting%s\n" "$CY" "$(check_valuetype "$OSZ")" "$(calculate_time_given "$FINAL_TIMESAVE")" "$CO"
+            printf "%sSaved %-6.6s and %s with splitting%s" "$CY" "$(check_valuetype "$OSZ")" "$(calculate_time_given "$FINAL_TIMESAVE")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
         else
             printf "%sFinished%s%${STR_LEN}s" "$CY" "$CO" " "
@@ -731,7 +730,7 @@ combine_split_files() {
     cd "$TARGET_DIR" || return
 
     ERROR=0
-    printf "%${PACKLEN}s Combining %s split files " " " "$COMBINE_RUN_COUNT"
+    printf "\n%${PACKLEN}s Combining %s split files " " " "$COMBINE_RUN_COUNT"
     $APP_NAME -f concat -i "packcombofile.txt" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
@@ -761,10 +760,10 @@ combine_split_files() {
     fi
 
     if [ -n "$NEWNAME" ]; then
-        printf "%sSuccess in %s/%s %s%s%s%s Shortened:%s\n" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")"
+        printf "%sSuccess in %s/%s %s%s%s%s Shortened:%s%${STR_LEN}s" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")" " "
         FILE="${NEWNAME}${CONV_TYPE}"
     else
-        printf "%sSuccess in %s/%s %s%s%s Shortened:%s\n" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${RUNNING_FILENAME}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")"
+        printf "%sSuccess in %s/%s %s%s%s Shortened:%s%${STR_LEN}s" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${RUNNING_FILENAME}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")" " "
         FILE="$LE_ORG_FILE"
     fi
 }
@@ -1434,12 +1433,13 @@ loop_pid_time () {
             elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$CUTTING_INDICATOR")"
             else PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
         fi
-        [ "$PROCESS_INTERRUPTED" == "1" ] && break
         printf "\033[${STR_LEN}D%s" "$PRINTOUT"
+        STR_LEN="${#PRINTOUT}"
+        [ "$PROCESS_INTERRUPTED" == "1" ] && break
         if ! kill -s 0 "$2" >/dev/null 2>&1; then break; fi
         sleep 1
-        STR_LEN="${#PRINTOUT}"
     done
+    #STR_LEN=$((STR_LEN + 10))
 }
 
 #***************************************************************************************************************
@@ -1495,7 +1495,6 @@ simply_pack_file () {
     [ "$MASSIVE_SPLIT" == 1 ] && [ "$NO_EXIT_EXTERNAL" == "1" ] && [ "$MASSIVE_COUNTER" -gt "0" ] && printf "%11s" " "
 
     PRINTLINE="$(print_info)$(date +%T) : $(short_name) ${APP_STRING}"
-    PACKLEN="${#PRINTLINE}"
     [ "$RUNTIMES" -gt "1" ] && PRINTLINE=$(printf "%${PACKLEN}s" " ")
 
     [ "$EXIT_REPEAT" == "2" ] && PRINTLINE+=" retrying"
@@ -1520,7 +1519,7 @@ simply_pack_file () {
     if [ "$AUDIO_PACK" == "1" ]; then
         PRINTLINE+=$(printf " duration:%-6.6s " "$(calculate_time_given "$((ORIGINAL_DURATION / 1000))")")
     elif [ "$MASSIVE_SPLIT" == 1 ]; then
-        PRINTLINE+=$(printf "splitting to %-6.6s (mode:$WORKMODE) " "$(calculate_time_given "$CUTTING_TIME")")
+        PRINTLINE+=$(printf "splitting to %-6.6s (mode:$WORKMODE) " "$(calculate_time_given "$CUTTING_INDICATOR")")
         MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then
         PRINTLINE+=$(printf "%-6.6s (mode:$WORKMODE) " "$(calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))")
@@ -1920,11 +1919,8 @@ check_file_conversion () {
             #ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
-            if [ "$MASSIVE_SPLIT" == 1 ]; then
-                printf "%sSuccess in %s%s " "$CG" "$(calculate_duration)" "$CO"
-            else
-                printf "%sSaved %8s in %s%s " "$CG" "$(lib size $ENDSIZE)" "$(lib t F "$process_start_time")" "$CO"
-            fi
+            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess in %s%${STR_LEN}s%s" "$CG" "$(calculate_duration)" " " "$CO"
+            else printf "%sSaved %8s in %s%s%${STR_LEN}s" "$CG" "$(lib size $ENDSIZE)" "$(lib t F "$process_start_time")" "$CO"; fi
             handle_file_rename 1 5
         else
             check_alternative_conversion
@@ -2247,9 +2243,8 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
-            [ "$PACKLEN" -lt "59" ] && PACKLEN=59
-            printf "%${PACKLEN}s%s Total:%s saved:%s" " " "$CY" "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")"
-            [ "$DURATION_CUT" -gt "0" ] && printf " saved time:%s" "$(date -d@${DURATION_CUT} -u +%T)"
+            printf "\n%s%${PACKLEN}s Total:%s saved:%s" "$CY" " " "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")"
+            #[ "$DURATION_CUT" -gt "0" ] && printf " saved time:%s" "$(date -d@$((DURATION_CUT / 1000)) -u +%T)"
             printf "%s\n" "$CO"
         elif [ "$ERROR" == "0" ]; then
             printf "\n"
