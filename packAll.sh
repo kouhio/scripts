@@ -76,6 +76,7 @@ PACK_RUN=()                     # packing variables
 CUT_RUN=()                      # Cutting variables
 SUB_RUN=()                      # subtitle handling options
 CROP_RUN=()                     # cropping handling options
+MASS_RUN=()                     # massive split and/or combo handlers
 
 SPLITTING_ERROR=0               # Is set when splitting fails
 CMD_PRINT=""                    # If set, will print out commandline options
@@ -95,6 +96,7 @@ PRINTLINE=""                    # Status output string handler
 PACKLEN=59                      # Length of packloop base printout
 
 PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocking run
+COMBOFILE="packcombofile.txt"   # Target combination filename
 CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
 
@@ -638,6 +640,7 @@ new_massive_file_split () {
             fi
 
             MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
+            RUNTIMES=$((RUNTIMES + 1))
         done
 
         massive_filecheck
@@ -676,15 +679,12 @@ make_or_remove_split_files() {
         make_running_name
 
         if [ -z "$1" ]; then
-            [ ! -f "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" ] && break
-            delete_file "${TARGET_DIR}/temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" "4"
+            [ ! -f "${TARGET_DIR}/${RUNNING_FILENAME}" ] && break
+            delete_file "${TARGET_DIR}/${RUNNING_FILENAME}" "4"
         else
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-
-            move_file "${TARGET_DIR}/$RUNNING_FILENAME" "${TARGET_DIR}" "temp_${RUNNING_FILE_NUMBER}$CONV_TYPE" "3"
-
-            if [ "$TARGET_DIR" == "." ]; then printf "file 'temp_%s%s'\n" "${RUNNING_FILE_NUMBER}" "$CONV_TYPE" >> "packcombofile.txt"
-            else                              printf "file 'temp_%s%s'\n" "${RUNNING_FILE_NUMBER}" "$CONV_TYPE" >> "${TARGET_DIR}/packcombofile.txt"; fi
+            if [ "$TARGET_DIR" == "." ]; then printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${COMBOFILE}"
+            else                              printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${TARGET_DIR}/${COMBOFILE}"; fi
         fi
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
@@ -719,7 +719,7 @@ combine_split_files() {
 
     if [ "$SPLITTING_ERROR" != "0" ]; then
         printf "Failed to separate all asked parts, not combining (err:%s)\n" "$SPLITTING_ERROR"
-        delete_file "${TARGET_DIR}/packcombofile.txt" "6"
+        delete_file "${TARGET_DIR}/${COMBOFILE}" "6"
         delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "7"
         [ "$EXIT_VALUE" == "1" ] && exit 1
         return 0
@@ -731,11 +731,11 @@ combine_split_files() {
 
     ERROR=0
     printf "\n%${PACKLEN}s Combining %s split files " " " "$COMBINE_RUN_COUNT"
-    $APP_NAME -f concat -i "packcombofile.txt" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
+    $APP_NAME -f concat -i "${COMBOFILE}" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
     ERROR=$?
 
     cd "$CURRDIR" || return
-    delete_file "${TARGET_DIR}/packcombofile.txt" "8"
+    delete_file "${TARGET_DIR}/${COMBOFILE}" "8"
 
     if [ "$ERROR" -eq "0" ]; then
         LE_ORG_FILE="$FILE"
@@ -778,7 +778,7 @@ combineFiles () {
     DELETESOURCEFILES=0
 
     for file in "${COMBINELIST[@]}"; do
-        [ -f "$file" ] && printf "file '%s'\n" "$file" >> "packcombofile.txt" && FILESCOUNT=$((FILESCOUNT + 1))
+        [ -f "$file" ] && printf "file '%s'\n" "$file" >> "${COMBOFILE}" && FILESCOUNT=$((FILESCOUNT + 1))
         [ "$file" == "delete" ] && DELETESOURCEFILES=1
         [ "$FILESCOUNT" -gt "0" ] && [ -z "$NEWNAME" ] && NEWNAME="$file"
     done
@@ -788,10 +788,10 @@ combineFiles () {
 
         printf "Combining %s files " "$FILESCOUNT"
         ERROR=0
-        $APP_NAME -f concat -safe 0 -i "packcombofile.txt" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
+        $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
         ERROR=$?
 
-        delete_file "packcombofile.txt" "10"
+        delete_file "${COMBOFILE}" "10"
 
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
@@ -810,7 +810,7 @@ combineFiles () {
             exit 1
         fi
     else
-        [ -f "packcombofile.txt" ] && delete_file "packcombofile.txt" "12"
+        [ -f "${COMBOFILE}" ] && delete_file "${COMBOFILE}" "12"
         printf "%sNo input files given to combine! Filecount:%s%s\n" "$CR" "$FILESCOUNT" "$CO"
         exit 1
     fi
@@ -1060,12 +1060,12 @@ parse_values () {
             CONV_CHECK="$VALUE"
         elif [ "$HANDLER" == "Combine" ] || [ "$HANDLER" == "C" ]; then
             CUTTING=$((CUTTING + 1))
-            [ -n "$2" ] && CUT_RUN+=("$1") && return
+            [ -n "$2" ] && MASS_RUN+=("$1") && return
             SPLIT_AND_COMBINE=1
             new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "cut" ] || [ "$HANDLER" == "c" ]; then
             CUTTING=$((CUTTING + 1))
-            [ -n "$2" ] && CUT_RUN+=("$1") && return
+            [ -n "$2" ] && MASS_RUN+=("$1") && return
             MASS_SPLIT=1
             new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "print" ] || [ "$HANDLER" == "p" ]; then
@@ -1697,6 +1697,8 @@ make_running_name () {
 
     if [ "$RUNNING_FILE_NUMBER" -lt "10" ]; then RUNNING_FILENAME+="_0$RUNNING_FILE_NUMBER$CONV_TYPE"
     else                                         RUNNING_FILENAME+="_$RUNNING_FILE_NUMBER$CONV_TYPE"; fi
+
+    if [ "$SPLIT_AND_COMBINE" == "1" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
 }
 
 #***************************************************************************************************************
@@ -1724,6 +1726,9 @@ move_to_a_running_file () {
     if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "10"
         DELIM_ITEM=$((DELIM_ITEM + 1))
+    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then
+        make_new_running_name
+        move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "16"
     else
         make_new_running_name
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "11"
@@ -2047,8 +2052,12 @@ pack_file () {
         elif [ "$PRINT_ALL" == 1 ]; then
             printf "%s%s%s cannot be packed %s <= %s%s\n" "$(print_info)" "$CY" "$FILE" "$X" "$WIDTH" "$CO"
             RETVAL=14
-        else
+        elif [ "$FILECOUNT" -gt "1" ]; then
             printf "%s%s%11s%s already at desired size wanted:%s current:%s%s" "$(print_info)" "$CY" " " "$FILE" "${WIDTH}" "${X}" "$CO"
+        elif [ "$RUNTIMES" -gt "1" ]; then
+            printf "%${PACKLEN}s %s%s already at desired size wanted:%s current:%s%s" " " "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
+        else
+            printf "%s%52s%s%s already at desired size wanted:%s current:%s%s" "$(date +%T)" " " "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
         fi
     elif [ "$PRINT_ALL" == 1 ]; then
         printf "%s%s width:%s skipping\n" "$(print_info)" "$FILE" "$X"
@@ -2227,12 +2236,21 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             [ "$ERROR" == "0" ] && handle_filesize_change
         fi
 
-        if [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
+        if [ "${#MASS_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
+            [ "$RUNTIMES" -gt "0" ] && printf "\n"
+            RUNTIMES=$((RUNTIMES + 1))
+            for mass in "${MASS_RUN[@]}"; do
+                [ "$RUNTIMES" -gt "1" ] && printf "\n"
+                reset_handlers
+                for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
+                parse_data "$mass"
+            done
+        elif [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
             [ "$RUNTIMES" -gt "0" ] && printf "\n"
             RUNTIMES=$((RUNTIMES + 1))
             reset_handlers
             for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
-            if [ "${SPLIT_AND_COMBINE}" == "0" ] && [ "${MASS_SPLIT}" == "0" ] && [ "$ERROR" == "0" ]; then handle_cuttings; fi
+            handle_cuttings
         fi
 
         if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then
