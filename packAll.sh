@@ -1061,7 +1061,7 @@ parse_file () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     if [ -n "$1" ]; then
-        CONTINUE_PROCESS=1; FILE_STR="$1"J filename="${FILE_STR%.*}"
+        CONTINUE_PROCESS=1; FILE_STR="$1"; filename="${FILE_STR%.*}"
 
         if [ ! -f "$FILE_STR" ] && [ -f "${filename}.mp4" ]; then FILE_STR="${filename}.mp4"; fi
 
@@ -2110,7 +2110,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     if [ "$CURRENTFILECOUNTER" -gt "1" ]; then print_total
     else GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE)); fi
 else
-    printf "%sNo file(s) found!%s\n" "$CR" "$CO"
+    printf "%sNo file(s) found (first step)!%s\n" "$CR" "$CO"
     ERROR=8
     RETVAL=16
 fi
