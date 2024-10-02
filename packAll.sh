@@ -2113,7 +2113,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
-            printf "%s%${PACKLEN}s Total:%s saved size:%s time:%s%s\n" "$CY" " " "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")" ""$(calculate_time_given "$TIMESAVED")"" "$CO"
+            printf "%s%${PACKLEN}s Total:%s saved size:%s time:%s%s\n" "$CY" " " "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")" "$(calculate_time_given "$TIMESAVED")" "$CO"
         fi
 
         [ "$ERROR" == "0" ] && SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
