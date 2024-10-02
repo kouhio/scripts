@@ -150,6 +150,8 @@ CG=$(tput setaf 2)
 CY=$(tput setaf 3)
 CP=$(tput setaf 5)
 CO=$(tput sgr0)
+TL=$(tput cols)
+TL=$((TL - 1))
 
 #***************************************************************************************************************
 # Change printout type to corrent
@@ -182,10 +184,7 @@ print_total () {
         TIMESAVED=$(date -d@${TIMESAVED} -u +%T)
         printf "Total in %s files, Size:%s Length:%s\n" "$CURRENTFILECOUNTER" "$(check_valuetype "$TOTALSAVE")" "$TIMESAVED"
     else
-        if [ "$TIMESAVED" -gt "0" ]; then
-            if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then TIMESAVED=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-            else                                      TIMESAVED=$((TIMESAVED  / 1000)); fi
-        fi
+        update_saved_time
 
         if [ "$COPY_ONLY" == 0 ] || [ "$TIMESAVED" -gt "0" ]; then
              printf "Totally saved %s %s on %s files in %s\n" "$(check_valuetype "$TOTALSAVE")" "$(calculate_time_given "$TIMESAVED")" "$SUCCESFULFILECNT" "$(calculate_time_taken)"
@@ -347,7 +346,7 @@ check_and_crop () {
                         run_pack_app
                         check_file_conversion
                     else
-                        printf "%s%s%sCropping to %sx%s (%s %s) makes video too small! Skipping!$CO\n" "$CY" "$FILE" "$CR" "${CA[0]}" "${CA[1]}" "${CA[2]}" "${CA[3]}"
+                        printf "%s%s%sCropping to %sx%s (%s %s) makes video too small! Skipping!%s\n" "$CY" "$FILE" "$CR" "${CA[0]}" "${CA[1]}" "${CA[2]}" "${CA[3]}" "$CO"
                     fi
                 fi
             fi
@@ -489,10 +488,8 @@ massive_filecheck () {
             [ "$ERROR_WHILE_SPLITTING" == "0" ] && delete_file "$FILE" "3"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-            printf "%sSaved %-6.6s and %s with splitting%s" "$CY" "$(check_valuetype "$OSZ")" "$(calculate_time_given "$FINAL_TIMESAVE")" "$CO"
+            printf "%sSaved %-6.6s and %s with splitting%s\n" "$CY" "$(check_valuetype "$OSZ")" "$(calculate_time_given "$FINAL_TIMESAVE")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
-        else
-            printf "%sFinished%s%${STR_LEN}s" "$CY" "$CO" " "
         fi
 
     else
@@ -513,7 +510,6 @@ set_beg_end () {
     BEGTIME="$(calculate_time "${1}")"
     verify_time_position "$3" "$BEGTIME" "Beginning massive time"
     [ "$ERROR" != "0" ] && return
-
     ENDTIME=$(calculate_time "${2}")
     verify_time_position "$3" "$ENDTIME" "Ending massive time"
 
@@ -571,15 +567,15 @@ new_massive_file_split () {
         MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=0
 
         for index in "${!array[@]}"; do
-            [ "$index" -ne "0" ] && printf "\n"
-            if [ "${array[0]}" == "D" ]; then KEEPORG=0; DELETE_SET=1; break; fi
+            #[ "$index" -ne "0" ] && printf "\n"
+            if [[ "${array[index]}" == *"D"* ]]; then KEEPORG=0; DELETE_SET=1; break; fi
 
             if [ "$SPLIT_P2P" -gt "0" ]; then
                 mapfile -t -d '-' array2 < <(printf "%s" "${array[index]}")
 
                 set_beg_end "${array2[0]}" "${array2[1]}" "$ORG_LEN"
                 [ "$ERROR" != "0" ] && ERROR_WHILE_SPLITTING=3 && break
-                [ "$ENDTIME" != "0" ] && ENDTIME=$((LEN - CALCTIME))
+                [ "$ENDTIME" != "0" ] && ENDTIME=$((LEN - ENDTIME))
 
                 pack_file
                 MASSIVE_TIME_CHECK=$((MASSIVE_TIME_CHECK + (ENDTIME - BEGTIME)))
@@ -732,10 +728,10 @@ combine_split_files() {
     fi
 
     if [ -n "$NEWNAME" ]; then
-        printf "%sSuccess in %s/%s %s%s%s%s Shortened:%s%${STR_LEN}s" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")" " "
+        printf "%sSuccess in %s/%s %s%s%s%s Shortened:%s\n" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")"
         FILE="${NEWNAME}${CONV_TYPE}"
     else
-        printf "%sSuccess in %s/%s %s%s%s Shortened:%s%${STR_LEN}s" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${RUNNING_FILENAME}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")" " "
+        printf "%sSuccess in %s/%s %s%s%s Shortened:%s\n" "$CG" "$(calculate_duration)" "$(calculate_time_taken)" "$CY" "${RUNNING_FILENAME}" "$CO" "$(calculate_time_given "$TIME_SHORTENED")"
         FILE="$LE_ORG_FILE"
     fi
 }
@@ -852,7 +848,7 @@ calculate_time () {
     #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     re='^[0-9:.]+$'
-    [[ ! "$1" =~ $re ]] && ERROR=11 && printf "%s%s -> not correct: %s%s\n" "$CR" "${FUNCNAME[0]}" "$1" "$CO" && return
+    [[ ! "$1" =~ $re ]] && ERROR=11 && printf "0" && return #printf "%s%s -> not correct: '%s'%s\n" "$CR" "${FUNCNAME[0]}" "$1" "$CO" && return
     ERROR=0; CALCTIME=0; ADDTIME=0
 
     if [ -n "$1" ]; then
@@ -939,6 +935,7 @@ parse_handlers () {
         elif [ "$1" == "print" ] || [ "$1" == "p" ]; then
             PRINT_INFO=1
         elif [ "$1" == "hevc" ] || [ "$1" == "h" ]; then
+            if ! hash avconc 2>/dev/null; then printf "avconv not found!\n"; exit 1; fi
             APP_NAME="/usr/bin/avconv"; APP_STRING="avconv"; HEVC_CONV=0
         elif [ "$1" == "D" ]; then
             DEBUG_PRINT=1
@@ -1156,15 +1153,39 @@ print_file_info () {
 }
 
 #***************************************************************************************************************
+# Update the time saved by splitting
+#***************************************************************************************************************
+update_saved_time () {
+    if [ "$TIMESAVED" -gt "0" ]; then
+        if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then TIMESAVED=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
+        else                                      TIMESAVED=$((TIMESAVED  / 1000)); fi
+    fi
+}
+
+#***************************************************************************************************************
 # Print multiple file handling information
 #***************************************************************************************************************
 print_info () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    if [ "$FILECOUNT" -gt 1 ]; then
+    if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
+        STROUT_P="${#MAX_ITEMS}"
+        printf "%0${STROUT_P}d/%0${STROUT_P}d :: " "$COUNTED_ITEMS" "$MAX_ITEMS"
+    elif [ "$FILECOUNT" -gt 1 ]; then
         STROUT_P="${#FILECOUNT}"
         printf "%0${STROUT_P}d/%0${STROUT_P}d :: " "$CURRENTFILECOUNTER" "$FILECOUNT"
     fi
+}
+
+#***************************************************************************************************************
+# Update possible printlen if more than one file in printout
+#***************************************************************************************************************
+update_printlen () {
+    STROUT_P=0
+    if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then STROUT_P="${#MAX_ITEMS}"
+    elif [ "$FILECOUNT" -gt 1 ]; then STROUT_P="${#FILECOUNT}"; fi
+
+    if [ "${STROUT_P}" -gt "0" ]; then PACKLEN="$((PACKLEN + 5 + (2 * STROUT_P)))"; fi
 }
 
 #***************************************************************************************************************
@@ -1317,6 +1338,8 @@ loop_pid_time () {
             if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT+="file:${PRINT_ITEM}/${FILEDURATION}"
             elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$CUTTING_INDICATOR")"
             else PRINTOUT+="file:${PRINT_ITEM}/$(calculate_time_given "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
+        elif [ "$MASSIVE_SPLIT" -gt "0" ] || [ "$CUTTING_TIME" -gt "0" ]; then
+            PRINTOUT+="seeking position"
         fi
         printf "\033[${STR_LEN}D%s" "$PRINTOUT"
         STR_LEN="${#PRINTOUT}"
@@ -1357,8 +1380,9 @@ check_output_errors () {
 #***************************************************************************************************************
 verify_time_position () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    if [ -z "$1" ] || [ -z "$2" ] || [ "$1" == "D" ] || [ "$2" == "D" ]; then return; fi
 
-    if [ "$2" -ge "$1" ]; then
+    if [ "$2" -gt "$1" ]; then
         printf "%s%s %ss exceeds the file time %ss%s\n" "$CR" "${3}" "${2}" "${1}" "$CO"
         ERROR=13; RETVAL=7
     fi
@@ -1399,12 +1423,12 @@ simply_pack_file () {
     ORIGINAL_DURATION=$(get_file_duration "$FILE" "1")
     ORG_DUR=$((ORIGINAL_DURATION / 1000))
 
-    if [ "$MASSIVE_SPLIT" == 1 ]; then                         PRINTLINE+=$(printf "splitting to %-6.6s (mode:$WORKNAME) " "$(calculate_time_given "$CUTTING_INDICATOR")")
-    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf " duration:%-6.6s " "$(calculate_time_given "$((ORIGINAL_DURATION / 1000))")")
+    if [ "$MASSIVE_SPLIT" == 1 ]; then                         PRINTLINE+=$(printf "to %-6.6s (mode:$WORKNAME) " "$(calculate_time_given "$CUTTING_INDICATOR")")
+    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf "duration:%-6.6s " "$(calculate_time_given "$((ORIGINAL_DURATION / 1000))")")
     elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then PRINTLINE+=$(printf "%-6.6s (mode:$WORKNAME) " "$(calculate_time_given $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))")
     elif [ "$CUTTING_TIME" -gt 0 ]; then                       PRINTLINE+=$(printf "shortened by %-6.6s (mode:$WORKNAME) " "$(calculate_time_given "$CUTTING_TIME")"); fi
-
     [ -n "$LANGUAGE_SELECTED" ] && PRINTLINE+="$LANGUAGE_SELECTED "
+
     [ "$MASSIVE_SPLIT" == 1 ] && MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
 
     if [ "$CUTTING_TIME" -gt 0 ]; then
@@ -1436,8 +1460,9 @@ run_pack_app () {
     PIDOF=$!
     loop_pid_time "$process_start_time" "$PIDOF"
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
+    printf "\r%${TL}s" " "
+    printf "\r%s" "$PRINTLINE"
     check_output_errors
-    printf "\r%s %${STR_LEN}s\r%s" "$PRINTLINE" " " "$PRINTLINE"
 }
 
 #***************************************************************************************************************
@@ -1522,9 +1547,9 @@ burn_subs () {
                         move_file "${FILE}${CONV_TYPE}" "${TARGET_DIR}" "${filename}${CONV_TYPE}" "9"
                         FILE="${filename}${CONV_TYPE}"
                     fi
-                    printf "%ssaved %s in %s%s" "$CG" "$(check_valuetype "${NEWSIZE}")" "$(calculate_time_taken)" "$CO"
+                    printf "%ssaved %s in %s%s\n" "$CG" "$(check_valuetype "${NEWSIZE}")" "$(calculate_time_taken)" "$CO"
                 else
-                    printf "%sFailed (%s) in %s%s" "$CR" "$ERROR" "$(calculate_time_taken)" "$CO"
+                    printf "%sFailed (%s) in %s%s\n" "$CR" "$ERROR" "$(calculate_time_taken)" "$CO"
                     delete_file "${FILE}${CONV_TYPE}" "19"
                     RETVAL=8
                 fi
@@ -1772,8 +1797,8 @@ check_file_conversion () {
             #ENDSIZE=$((ENDSIZE / 1000))
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
-            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess in %s%${STR_LEN}s%s" "$CG" "$(calculate_duration)" " " "$CO"
-            else printf "%sSaved %8s in %s%s%${STR_LEN}s" "$CG" "$(lib size $ENDSIZE)" "$(lib t F "$process_start_time")" "$CO"; fi
+            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess in %s%s\n" "$CG" "$(calculate_duration)" "$CO"
+            else printf "%sSaved %8s in %s%s\n" "$CG" "$(lib size $ENDSIZE)" "$(lib t F "$process_start_time")" "$CO"; fi
             handle_file_rename 1 5
         else
             check_alternative_conversion
@@ -1893,11 +1918,11 @@ pack_file () {
             printf "%s%s%s cannot be packed %s <= %s%s\n" "$(print_info)" "$CY" "$FILE" "$X" "$WIDTH" "$CO"
             RETVAL=14
         elif [ "$FILECOUNT" -gt "1" ]; then
-            printf "%s%s%11s%s already at desired size wanted:%s current:%s%s" "$(print_info)" "$CY" " " "$FILE" "${WIDTH}" "${X}" "$CO"
+            printf "%s%s%s already at desired size wanted:%s current:%s%s\n" "$(print_info)" "$CY" "$FILE" "${WIDTH}" "${X}" "$CO"
         elif [ "$RUNTIMES" -gt "1" ]; then
-            printf "%${PACKLEN}s %s%s already at desired size wanted:%s current:%s%s" " " "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
+            printf "%s%s already at desired size wanted:%s current:%s%s\n" "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
         else
-            printf "%s%52s%s%s already at desired size wanted:%s current:%s%s" "$(date +%T)" " " "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
+            printf "%s%s%s already at desired size wanted:%s current:%s%s\n" "$(date +%T)" "$FILE" "$CY" "${WIDTH}" "${X}" "$CO"
         fi
     elif [ "$PRINT_ALL" == 1 ]; then
         printf "%s%s width:%s skipping\n" "$(print_info)" "$FILE" "$X"
@@ -1961,23 +1986,14 @@ calculate_time_given () {
 verify_necessary_programs() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    ff_missing=0; av_missing=0; mi_missing=0; ren_missing=0
+    missing=()
+    hash ffmpeg 2>/dev/null || missing+=("ffmpeg") 
+    hash mediainfo 2>/dev/null || missing+=("mediainfo")
+    hash rename 2>/dev/null || missing+=("rename")
 
-    hash ffmpeg 2>/dev/null || ff_missing=$?
-    hash avconv 2>/dev/null || av_missing=$?
-    hash mediainfo 2>/dev/null || mi_missing=$?
-    hash rename 2>/dev/null || ren_missing=$?
-
-    error_code=$((ff_missing + mi_missing + ren_missing))
-    [ "$av_missing" -ne 0 ] && HEVC_CONV=1
-
-    if [ "$error_code" -ne 0 ]; then
+    if [ "${#missing[@]}" -gt 0 ]; then
         printf "Missing necessary programs: "
-        [ "$ff_missing" -ne 0 ] && printf "ffmpeg "
-        [ "$av_missing" -ne 0 ] && printf "avconv "
-        [ "$mi_missing" -ne 0 ] && printf "mediainfo "
-        [ "$ren_missing" -ne 0 ] && printf "rename "
-        printf "\n"
+        for miss in "${missing[@]}"; do printf "%s " "$miss"; done; printf "\n"
         EXIT_EXT_VAL=1
         exit 1
     fi
@@ -1988,7 +2004,6 @@ verify_necessary_programs() {
 #***************************************************************************************************************
 refresh_base () {
     reset_handlers
-    [ "$RUNTIMES" -gt "0" ] && printf "\n"
     RUNTIMES=$((RUNTIMES + 1))
 }
 
@@ -2017,6 +2032,7 @@ for var in "$@"; do
         CHECKRUN=$((CHECKRUN + 1))
     fi
 done
+update_printlen
 
 if [ "$ERROR" != "0" ]; then
     printf "Something went (%s) wrong with calculation (or something else)!\n" "$file"
@@ -2096,10 +2112,8 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
-            printf "\n%s%${PACKLEN}s Total:%s saved:%s" "$CY" " " "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")"
-            printf "%s\n" "$CO"
-        elif [ "$ERROR" == "0" ]; then
-            printf "\n"
+            update_saved_time
+            printf "%s%${PACKLEN}s Total:%s saved size:%s time:%s%s\n" "$CY" " " "$(calculate_time_taken "loop")" "$(check_valuetype "$LOOPSAVE")" ""$(calculate_time_given "$TIMESAVED")"" "$CO"
         fi
 
         [ "$ERROR" == "0" ] && SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))

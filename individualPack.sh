@@ -47,7 +47,7 @@ printSavedData () {
     printToFile "SET=\$(date +%s)" "$1"
     printToFile "STT=\$((SET - STT))" "$1"
 
-    printToFile "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER\" in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)" "$1"
+    printToFile "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)\"" "$1"
     echo "" >> $FILE
 }
 
@@ -358,26 +358,26 @@ printBaseData() {
     printToFile "export EXTERNAL_CALL=1"
     printToFile "export ERROR=0"
     printToFile "export PROCESS_INTERRUPTED=0"
-    printToFile "COUNTED_ITEMS=0"
+    printToFile "export COUNTED_ITEMS=0"
     printToFile "ERROR_CNT=0"
     printToFile "STT=\$(date +%s)"
 
     printToFile ""
     printToFile "PACK () {"
+    printToFile "  PLEN=\"\${#MAX_ITEMS}\""
     printToFile "  INPUTFILE=\"\$1\""
     printToFile "  shift 1"
     printToFile "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
     printToFile "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
     printToFile "    [ ! -f \"\$1\" ] && return 0"
-    printToFile "    printf \"%03d/%03d :: Removing \$1\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printToFile "    printf \"%0\${PLEN}d/%0\${PLEN}d :: Removing %s\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\" \"\$1\""
     printToFile "    rm \"\$1\""
     printToFile "  elif [ \"\$INPUTFILE\" == \"mv\" ]; then"
     printToFile "    [ ! -f \"\$1\" ] && return 0"
     printToFile "    CLEARNAME=\$(echo \"\$1\" | tr -dc '[:alnum:]\n\r' | tr '[:upper:]' '[:lower:]')"
-    printToFile "    printf \"%03d/%03d :: Renaming '\$1' to '\$CLEARNAME'\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
+    printToFile "    printf \"%0\${PLEN}d/%0\${PLEN}d :: Renaming '%s' to '\$CLEARNAME'\\n\" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\" \"\$1\""
     printToFile "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
     printToFile "  elif [ -f \"\$INPUTFILE\" ]; then"
-    printToFile "    printf \"%03d/%03d :: \" \"\${COUNTED_ITEMS}\" \"\${MAX_ITEMS}\""
     printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
     printToFile "    if [ \$ERROR -ne 0 ]; then ERROR_CNT=\$((ERROR_CNT + 1)); fi"
     printToFile "  fi"
@@ -484,7 +484,7 @@ updateFileCount() {
         fi
 
         if [[ $line =~ "#BEGIN" ]]; then
-            echo "MAX_ITEMS=$TOTAL_FILES" >> $TMPFILE
+            echo "export MAX_ITEMS=$TOTAL_FILES" >> $TMPFILE
         fi
 
         echo "$line" >> $TMPFILE
