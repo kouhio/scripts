@@ -466,12 +466,15 @@ printEndData() {
 # Rename characters that arent't supported by playlist
 ##########################################################
 renameBadChars() {
-    rename "s/'//g" ./*
-    rename "s/’//g" ./*
-    rename "s/%//g" ./*
-    rename "s/@//g" ./*
-    rename "s/–//g" ./*
-    rename "s/-//g" ./*
+    for f in *"${EXT}"* ; do
+        [ -d "$f" ] && continue
+        rename "s/'//g" "./$f"
+        rename "s/’//g" "./$f"
+        rename "s/%//g" "./$f"
+        rename "s/@//g" "./$f"
+        rename "s/–//g" "./$f"
+        rename "s/-//g" "./$f"
+    done
 }
 
 ##########################################################

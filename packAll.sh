@@ -699,8 +699,8 @@ combine_split_files() {
 
     ERROR=0
     printf "%s Combining %s split files " "$(print_info)" "$COMBINE_RUN_COUNT"
-    $APP_NAME -f concat -i "${COMBOFILE}" -c copy "tmp_combo$CONV_TYPE"  -v quiet >/dev/null 2>&1
-    ERROR=$?
+    $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "tmp_combo$CONV_TYPE" -v info 2>$PACKFILE || ERROR=$?
+    check_output_errors
 
     cd "$CURRDIR" || return
     delete_file "${TARGET_DIR}/${COMBOFILE}" "8"
@@ -755,8 +755,8 @@ combineFiles () {
 
         printf "Combining %s files " "$FILESCOUNT"
         ERROR=0
-        $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v quiet >/dev/null 2>&1
-        ERROR=$?
+        $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v info 2>$PACKFILE || ERROR=$?
+        check_output_errors
 
         delete_file "${COMBOFILE}" "10"
 
@@ -813,8 +813,8 @@ mergeFiles () {
         printf "%s %s %s files " "$(date -u +%T)" "$TYPE" "$FILESCOUNT"
         ERROR=0
         [ "$BUGME" -eq "1" ] && printf "\n    %s%s \"%s\" %s \"%s/%s%s\"%s\n" "$CP" "$APP_STRING" "${COMMANDSTRING[*]}" "${SETUPSTRING[*]}" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CO"
-        $APP_NAME "${COMMANDSTRING[@]}" "${SETUPSTRING[@]}" "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" >/dev/null 2>&1
-        ERROR=$?
+        $APP_NAME "${COMMANDSTRING[@]}" "${SETUPSTRING[@]}" "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" -v info 2>$PACKFILE || ERROR=$?
+        check_output_errors
 
         if [ "$ERROR" -eq "0" ]; then
             if [ "$DELETESOURCEFILES" == "1" ]; then
@@ -1390,7 +1390,7 @@ verify_time_position () {
     if [ -z "$1" ] || [ -z "$2" ] || [ "$1" == "D" ] || [ "$2" == "D" ]; then return; fi
 
     if [ "$2" -gt "$1" ]; then
-        printf "%s%s %ss exceeds the file time %ss%s\n" "$CR" "${3}" "${2}" "${1}" "$CO"
+        printf "%s %s%s %ss exceeds the file time %ss%s\n" "$(print_info)" "$CR" "${3}" "${2}" "${1}" "$CO"
         ERROR=13; RETVAL=7
     fi
 }
