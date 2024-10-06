@@ -134,7 +134,6 @@ reset_handlers () {
     TARGET_DIR="."                  # Target directory for successful file
     WIDTH=0                         # Width of the video
     COMMAND_LINE=()                 # command line options to be set up later
-    COMMAND_ADD=()                  # command line options, that will be set up each time
     VAL_HAND=0                      # Splitting timer value handler
     LANGUAGE_SELECTED=""            # If language is selected, this will be used
 }
@@ -1291,7 +1290,7 @@ setup_file_packing () {
 setup_add_packing () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    COMMAND_ADD=(); VIDEOID="-1"; AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
+    VIDEOID="-1"; AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
 
     if [ "$AUDIOSTUFF" -eq "0" ]; then
         if [ -z "$VIDEOTRACK" ]; then
@@ -1303,7 +1302,7 @@ setup_add_packing () {
             AUDIO_OPTIONS=$(mediainfo '--Inform=Audio;%Language%' "$FILE")
 
             if [ -z "$AUDIO_OPTIONS" ]; then
-                [ "$NOMAPPING" == "0" ] && COMMAND_ADD=("-map" "0")
+                [ "$NOMAPPING" == "0" ] && COMMAND_LINE+=("-map" "0")
             else
                 AUDIOID=0; AUDIOFOUND=0
 
@@ -1315,10 +1314,10 @@ setup_add_packing () {
                 done
 
                 if [ "$AUDIOFOUND" -eq "1" ] && [ "$VIDEOID" -ge "0" ] && [ "$AUDIOID" -ge "0" ]; then
-                    COMMAND_ADD+=("-map" "0:v:$VIDEOID" "-map" "0:a:$AUDIOID")
+                    COMMAND_LINE+=("-map" "0:v:$VIDEOID" "-map" "0:a:$AUDIOID")
                     [ "$AUDIOID" -gt "0" ] && LANGUAGE_SELECTED="audio:$LANGUAGE($AUDIOID)"
                 else [ "$AUDIOFOUND" -eq "0" ] && [ "$VIDEOID" -ge "0" ]
-                    COMMAND_ADD+=("-map" "0")
+                    COMMAND_LINE+=("-map" "0")
                 fi
             fi
         fi
@@ -1454,11 +1453,12 @@ run_pack_app () {
 
     process_start_time=$(date +%s); FILEDURATION=$(lib V d "$FILE"); ERROR=0
 
-    [ -n "$CMD_PRINT" ] && printf "\n%s '%s' '%s' %s\n" "$CY" "${COMMAND_LINE[*]}" "${COMMAND_ADD[*]}" "$CO"
-    [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s %s \"%s%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "${COMMAND_LINE[*]}" "${COMMAND_ADD[*]}" "${FILE}" "${CONV_TYPE}" "$CO"
+    [ -n "$CMD_PRINT" ] && printf "\n%s %s %s\n" "$CY" "${COMMAND_LINE[*]}" "$CO"
+    [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s \"%s%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "${COMMAND_LINE[*]}" "${FILE}" "${CONV_TYPE}" "$CO"
 
     printf "%s " "${PRINTLINE}"
-    $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${COMMAND_ADD[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
+
+    $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
     PIDOF=$!
     loop_pid_time "$process_start_time" "$PIDOF"
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
