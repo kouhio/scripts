@@ -146,8 +146,9 @@ reset_handlers () {
 # Define regular colors for printout
 #***************************************************************************************************************
 CR=$(tput setaf 1)  # Red
-CG=$(tput setaf 2)  # Green
-CY=$(tput setaf 3)  # Yellow
+CG=$(tput setaf 10) # Green
+CY=$(tput setaf 11) # Yellow
+CB=$(tput setaf 14) # Blue
 CP=$(tput setaf 5)  # Magenta
 CC=$(tput setaf 6)  # Cyan
 CO=$(tput sgr0)     # Color off
@@ -217,7 +218,8 @@ set_int () {
     [ "${#CHECKLIST[@]}" -gt "1" ] && killall $APP_STRING -s 9
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
-    printf "\n%s%sconversion interrupted %sin %s!%s\n" "$CY" "$(print_info)" "$CC" "$(calc_dur)" "$CO"
+    [ "$RUNTIMES" -eq "1" ] && RUNTIMES=2
+    printf "\n%s%s conversion interrupted %sin %s!%s\n" "$(print_info)" "$CY" "$CC" "$(calc_dur)" "$CO"
     remove_interrupted_files
     remove_broken_split_files
     delete_file "$PACKFILE" "27"
@@ -479,7 +481,7 @@ massive_filecheck () {
     TIME_SHORTENED=$((TIME_SHORTENED / 1000))
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ -n "$MAX_SHORT_TIME" ] && [ "$TIME_SHORTENED" -gt "$MAX_SHORT_TIME" ]; then
-        printf "%sCutting over max-time:%ss > %ss, aborting!%s\n" "$CR" "${TIME_SHORTENED}" "${MAX_SHORT_TIME}" "$CO"
+        printf "%sCutting over max-time:%s > %s, aborting!%s\n" "$CR" "$(lib t f "${TIME_SHORTENED}")" "$(lib t f "${MAX_SHORT_TIME}")" "$CO"
         RETVAL=19
     elif [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
 
@@ -1354,18 +1356,19 @@ loop_pid_time () {
         NOW=$(date +%s)
         DIFFER=$((NOW - $1))
         [ -f "$PACKFILE" ] && line=$(cat $PACKFILE | tail -1)
-        PRINTOUT="$(date -d@${DIFFER} -u +%T) "
+        PRINTOUT_TIME="$(date -d@${DIFFER} -u +%T) "
         if [[ "$line" == *"time="* ]]; then
             PRINT_ITEM="${line##*time=}"
             PRINT_ITEM="${PRINT_ITEM%%.*}"
-            if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT+="file:${PRINT_ITEM}/${FILEDURATION}"
-            elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT+="file:${PRINT_ITEM}/$(calc_giv_time "$CUTTING_INDICATOR")"
-            else PRINTOUT+="file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
+            if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT="file:${PRINT_ITEM}/${FILEDURATION}"
+            elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT="file:${PRINT_ITEM}/$(calc_giv_time "$CUTTING_INDICATOR")"
+            else PRINTOUT="file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
         elif [ "$MASSIVE_SPLIT" -gt "0" ] || [ "$CUTTING_TIME" -gt "0" ]; then
-            PRINTOUT+="seeking position"
+            PRINTOUT="seeking position"
         fi
-        printf "\033[${STR_LEN}D%s" "$PRINTOUT"
-        STR_LEN="${#PRINTOUT}"
+        printf "%s\033[${STR_LEN}D%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CB}" "$PRINTOUT" "$CO"
+        STRL1="${#PRINTOUT_TIME}"; STRL2="${#PRINTOUT}"
+        STR_LEN="$((STRL1 + STRL2))"
         [ "$PROCESS_INTERRUPTED" == "1" ] && break
         if ! kill -s 0 "$2" >/dev/null 2>&1; then break; fi
         sleep 1
@@ -1406,7 +1409,7 @@ verify_time_position () {
     if [ -z "$1" ] || [ -z "$2" ] || [ "$1" == "D" ] || [ "$2" == "D" ]; then return; fi
 
     if [ "$2" -gt "$1" ]; then
-        printf "%s %s%s %ss exceeds the file time %ss%s\n" "$(print_info)" "$CR" "${3}" "${2}" "${1}" "$CO"
+        printf "%s %s%s %s exceeds the file time %s%s\n" "$(print_info)" "$CR" "${3}" "$(lib t f "${2}")" "$(lib t f "${1}")" "$CO"
         ERROR=13; RETVAL=7
     fi
 }
@@ -1739,18 +1742,20 @@ check_alternative_conversion () {
     xNEW_DURATION=$((NEW_DURATION / 1000)); xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000)); xNEW_FILESIZE=$((NEW_FILESIZE / 1000)); xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     PRINT_ERROR_DATA=""
 
-    if [ "$COPY_ONLY" != 0 ]; then
+    if [ "$COPY_ONLY" != 0 ] || [ "$EXT_CURR" == "$CONV_CHECK" ]; then
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1 1
-            printf " %sConverted. %ss and %s %sin %s" "$CG" "$((ORIGINAL_DURATION - NEW_DURATION))" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")" "$CC" "$(calc_dur)"
+            printf " %sShortened. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")" "$CC" "$(calc_dur)"
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
-        else
-            PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"
-        fi
+        elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
+            handle_file_rename 1 7
+            printf " %sResized. Saved %s %sin %s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
+            TIMESAVED=$((TIMESAVED + DURATION_CUT))
+        elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
+        else PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"; fi
+
         NEW_DURATION=0; DURATION_CHECK=0
-    elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-        RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
     elif [ "$IGNORE_UNKNOWN" == "0" ]; then
         RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown"
     else
@@ -2020,7 +2025,7 @@ refresh_base () {
 # The MAIN VOID function
 #***************************************************************************************************************
 if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; exit 1; fi
-if [ -f "$PACKFILE" ]; then printf "Already running another copy, aborting!\n"; exit 1; fi
+if [ -f "$PACKFILE" ]; then printf "Already running another copy, aborting! (found: %s)\n" "$PACKFILE"; exit 1; fi
 reset_handlers
 verify_necessary_programs
 
