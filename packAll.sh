@@ -1746,7 +1746,7 @@ check_alternative_conversion () {
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1 1
-            printf " %sShortened. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")" "$CC" "$(calc_dur)"
+            printf " %sShortened. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
             TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             handle_file_rename 1 7
@@ -1760,7 +1760,7 @@ check_alternative_conversion () {
         RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown"
     else
         handle_file_rename 1 2
-        printf "%sWarning, ignoring unknown error:%s %sin %s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$(((ORIGINAL_SIZE - NEW_FILESIZE)))")"
+        printf "%sWarning, ignoring unknown error:%s %sin %s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
     fi
 
     if [ -n "$PRINT_ERROR_DATA" ]; then
