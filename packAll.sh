@@ -137,6 +137,9 @@ reset_handlers () {
     COMMAND_LINE=()                 # command line options to be set up later
     VAL_HAND=0                      # Splitting timer value handler
     LANGUAGE_SELECTED=""            # If language is selected, this will be used
+    DELETE_AT_END=1                 # Variable to indicate, if file is to be deleted at the end
+    [ "$KEEPORG" == "1" ] && DELETE_AT_END=0
+    FAILED_FUNC=""                  # Indicator of the function, where error happened
 }
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -219,7 +222,7 @@ set_int () {
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
     [ "$RUNTIMES" -eq "1" ] && RUNTIMES=2
-    printf "\n%s%s conversion interrupted %sin %s!%s\n" "$(print_info)" "$CY" "$CC" "$(calc_dur)" "$CO"
+    printf "\n%s%s conversion interrupted %sin %s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
     remove_interrupted_files
     remove_broken_split_files
     delete_file "$PACKFILE" "27"
@@ -518,8 +521,7 @@ set_beg_end () {
 
     if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ]; then
         printf "%sending(%s) smaller than start(%s)%s\n" "$CR" "$ENDTIME" "$BEGTIME" "$CO"
-        ERROR=14
-        RETVAL=24
+        ERROR=14; FAILED_FUNC="${FUNCNAME[0]}"; RETVAL=24
     fi
 }
 
@@ -547,7 +549,7 @@ new_massive_file_split () {
         fi
     fi
 
-    ERROR_WHILE_SPLITTING=0; MASSIVE_TIME_CHECK=0; MASSIVE_SPLIT=1; KEEPORG=1; IGNORE=1
+    ERROR_WHILE_SPLITTING=0; MASSIVE_TIME_CHECK=0; MASSIVE_SPLIT=1; KEEPORG=1; IGNORE=1; DELETE_AT_END=0
 
     if [ -n "$DELIMITER" ]; then
         SN_BEGIN="${FILE%% *}"
@@ -571,7 +573,7 @@ new_massive_file_split () {
 
         # Verify each time point before doing anything else
         for index in "${!array[@]}"; do
-            if [[ "${array[index]}" == *"D"* ]]; then break; fi
+            if [[ "${array[index]}" == *"D"* ]]; then DELETE_AT_END=1; break; fi
             if [ "$SPLIT_P2P" -gt "0" ]; then
                 mapfile -t -d '-' array2 < <(printf "%s" "${array[index]}")
                 set_beg_end "${array2[0]}" "${array2[1]}" "$ORG_LEN"
@@ -631,20 +633,32 @@ new_massive_file_split () {
         massive_filecheck
 
         if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
-            if [ "$RETVAL" -eq "0" ]; then combine_split_files
-            else                           remove_combine_files; fi
+            if [ "$RETVAL" -eq "0" ] && [ "$MASSIVE_COUNTER" -gt "1" ]; then combine_split_files
+            elif [ "$RETVAL" -eq "0" ] && [ "$MASSIVE_COUNTER" == "1" ]; then rename_unique_combo_file
+            else remove_combine_files; fi
+        else
+            [ "$MASSIVE_COUNTER" -eq "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
+            [ "$MASSIVE_COUNTER" -eq "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
         fi
-
-        [ "$MASSIVE_COUNTER" -eq "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
-        [ "$MASSIVE_COUNTER" -eq "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
 
     else
         printf "File '%s' not found, cannot multisplit!\n" "$FILE"
-        ERROR=10
+        ERROR=10; FAILED_FUNC="${FUNCNAME[0]}"
         [ "$EXIT_VALUE" == "1" ] && exit 1
     fi
 
     KEEPORG="$KEEP_ORG"
+    [ "$KEEPORG" == "0" ] && DELETE_AT_END=1
+}
+
+#***************************************************************************************************************
+# If only one file was set to be combined, then just rename the outcome
+#***************************************************************************************************************
+rename_unique_combo_file() {
+    RUNNING_FILE_NUMBER=1
+    make_running_name
+    if [ -n "$NEWNAME" ]; then move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$NEWNAME$CONV_TYPE" "17"
+    else move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$FILE" "18"; fi
 }
 
 #***************************************************************************************************************
@@ -701,7 +715,7 @@ combine_split_files() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     if [ "$SPLITTING_ERROR" != "0" ]; then
-        printf "Failed to separate all asked parts, not combining (err:%s)\n" "$SPLITTING_ERROR"
+        printf "Failed to separate all asked parts, not combining (err:%s func:%s)\n" "$SPLITTING_ERROR" "$FAILED_FUNC"
         delete_file "${TARGET_DIR}/${COMBOFILE}" "6"
         delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "7"
         [ "$EXIT_VALUE" == "1" ] && exit 1
@@ -715,6 +729,7 @@ combine_split_files() {
     ERROR=0
     printf "%s Combining %s split files " "$(print_info)" "$COMBINE_RUN_COUNT"
     $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "tmp_combo$CONV_TYPE" -v info 2>$PACKFILE || ERROR=$?
+    [ "$ERROR" != "0" ] && FAILED_FUNC="${FUNCNAME[0]}"
     check_output_errors
 
     cd "$CURRDIR" || return
@@ -771,6 +786,7 @@ combineFiles () {
         printf "Combining %s files " "$FILESCOUNT"
         ERROR=0
         $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v info 2>$PACKFILE || ERROR=$?
+        [ "$ERROR" != "0" ] && FAILED_FUNC="${FUNCNAME[0]}"
         check_output_errors
 
         delete_file "${COMBOFILE}" "10"
@@ -829,6 +845,7 @@ mergeFiles () {
         ERROR=0
         [ "$BUGME" -eq "1" ] && printf "\n    %s%s \"%s\" %s \"%s/%s%s\"%s\n" "$CP" "$APP_STRING" "${COMMANDSTRING[*]}" "${SETUPSTRING[*]}" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CO"
         $APP_NAME "${COMMANDSTRING[@]}" "${SETUPSTRING[@]}" "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" -v info 2>$PACKFILE || ERROR=$?
+        [ "$ERROR" != "0" ] && FAILED_FUNC="${FUNCNAME[0]}"
         check_output_errors
 
         if [ "$ERROR" -eq "0" ]; then
@@ -863,7 +880,7 @@ calculate_time () {
     #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     re='^[0-9:.]+$'
-    [[ ! "$1" =~ $re ]] && ERROR=11 && printf "0" && return #printf "%s%s -> not correct: '%s'%s\n" "$CR" "${FUNCNAME[0]}" "$1" "$CO" && return
+    [[ ! "$1" =~ $re ]] && ERROR=11 && FAILED_FUNC="${FUNCNAME[0]}" && printf "0" && return #printf "%s%s -> not correct: '%s'%s\n" "$CR" "${FUNCNAME[0]}" "$1" "$CO" && return
     ERROR=0; CALCTIME=0; ADDTIME=0
 
     if [ -n "$1" ]; then
@@ -931,7 +948,7 @@ parse_handlers () {
         elif [ "$1" == "Force" ] || [ "$1" == "F" ]; then
             IGNORE_SPACE_SIZE=1
         elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
-            KEEPORG=1; KEEP_ORG=1
+            KEEPORG=1; KEEP_ORG=1; DELETE_AT_END=0
         elif [ "$1" == "quick" ]; then
             QUICK=1
         elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then
@@ -956,7 +973,7 @@ parse_handlers () {
             DEBUG_PRINT=1
         else
             printf "Unknown handler %s\n" "$1"
-            RETVAL=1; ERROR=6
+            RETVAL=1; ERROR=6; FAILED_FUNC="${FUNCNAME[0]}"
             [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
         fi
     fi
@@ -1028,7 +1045,7 @@ parse_values () {
             WRITEOUT="$VALUE"
         elif [ "$HANDLER" == "n" ] || [ "$HANDLER" == "name" ]; then
             [ -n "$2" ] && CUT_RUN+=("$1") && return
-            NEWNAME="$VALUE"
+            VALUE="${VALUE//\'/}"; NEWNAME="$VALUE"
         elif [ "$HANDLER" == "N" ]; then
             CUTTING=$((CUTTING + 1))
             [ -n "$2" ] && CUT_RUN+=("$1") && return
@@ -1040,7 +1057,7 @@ parse_values () {
             SCRUB=$VALUE
         else
             printf "Unknown value %s\n" "$1"
-            ERROR=7; RETVAL=2
+            ERROR=7; RETVAL=2; FAILED_FUNC="${FUNCNAME[0]}"
             [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
         fi
         check_workmode
@@ -1100,12 +1117,12 @@ handle_packing () {
         elif [ "$1" == "file" ] || [ "$1" == "cut" ]; then
             pack_file
             [ "$1" == "file" ] && filename="${FILE%.*}"; FILE="${filename}${CONV_TYPE}"
-        else printf "%sUnknown handler %s for '%s'%s\n" "$CR" "$1" "$FILE" "$CO"; ERROR=3; RETVAL=3; fi
+        else printf "%sUnknown handler %s for '%s'%s\n" "$CR" "$1" "$FILE" "$CO"; ERROR=3; FAILED_FUNC="${FUNCNAME[0]}"; RETVAL=3; fi
     elif [ -d "$FILE" ]; then
         printf "%s %sSkipping directory%s\n" "$(print_info)" "$CY" "$CO"
     else
         printf "%sFile(s) '%s' not found (handle:%s)! or Error:%s%s\n" "$CR" "$FILE" "$1" "$ERROR" "$CO"
-        RETVAL=4; ERROR=4
+        RETVAL=4; ERROR=4; FAILED_FUNC="${FUNCNAME[0]}"
     fi
 }
 
@@ -1173,7 +1190,7 @@ print_file_info () {
 # Update the time saved by splitting
 #***************************************************************************************************************
 update_saved_time () {
-    if [ "$TIMESAVED" -gt "0" ]; then
+    if [ "$TIMESAVED" -gt "0" ] && [ "$DELETE_AT_END" == "1" ]; then
         if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then TIMESAVED=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
         else                                      TIMESAVED=$((TIMESAVED  / 1000)); fi
     fi
@@ -1239,7 +1256,6 @@ short_name () {
 
 #***************************************************************************************************************
 # Setup file packing variables
-# TODO: add all other variations, like mp3 stripping
 #***************************************************************************************************************
 setup_file_packing () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
@@ -1386,7 +1402,7 @@ check_output_errors () {
 
     if [ -n "$app_err" ]; then
         printf "\n    %s error:%s%s%s %sin %s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$CO" "$(calc_dur)"
-        [ "$ERROR" == "0" ] && ERROR=9
+        [ "$ERROR" == "0" ] && ERROR=9 && FAILED_FUNC="${FUNCNAME[0]}"
 
         if [ "$EXIT_VALUE" == "1" ]; then
             delete_file "$PACKFILE" "15"
@@ -1410,7 +1426,7 @@ verify_time_position () {
 
     if [ "$2" -gt "$1" ]; then
         printf "%s %s%s %s exceeds the file time %s%s\n" "$(print_info)" "$CR" "${3}" "$(lib t f "${2}")" "$(lib t f "${1}")" "$CO"
-        ERROR=13; RETVAL=7
+        ERROR=13; RETVAL=7; FAILED_FUNC="${FUNCNAME[0]}"
     fi
 }
 
@@ -1511,7 +1527,7 @@ get_sub_info () {
     elif [ "$SUBLANG" != "English" ] && [ "$SUBLANG" != "Unknown" ]; then
         printf "\n    Read language is not english? Proceed with '%s' (y/n)?" "$SUBLANG"
         read -rsn1 -t 1 sinput
-        [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1 && ERROR=59
+        [ "$sinput" != "y" ] && printf "Aborting burning\n" && SUBERR=1 && ERROR=59 && FAILED_FUNC="${FUNCNAME[0]}"
     elif [ -z "$3" ]; then 
         PRINTLINE+=$(printf "Language:%s " "$SUBLANG")
         [ -n "$SUBTITLE" ] && PRINTLINE+=$(printf "Title:'%s' " "${SUBTITLE:0:20}")
@@ -1583,7 +1599,7 @@ burn_subs () {
         fi
     else
         printf "%s%s%s not found (subs)!%s\n" "$CR" "$(print_info)" "${1:0:40}" "$CO"
-        ERROR=2
+        ERROR=2; FAILED_FUNC="${FUNCNAME[0]}"
     fi
 
     [ "$EXIT_VALUE" == "1" ] && [ "$ERROR" != "0" ] && exit $ERROR
@@ -1727,7 +1743,7 @@ handle_error_file () {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     #move_file "$FILE" "./Error" "." "1"
-    ERROR=19; printf "%s %sSomething corrupted %sin %s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
+    ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %sin %s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
 
     [ "$EXIT_VALUE" == "1" ] && exit 1
     RETVAL=10
@@ -1747,11 +1763,11 @@ check_alternative_conversion () {
         if [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1 1
             printf " %sShortened. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
-            TIMESAVED=$((TIMESAVED + DURATION_CUT))
+            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             handle_file_rename 1 7
             printf " %sResized. Saved %s %sin %s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
-            TIMESAVED=$((TIMESAVED + DURATION_CUT))
+            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
         else PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"; fi
 
@@ -1770,7 +1786,7 @@ check_alternative_conversion () {
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:%s>%s" "$xNEW_FILESIZE" "$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
         [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:%s (%s)" "$PRINT_ERROR_DATA" "$ERROR"
         printf " %sin %s" "$CC" "$(calc_dur)"
-        TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1)); SPLITTING_ERROR=1; ERROR=91
+        TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1)); SPLITTING_ERROR=1; ERROR=91; FAILED_FUNC="${FUNCNAME[0]}"
         [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
     fi
 
@@ -1812,14 +1828,14 @@ check_file_conversion () {
             handle_file_rename 0 4
             printf "%s FAILED! Target has no Audio!%s\n" "$CR" "$CO"
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
-            SPLITTING_ERROR=2; ERROR=79
+            SPLITTING_ERROR=2; ERROR=79; FAILED_FUNC="${FUNCNAME[0]}"
             [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
         elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             ORIGINAL_SIZE=$ORIGINAL_HOLDER
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
             TOTALSAVE=$((TOTALSAVE + ENDSIZE))
             #ENDSIZE=$((ENDSIZE / 1000))
-            TIMESAVED=$((TIMESAVED + DURATION_CUT))
+            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
             if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess %sin %s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
             else printf "%sSaved %s %sin %s%s\n" "$CG" "$(lib size $ENDSIZE)" "$CC" "$(lib t F "$process_start_time")" "$CO"; fi
@@ -1829,7 +1845,7 @@ check_file_conversion () {
         fi
     else
         if [ "$ERROR" != 13 ]; then
-            printf "%sNo destination file!%s in %s%s\n" "$CR" "$CC" "$(calc_dur)" "$CO"
+            printf "%sNo destination file!%s in %s (func:%s)%s\n" "$CR" "$CC" "$(calc_dur)" "$FAILED_FUNC" "$CO"
             #move_file "$FILE" "./Nodest" "." "2"
         fi
         remove_interrupted_files
@@ -1917,7 +1933,7 @@ pack_file () {
 
     if [ ! -f "$FILE" ]; then
         MISSING=$((MISSING + 1))
-        if [ "$PRINT_ALL" == 1 ]; then ERROR=6; printf "%s %sis not found (pack file)!%s\n" "$(print_info)" "$CR" "$CO"; fi
+        if [ "$PRINT_ALL" == 1 ]; then ERROR=6; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sis not found (pack file)!%s\n" "$(print_info)" "$CR" "$CO"; fi
     elif [ "$AUDIO_PACK" == "1" ]; then
         handle_file_packing
         [ "$EXIT_REPEAT" == "2" ] && handle_file_packing
@@ -2022,6 +2038,17 @@ refresh_base () {
 }
 
 #***************************************************************************************************************
+# Verify that filename doesn't have apostrophe, as that will break the combining-part
+#***************************************************************************************************************
+check_filename_acceptance () {
+    NAMECHANGE="${FILE//\'/}"
+    if [ "$NAMECHANGE" != "$FILE" ]; then
+        move_file "$FILE" "." "$NAMECHANGE" "19"
+        FILE="${NAMECHANGE}"
+    fi
+}
+
+#***************************************************************************************************************
 # The MAIN VOID function
 #***************************************************************************************************************
 if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; exit 1; fi
@@ -2029,17 +2056,13 @@ if [ -f "$PACKFILE" ]; then printf "Already running another copy, aborting! (fou
 reset_handlers
 verify_necessary_programs
 
-[ "$1" == "combine" ] && COMBINEFILE=1
-[ "$1" == "merge" ] && COMBINEFILE=2
-[ "$1" == "append" ] && COMBINEFILE=3
+if [ "$1" == "combine" ]; then COMBINEFILE=1; shift
+elif [ "$1" == "merge" ]; then COMBINEFILE=2; shift
+elif [ "$1" == "append" ]; then COMBINEFILE=3; shift; fi
 
 for var in "$@"; do
-    if [ "$COMBINEFILE" == "1" ]; then
-        [ "$var" != "combine" ] && COMBINELIST+=("$var")
-    elif [ "$COMBINEFILE" == "2" ]; then
-        [ "$var" != "merge" ] && COMBINELIST+=("$var")
-    elif [ "$COMBINEFILE" == "3" ]; then
-        [ "$var" != "append" ] && COMBINELIST+=("$var")
+    if [ "$COMBINEFILE" != "0" ]; then
+        COMBINELIST+=("$var")
     else
         parse_data "$var" "1"
         [ "$ERROR" != "0" ] && break
@@ -2049,12 +2072,8 @@ done
 update_printlen
 
 if [ "$ERROR" != "0" ]; then
-    printf "Something went (%s) wrong with calculation (or something else)!\n" "$file"
+    printf "Something went (%s) wrong with calculation (or something else)! Error:%s in :%s\n" "$file" "$ERROR" "$FAILED_FUNC"
     RETVAL="$ERROR"
-
-elif [ "$CHECKRUN" == "0" ]; then
-    print_help
-    RETVAL=15
 
 elif [ "$COMBINEFILE" == "1" ]; then
     combineFiles
@@ -2065,16 +2084,17 @@ elif [ "$COMBINEFILE" == "2" ]; then
 elif [ "$COMBINEFILE" == "3" ]; then
     mergeFiles "append"
 
+elif [ "$CHECKRUN" == "0" ]; then
+    print_help
+    RETVAL=15
+
 elif [ "$CONTINUE_PROCESS" == "1" ]; then
     shopt -s nocaseglob
     if [ "$PRINT_INFO" -gt "0" ]; then for var in "${PACK_RUN[@]}"; do parse_data "$var"; done; fi
 
     for FILE in *"$FILE_STR"*; do
-        loop_start_time=$(date +%s)
-        RUNTIMES=0
-        DURATION_CUT=0
-        ERROR=0
-        CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
+        check_filename_acceptance
+        loop_start_time=$(date +%s); RUNTIMES=0; DURATION_CUT=0; ERROR=0; CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
 
         if [ "$PRINT_INFO" -gt "0" ]; then
             print_file_info
@@ -2124,14 +2144,15 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             handle_packing "file"
         fi
 
-        if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
+        if [ "$RUNTIMES" -ge "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
             printf "%s%s Total saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
+            SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
+            [ -z "$GLOBAL_FILECOUNT" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
+        elif [ "$ERROR" != "0" ]; then
+            printf "%s%s Error:%s at function:%s%s\n" "$CR" "$(print_info)" "$ERROR" "$FAILED_FUNC" "$CO"
         fi
-
-        [ "$ERROR" == "0" ] && SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
-        [ -z "$GLOBAL_FILECOUNT" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
     done
     shopt -u nocaseglob
 
@@ -2139,8 +2160,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
     else GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE)); fi
 else
     printf "%sNo file(s) found (first step)!%s\n" "$CR" "$CO"
-    ERROR=8
-    RETVAL=16
+    ERROR=8; RETVAL=16
 fi
 
 [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
