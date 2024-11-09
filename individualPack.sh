@@ -47,7 +47,7 @@ printSavedData () {
     printToFile "SET=\$(date +%s)" "$1"
     printToFile "STT=\$((SET - STT))" "$1"
 
-    printToFile "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time: \$ENDTIMER in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)\"" "$1"
+    printToFile "echo \"Totally saved \$TOTALSIZE Mb (calculated: \$GLOBAL_FILESAVE Mb) and saved time:\$ENDTIMER in \$GLOBAL_FILECOUNT files time:\$(date -d@\${STT} -u +%T)\"" "$1"
     echo "" >> $FILE
 }
 

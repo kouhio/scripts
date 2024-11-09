@@ -1,6 +1,6 @@
 #!/bin/bash
 
-[ -z "$1" ] && echo "No command given" && exit 1
+[ -z "$1" ] && printf "No command given\n" && exit 1
 
 SUB=0
 [ "$1" == "sub" ] && SUB=1 && shift
@@ -8,10 +8,11 @@ SUB=0
 startSize=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
 startTime=$(date +%s)
 startPath="$PWD"
-GLOBAL_FILESAVE=0
+export GLOBAL_FILESAVE=0
+export TOTALSAVE=0
 
 set_interrupt () {
-    [ -z "$1" ] && echo -en "Interrupted! "
+    [ -z "$1" ] && printf "Interrupted! "
     endSize=$(df --output=avail "$PWD" | sed '1d;s/[^0-9]//g')
     totalSize=$((endSize - startSize))
     endTime=$(date +%s)
@@ -20,15 +21,15 @@ set_interrupt () {
 
     if [ "$totalSize" -ne "0" ]; then
         totalSize=$((totalSize / 1000))
-        echo -en "Sizechange $totalSize Mb - "
+        printf "Sizechange %s Mb - " "$totalSize"
     fi
 
     if [ "$GLOBAL_FILESAVE" -ne "0" ]; then
         GLOBAL_FILESAVE=$((GLOBAL_FILESAVE / 1000))
-        echo -en " totally saved:$GLOBAL_FILESAVE Mb - "
+        printf " totally saved:%s Mb - " "$GLOBAL_FILESAVE"
     fi
 
-    echo "Time taken $timeOut"
+    printf "Time taken %s\n" "$timeOut"
     exit 1
 }
 

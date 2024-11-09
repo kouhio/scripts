@@ -120,7 +120,7 @@ trap set_int SIGINT SIGTERM
 loop=0
 for i in "${@}"; do
     if   [ "$i" == "repack_audio.sh" ]; then continue
-    elif [ "$loop" == "0" ];    then INPUT="$i"
+    elif [ "$loop" == "0" ];    then mapfile -t -d "," MULTILIST < <(printf "%s" "$i"); INPUT="${MULTILIST[@]}"
     elif [ "$i" == "delete" ];  then DELETE=1
     elif [ "$i" == "ignore" ];  then IGNORE=1
     elif [ "$i" == "keep" ];    then KEEP=1
@@ -150,7 +150,7 @@ elif [[ "$INPUT" =~ "cue" ]]; then
     done
 fi
 
-TOTALSAVE=0
+[ -z "$TOTALSAVE" ] && TOTALSAVE=0
 SUCCESS=0
 FAILED=0
 SKIPPED=0
@@ -161,10 +161,14 @@ shopt -s nocaseglob
 ###########################################################################################################
 # Loop given filetypes
 ###########################################################################################################
+#for f in *.{mkv,wmv,avi,mpg,mts,mp4}; do
+# Also do an external total filehandler setting, also for eachDir
 if [ "${NOHANDLING}" -eq "0" ]; then
-    for file in *".$INPUT"; do
-        [ ! -f "${file}" ] && continue
-        handle_file "${file}"
+    for INPUT in "${MULTILIST[@]}"; do
+        for file in *."${INPUT}"; do
+            [ ! -f "${file}" ] && continue
+            handle_file "${file}"
+        done
     done
 fi
 
