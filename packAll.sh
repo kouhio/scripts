@@ -102,6 +102,7 @@ CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
 RUNTIMES=0                      # Indicator of how many different processes were done to the same one file
 CUTTING_TIME=0                  # Initial time that is to be cut from a file
+CROP_HAPPENED=0                 # Indicator if file was already cropped
 
 export PROCESS_INTERRUPTED=0    # Interruption handler for external access
 export ERROR=0                  # Global error indicator
@@ -154,6 +155,7 @@ CY=$(tput setaf 11) # Yellow
 CB=$(tput setaf 14) # Blue
 CP=$(tput setaf 5)  # Magenta
 CC=$(tput setaf 6)  # Cyan
+CT=$(tput setaf 9)  # Orange
 CO=$(tput sgr0)     # Color off
 TL=$(tput cols)     # Number of chars in current bash column
 TL=$((TL - 1))
@@ -222,7 +224,7 @@ set_int() {
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
     [ "$RUNTIMES" -eq "1" ] && RUNTIMES=2
-    printf "\n%s%s conversion interrupted %sin %s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
+    printf "\n%s%s conversion interrupted %s%s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
     remove_interrupted_files
     remove_broken_split_files
     delete_file "$PACKFILE" "27"
@@ -327,11 +329,10 @@ find_image_pos() {
 read_biggest_crop_resolution() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    printf "\n"
     MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; RUNTIMES=$((RUNTIMES + 1)); CURR_ROW=1; SEEK_START=$(date +%s)
 
     while IFS='' read -r c_info || [[ -n "$c_info" ]]; do
-        DIFFER=$(($(date +%s) - $SEEK_START))
+        DIFFER=$(($(date +%s) - SEEK_START))
         if [[ "$c_info" == *"crop="* ]]; then
             read_data="${c_info##*crop=}"
             mapfile -t -d ':' CROP_POINT < <(printf "%s" "$read_data")
@@ -345,8 +346,9 @@ read_biggest_crop_resolution() {
         LAST_DIFFER="$DIFFER"
     done < "$PACKFILE"
 
+    delete_file "$PACKFILE" "29"
     printf "\r%${TL}s" " "
-    printf "\r%s Searching best crop resolution -> found: %s%s%s\n" "$(print_info)" "$CY" "$CROP_DATA" "$CO"
+    printf "\r%s Searching best crop resolution -> found:%s%s %s%s%s\n" "$(print_info)" "$CY" "$CROP_DATA" "$CC" "$(calc_dur)" "$CO"
 }
 
 #**************************************************************************************************************
@@ -363,6 +365,7 @@ check_and_crop() {
     PRINTLINE="$(print_info) Reading crop data "
     COMMAND_LINE=("-vf" "cropdetect" "-f" "null")
     run_pack_app
+    printf "%sdone %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
     read_biggest_crop_resolution
 
     if [ -n "$CROP_DATA" ]; then
@@ -372,18 +375,22 @@ check_and_crop() {
         if [ -n "$XC" ] && [ -n "$YC" ]; then
             mapfile -t -d ':' CA < <(printf "%s" "$CROP_DATA")
 
-            if ([ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]) && [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ]; then
-                PRINTLINE=$(printf "%s Cropping black borders (%sx%s->%sx%s) \t" "$(print_info)" "$XC" "$YC" "${CA[0]}" "${CA[1]}")
+            if { [ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]; } && [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ]; then
+                PRINTLINE=$(printf "%s Cropping black borders (%sx%s->%sx%s) " "$(print_info)" "$XC" "$YC" "${CA[0]}" "${CA[1]}")
                 [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" -vf \"%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "$CROP_DATA" "$CO"
                 COMMAND_LINE=("-vf" "crop=$CROP_DATA")
                 run_pack_app
                 check_file_conversion
-            elif [ "${CA[2]}" == "0" ] && [ "${CA[3]}" == "0" ]; then printf "%s%s Nothing to crop (%sx%s), skipping!%s\n" "$(print_info)" "$CY" "${CA[2]}" "${CA[3]}" "$CO"
-            elif [ "${CA[0]}" -lt "320" ] || [ "${CA[1]}" -lt "240" ]; then printf "%s%s crop target too small (%sx%s), skipping!%s\n" "$(print_info)" "$CR" "${CA[0]}" "${CA[1]}" "$CO"
-            else printf "%s%s UNKNOWN crop error %s, skipping!%s\n" "$(print_info)" "$CR" "${CROP_DATA}" "$CO"; fi
+                [ "$ERROR" -eq "0" ] && FILE="${filename}${CONV_TYPE}"
+            else
+                if [ "${CA[2]}" == "0" ] && [ "${CA[3]}" == "0" ]; then printf "%s%s Nothing to crop, skipping!%s" "$(print_info)" "$CY" "$CO"
+                elif [ "${CA[0]}" -lt "320" ] || [ "${CA[1]}" -lt "240" ]; then printf "%s%s crop target too small (%sx%s), skipping!%s" "$(print_info)" "$CR" "${CA[0]}" "${CA[1]}" "$CO"
+                else printf "%s%s UNKNOWN crop error %s, skipping!%s" "$(print_info)" "$CR" "${CROP_DATA}" "$CO"; fi
+                printf "%s %s%s\n" "$CC" "$(calc_dur)" "$CO"
+            fi
         fi
     else
-        printf "%sCropping data not found, skipping!%s" "$CR" "$CO"
+        printf "%s%s Cropping data not found, skipping!%s" "$(print_info)" "$CR" "$CO"
     fi
 }
 
@@ -521,7 +528,7 @@ massive_filecheck() {
             [ "$ERROR_WHILE_SPLITTING" == "0" ] && delete_file "$FILE" "3"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
             FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-            [ "$SPLIT_AND_COMBINE" -eq "0" ] && printf "%s %sSaved %s and %s with splitting%s\n" "$(print_info)" "$CY" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$FINAL_TIMESAVE")" "$CO"
+            [ "$SPLIT_AND_COMBINE" -eq "0" ] && printf "%s %sSaved %s and %s with splitting%s\n" "$(print_info)" "$CT" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$FINAL_TIMESAVE")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
         fi
 
@@ -785,10 +792,10 @@ combine_split_files() {
     fi
 
     if [ -n "$NEWNAME" ]; then
-        printf "%sSuccess %sin %s/%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
+        printf "%sSuccess %s%s/%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
         FILE="${NEWNAME}${CONV_TYPE}"
     else
-        printf "%sSuccess %sin %s/%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${RUNNING_FILENAME}" "$CO"
+        printf "%sSuccess %s%s/%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${RUNNING_FILENAME}" "$CO"
         FILE="$LE_ORG_FILE"
     fi
 }
@@ -954,6 +961,7 @@ parse_handlers() {
 
     if [ -n "$1" ]; then
         if [ "$1" == "repack" ] || [ "$1" == "r" ]; then
+            [ "$CROP_HAPPENED" -eq "1" ] && return
             [ -n "$2" ] && PACK_RUN+=("$1") && return
             REPACK=1; REPACK_GIVEN=1; COPY_ONLY=0
         elif [ "$1" == "ierr" ]; then
@@ -1265,7 +1273,8 @@ calc_dur() {
 
     TIMERR=$(date +%s)
     processing_time=$((TIMERR - process_start_time))
-    printf "%s" "$(date -d@${processing_time} -u +%T)"
+    printf "in %s" "$(date -d@${processing_time} -u +%T)"
+    process_start_time="$TIMERR"
 }
 
 #***************************************************************************************************************
@@ -1432,7 +1441,7 @@ check_output_errors() {
     app_err=$(grep 'Invalid data found when processing input|not found|error in an external library|invalid format character|Unknown error' "$PACKFILE")
 
     if [ -n "$app_err" ]; then
-        printf "\n    %s error:%s%s%s %sin %s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$CO" "$(calc_dur)"
+        printf "\n    %s error:%s%s%s %s%s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$(calc_dur)" "$CO"
         [ "$ERROR" == "0" ] && ERROR=9 && FAILED_FUNC="${FUNCNAME[0]}"
 
         if [ "$EXIT_VALUE" == "1" ]; then
@@ -1712,7 +1721,7 @@ handle_file_rename() {
             move_to_a_running_file
         fi
     else
-        [ "$ERROR" -ne "0" ] && printf "%sSomething went wrong, keeping original!%s in %s%s err:%s src:%s\n" "$CR" "$CC" "$(calc_dur)" "$CO" "$ERROR" "$2"
+        [ "$ERROR" -ne "0" ] && printf "%sSomething went wrong, keeping original!%s %s%s err:%s src:%s\n" "$CR" "$CC" "$(calc_dur)" "$CO" "$ERROR" "$2"
 
         delete_file "$FILE$CONV_TYPE" "21"
 
@@ -1774,7 +1783,7 @@ handle_error_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     #move_file "$FILE" "./Error" "." "1"
-    ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %sin %s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
+    ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %s%s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
 
     [ "$EXIT_VALUE" == "1" ] && exit 1
     RETVAL=10
@@ -1793,15 +1802,15 @@ check_alternative_conversion() {
         DURATION_CHECK=$((DURATION_CHECK - 2000))
         if [ "$CROP" -ne "0" ]; then
             handle_file_rename 1 1
-            printf " %sCropped. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
+            printf " %sCropped. %s and %s %s%s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
             [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
             handle_file_rename 1 1
-            printf " %sShortened. %s and %s %sin %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
+            printf " %sShortened. %s and %s %s%s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
             [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             handle_file_rename 1 7
-            printf " %sResized. Saved %s %sin %s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
+            printf " %sResized. Saved %s %s%s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
             [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
         elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
         else PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"; fi
@@ -1811,7 +1820,7 @@ check_alternative_conversion() {
         RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown"
     else
         handle_file_rename 1 2
-        printf "%sWarning, ignoring unknown error:%s %sin %s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
+        printf "%sWarning, ignoring unknown error:%s %s%s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
     fi
 
     if [ -n "$PRINT_ERROR_DATA" ]; then
@@ -1820,7 +1829,7 @@ check_alternative_conversion() {
         [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:%s>%s" "$xNEW_DURATION" "$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:%s>%s" "$xNEW_FILESIZE" "$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
         [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:%s (%s)" "$PRINT_ERROR_DATA" "$ERROR"
-        printf " %sin %s" "$CC" "$(calc_dur)"
+        printf " %s%s" "$CC" "$(calc_dur)"
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1)); SPLITTING_ERROR=1; ERROR=91; FAILED_FUNC="${FUNCNAME[0]}"
         [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
     fi
@@ -1872,15 +1881,17 @@ check_file_conversion() {
             #ENDSIZE=$((ENDSIZE / 1000))
             [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
-            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess %sin %s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
+            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
             else printf "%sSaved %s %sin %s%s\n" "$CG" "$(lib size $ENDSIZE)" "$CC" "$(lib t F "$process_start_time")" "$CO"; fi
             handle_file_rename 1 5
         else
             check_alternative_conversion
         fi
+
+        if [ "$ERROR" == "0" ] && [ "$CROP" -ne "0" ]; then CROP_HAPPENED=1; fi
     else
         if [ "$ERROR" != 13 ]; then
-            printf "%sNo destination file!%s in %s (func:%s)%s\n" "$CR" "$CC" "$(calc_dur)" "$FAILED_FUNC" "$CO"
+            printf "%sNo destination file!%s %s (func:%s)%s\n" "$CR" "$CC" "$(calc_dur)" "$FAILED_FUNC" "$CO"
             #move_file "$FILE" "./Nodest" "." "2"
         fi
         remove_interrupted_files
@@ -1987,7 +1998,7 @@ pack_file() {
             printf "%s %scannot be packed %s <= %s%s\n" "$(print_info)" "$CY" "$X" "$WIDTH" "$CO"
             RETVAL=14
         else
-            printf "%s %salready at desired size wanted:%s current:%s%s\n" "$(print_info)" "$CY" "${WIDTH}" "${X}" "$CO"
+            printf "%s %sAlready at desired size wanted:%s current:%s%s\n" "$(print_info)" "$CT" "${WIDTH}" "${X}" "$CO"
         fi
     elif [ "$PRINT_ALL" == 1 ]; then
         printf "%s width:%s skipping\n" "$(print_info)" "$X"
@@ -2183,11 +2194,11 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         if [ "$RUNTIMES" -ge "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
-            printf "%s%s Total saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
+            printf "%s%s TOTAL saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
             SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1))
             [ -z "$GLOBAL_FILECOUNT" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
         elif [ "$ERROR" != "0" ] && [ "$ERROR" != "66" ]; then
-            printf "%s%s Error:%s at function:%s%s\n" "$CR" "$(print_info)" "$ERROR" "$FAILED_FUNC" "$CO"
+            printf "%s%s Error:%s at function:%s %sin %s%s\n" "$CR" "$(print_info)" "$ERROR" "$FAILED_FUNC" "$CC" "$(calc_time_tk "loop")" "$CO"
         fi
     done
     shopt -u nocaseglob
