@@ -141,6 +141,7 @@ reset_handlers() {
     DELETE_AT_END=1                 # Variable to indicate, if file is to be deleted at the end
     [ "$KEEPORG" == "1" ] && DELETE_AT_END=0
     FAILED_FUNC=""                  # Indicator of the function, where error happened
+    MASSIVE_ENDSIZE=0               # Size of the splitted files combined
 }
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -548,10 +549,10 @@ set_beg_end() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     BEGTIME="$(calculate_time "${1}")"
-    verify_time_position "$3" "$BEGTIME" "Beginning massive time"
+    verify_time_position "$3" "$BEGTIME" "Beginning massive time pos:$COMBOARRAYPOS"
     [ "$ERROR" != "0" ] && return
     ENDTIME=$(calculate_time "${2}")
-    verify_time_position "$3" "$ENDTIME" "Ending massive time"
+    verify_time_position "$3" "$ENDTIME" "Ending massive time pos:$COMBOARRAYPOS"
 
     if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ]; then
         printf "%sending(%s) smaller than start(%s)%s\n" "$CR" "$ENDTIME" "$BEGTIME" "$CO"
@@ -603,7 +604,7 @@ new_massive_file_split() {
 
         mapfile -t -d ',' array < <(printf "%s" "$1")
         SPLIT_MAX=${#array[@]}
-        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=0
+        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=0; COMBOARRAYPOS=1
 
         # Verify each time point before doing anything else
         for index in "${!array[@]}"; do
@@ -616,7 +617,10 @@ new_massive_file_split() {
                 verify_time_position "$ORG_LEN" "$SPLIT_POINT" "Beginning point split"
             fi
             [ "$ERROR" != "0" ] && ERROR_WHILE_SPLITTING=3 && break
+            COMBOARRAYPOS=$((COMBOARRAYPOS + 1))
         done
+
+        COMBOARRAYSIZE=$((${#array[@]} - DELETE_AT_END)); COMBOARRAYPOS=1
 
         # If all time signatures are correct, start splitting
         for index in "${!array[@]}"; do
@@ -656,6 +660,7 @@ new_massive_file_split() {
 
             MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
             RUNTIMES=$((RUNTIMES + 1))
+            COMBOARRAYPOS=$((COMBOARRAYPOS + 1))
         done
 
         if [ "$SPLIT_P2P" == "0" ] && [ "$ENDTIME" != "0" ]; then
@@ -674,6 +679,8 @@ new_massive_file_split() {
             [ "$MASSIVE_COUNTER" -eq "1" ] && [ -z "$NEWNAME" ] && rename "s/_01//" "${FILE%.*}"*
             [ "$MASSIVE_COUNTER" -eq "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
         fi
+
+        [ "$RETVAL" -eq "0" ] && TOTALSAVE=$((TOTALSAVE + (ORIGINAL_HOLDER - MASSIVE_ENDSIZE)))
 
     else
         printf "File '%s' not found, cannot multisplit!\n" "$FILE"
@@ -696,10 +703,9 @@ rename_unique_combo_file() {
 }
 
 #***************************************************************************************************************
-# Rename files for concate compatibility or remove them
-# 1 - if set, will rename files, if not, will remove the renamed files
+# Make combine output file from existing COMBO_ files
 #***************************************************************************************************************
-make_or_remove_split_files() {
+make_combine_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     RUNNING_FILE_NUMBER=1
@@ -707,14 +713,9 @@ make_or_remove_split_files() {
     while true; do
         make_running_name
 
-        if [ -z "$1" ]; then
-            [ ! -f "${TARGET_DIR}/${RUNNING_FILENAME}" ] && break
-            delete_file "${TARGET_DIR}/${RUNNING_FILENAME}" "4"
-        else
-            [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-            if [ "$TARGET_DIR" == "." ]; then printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${COMBOFILE}"
-            else                              printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${TARGET_DIR}/${COMBOFILE}"; fi
-        fi
+        [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
+        if [ "$TARGET_DIR" == "." ]; then printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${COMBOFILE}"
+        else                              printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${TARGET_DIR}/${COMBOFILE}"; fi
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
@@ -756,7 +757,7 @@ combine_split_files() {
         return 0
     fi
 
-    make_or_remove_split_files 1
+    make_combine_file
     CURRDIR="$PWD"
     cd "$TARGET_DIR" || return
 
@@ -768,35 +769,29 @@ combine_split_files() {
 
     cd "$CURRDIR" || return
     delete_file "${TARGET_DIR}/${COMBOFILE}" "8"
+    remove_combine_files
 
-    if [ "$ERROR" -eq "0" ]; then
-        LE_ORG_FILE="$FILE"
-        FILE="temp.mp4"
-        make_or_remove_split_files
-    else
+    if [ "$ERROR" -ne "0" ]; then
         printf "%sFailed%s\n" "$CR" "$CO"
         delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "9"
         [ "$EXIT_VALUE" == "1" ] && exit 1
         return
     fi
 
-    if [ -f "$LE_ORG_FILE" ]; then
-        FILE="Combo_$LE_ORG_FILE"
+    if [ -f "${TARGET_DIR}/$FILE" ]; then
         make_new_running_name
         if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "4"
         else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "5"; fi
     else
-        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${LE_ORG_FILE}" "6"
+        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${FILE}" "6"
         else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "7"; fi
-        RUNNING_FILENAME="${LE_ORG_FILE}"
     fi
 
     if [ -n "$NEWNAME" ]; then
         printf "%sSuccess %s%s/%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
         FILE="${NEWNAME}${CONV_TYPE}"
     else
-        printf "%sSuccess %s%s/%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${RUNNING_FILENAME}" "$CO"
-        FILE="$LE_ORG_FILE"
+        printf "%sSuccess %s%s/%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${FILE}" "$CO"
     fi
 }
 
@@ -1492,8 +1487,8 @@ simply_pack_file() {
         if [[ "$FILE" != *"$CONV_TYPE" ]]; then PRINTLINE+=$(printf " transforming to %s (%04dx%04d) " "$CONV_TYPE" "$X" "$Y")
         else                                    PRINTLINE+=$(printf " repacking (%04dx%04d) " "$X" "$Y"); fi
     elif [ "$COPY_ONLY" == "0" ]; then          PRINTLINE+=$(printf " packing (%04dx%04d->%04dx%04d) " "${X}" "${Y}" "$X_WIDTH" "$Y_HEIGHT")
-    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " combo split (%04dx%04d) " "${X}" "${Y}") && SPLIT_TIME=2
-    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " splitting (%04dx%04d) " "${X}" "${Y}") && SPLIT_TIME=2
+    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " combo split %02d/%02d (%04dx%04d) " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}" "${X}" "${Y}") && SPLIT_TIME=2
+    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " splitting %02d/%02d (%04dx%04d) " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}" "${X}" "${Y}") && SPLIT_TIME=2
     elif [ "$CUTTING_TIME" -gt 0 ]; then        PRINTLINE+=$(printf " cutting (%04dx%04d) " "${X}" "${Y}") && SPLIT_TIME=1
     else                                        PRINTLINE+=$(printf " copying (%04dx%04d) " "${X}" "${Y}"); fi
 
@@ -1846,11 +1841,7 @@ check_file_conversion() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
 
-    #if destination file exists
-    FILE_EXISTS=0
-    if [ "$MASSIVE_SPLIT" == 1 ] || [ -f "$FILE$CONV_TYPE" ]; then FILE_EXISTS=1; fi
-
-    if [ "$FILE_EXISTS" == 1 ]; then
+    if [ -f "$FILE$CONV_TYPE" ]; then
         if [ "$AUDIO_PACK" == "1" ]; then NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
         else                              NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE"); fi
         AUDIO_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
@@ -1877,7 +1868,8 @@ check_file_conversion() {
         elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             ORIGINAL_SIZE=$ORIGINAL_HOLDER
             ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
-            TOTALSAVE=$((TOTALSAVE + ENDSIZE))
+            if [ "$MASSIVE_SPLIT" == "0" ]; then TOTALSAVE=$((TOTALSAVE + ENDSIZE))
+            else MASSIVE_ENDSIZE=$((MASSIVE_ENDSIZE + NEW_FILESIZE)); fi
             #ENDSIZE=$((ENDSIZE / 1000))
             [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
 
