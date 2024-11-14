@@ -680,7 +680,7 @@ new_massive_file_split() {
             [ "$MASSIVE_COUNTER" -eq "1" ] && [ -n "$NEWNAME" ] &&  rename "s/_01//" "${NEWNAME%.*}"*
         fi
 
-        [ "$RETVAL" -eq "0" ] && TOTALSAVE=$((TOTALSAVE + (ORIGINAL_HOLDER - MASSIVE_ENDSIZE)))
+        [ "$RETVAL" -eq "0" ] && [ "$DELETE_AT_END" == "1" ] && TOTALSAVE=$((TOTALSAVE + (ORIGINAL_HOLDER - MASSIVE_ENDSIZE)))
 
     else
         printf "File '%s' not found, cannot multisplit!\n" "$FILE"
@@ -788,10 +788,10 @@ combine_split_files() {
     fi
 
     if [ -n "$NEWNAME" ]; then
-        printf "%sSuccess %s%s/%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
+        printf "%sSuccess %s%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
         FILE="${NEWNAME}${CONV_TYPE}"
     else
-        printf "%sSuccess %s%s/%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$(calc_time_tk)" "$CY" "${FILE}" "$CO"
+        printf "%sSuccess %s%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CY" "${FILE}" "$CO"
     fi
 }
 
@@ -1642,9 +1642,12 @@ burn_subs() {
 
 #***************************************************************************************************************
 # Make a filename with incrementing value
+# 1 - if set, will be used as the new name (no extension!)
 #***************************************************************************************************************
 make_running_name() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+
+    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; fi
 
     ExtLen=${#EXT_CURR}; NameLen=${#FILE}; LEN_NO_EXT=$((NameLen - ExtLen - 1))
 
@@ -1654,7 +1657,9 @@ make_running_name() {
     if [ "$RUNNING_FILE_NUMBER" -lt "10" ]; then RUNNING_FILENAME+="_0$RUNNING_FILE_NUMBER$CONV_TYPE"
     else                                         RUNNING_FILENAME+="_$RUNNING_FILE_NUMBER$CONV_TYPE"; fi
 
-    if [ "$SPLIT_AND_COMBINE" == "1" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
+    if [ "$SPLIT_AND_COMBINE" == "1" ] && [ -z "$1" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
+
+    if [ -n "$1" ]; then FILE="$O_FILE"; fi
 }
 
 #***************************************************************************************************************
@@ -1757,18 +1762,22 @@ calculate_packsize() {
 # Move file to wanted name/target
 # 1 - filename
 # 2 - target directory (skipped if set as .)
-# 3 - new name
+# 3 - new name (skipped if set as .)
 # 4 - source ID for debugging
 #***************************************************************************************************************
 move_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4"
 
+    if [ -f "${2}/${1}" ] || [ -f "${2}/${3}" ]; then make_running_name "$1"
+    elif [ "${3}" != "." ]; then RUNNING_FILENAME="$3"
+    else RUNNING_FILENAME="$1"; fi
+
     if [ -n "$2" ] && [ "$2" != "." ]; then [ ! -d "$2" ] && mkdir -p "$2"; fi
 
     if [ -n "$3" ] && [ "$3" != "." ]; then
-        if [ -n "$2" ] && [ "$2" != "." ]; then mv "$1" "${2}/${3}"
-        else                                    mv "$1" "$3"; fi
-    elif [ -n "$2" ] && [ "$2" != "." ]; then   mv "$1" "${2}/"; fi
+        if [ -n "$2" ] && [ "$2" != "." ]; then mv "$1" "${2}/${RUNNING_FILENAME}"
+        else                                    mv "$1" "$RUNNING_FILENAME"; fi
+    elif [ -n "$2" ] && [ "$2" != "." ]; then   mv "$1" "${2}/$RUNNING_FILENAME"; fi
 }
 
 #***************************************************************************************************************
@@ -1793,26 +1802,25 @@ check_alternative_conversion() {
     xNEW_DURATION=$((NEW_DURATION / 1000)); xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000)); xNEW_FILESIZE=$((NEW_FILESIZE / 1000)); xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     PRINT_ERROR_DATA=""
 
-    if [ "$COPY_ONLY" != 0 ] || [ "$EXT_CURR" == "$CONV_CHECK" ]; then
-        DURATION_CHECK=$((DURATION_CHECK - 2000))
-        if [ "$CROP" -ne "0" ]; then
+    DURATION_CHECK=$((DURATION_CHECK - 2000))
+    if [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
+        if [ "$CROP" -ne "0" ]; then printf "%sCropped, saved:%s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
+        elif [ "$SPLIT_AND_COMBINE" == "1" ] || [ "$MASS_SPLIT" == "1" ]; then printf "%ssplit into:%s" "$CG" "$(check_valuetype "${NEW_FILESIZE}")"
+        elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
+            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf " %sResized to %s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
+            [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && printf " %sShortened to %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")"
+        else PRINT_ERROR_DATA="Duration ($NEW_DURATION>$DURATION_CHECK) or size ($ORIGINAL_SIZE<$NEW_FILESIZE) failed!"; fi
+
+        if [ -z "$PRINT_ERROR_DATA" ]; then
             handle_file_rename 1 1
-            printf " %sCropped. %s and %s %s%s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
-            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
-        elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
-            handle_file_rename 1 1
-            printf " %sShortened. %s and %s %s%s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
-            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
-        elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
-            handle_file_rename 1 7
-            printf " %sResized. Saved %s %s%s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")" "$CC" "$(calc_dur)"
-            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
-        elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
-        else PRINT_ERROR_DATA="Duration failed ($NEW_DURATION>$DURATION_CHECK)"; fi
+            [ "$DELETE_AT_END" == "1" ] && [ "$DURATION_CUT" != "0" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
+            printf " %s%s" "$CC" "$(calc_dur)"
+        fi
 
         NEW_DURATION=0; DURATION_CHECK=0
+    elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
     elif [ "$IGNORE_UNKNOWN" == "0" ]; then
-        RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown"
+        RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown C:$COPY_ONLY e:$EXT_CURR=$CONV_CHECK"
     else
         handle_file_rename 1 2
         printf "%sWarning, ignoring unknown error:%s %s%s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
