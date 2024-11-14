@@ -367,6 +367,8 @@ printBaseData() {
     printToFile "  PLEN=\"\${#MAX_ITEMS}\""
     printToFile "  INPUTFILE=\"\$1\""
     printToFile "  shift 1"
+    printToFile "  FILENAME=\${INPUTFILE%.*}"
+    printToFile "  [ -f \"\${FILENAME}.mp4\" ] && INPUTFILE=\"\${FILENAME}.mp4\""
     printToFile "  COUNTED_ITEMS=\$((COUNTED_ITEMS + 1))"
     printToFile "  if [ \"\$INPUTFILE\" == \"rm\" ]; then"
     printToFile "    [ ! -f \"\$1\" ] && return 0"
