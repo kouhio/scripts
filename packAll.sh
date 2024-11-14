@@ -1772,7 +1772,8 @@ calculate_packsize() {
 move_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4"
 
-    if [ -f "${2}/${1}" ] || [ -f "${2}/${3}" ]; then make_new_running_name "$1"
+    if [ -f "${2}/${1}" ] && [ "$2" != "." ] && [ "$3" == "." ]; then make_new_running_name "$1"
+    elif [ -f "${2}/${3}" ] && [ "$3" != "." ] && [ "$2" != "." ]; then make_new_running_name "$3"
     elif [ "${3}" != "." ]; then RUNNING_FILENAME="$3"
     else RUNNING_FILENAME="$1"; fi
 
