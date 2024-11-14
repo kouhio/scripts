@@ -1667,6 +1667,8 @@ make_running_name() {
 #***************************************************************************************************************
 make_new_running_name() {
     RUNNING_FILE_NUMBER=1
+
+    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="${1##*/}"; fi
     make_running_name
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
@@ -1676,6 +1678,8 @@ make_new_running_name() {
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         done
     fi
+
+    if [ -n "$1" ]; then FILE="$O_FILE"; fi
 }
 
 #***************************************************************************************************************
@@ -1768,7 +1772,7 @@ calculate_packsize() {
 move_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4"
 
-    if [ -f "${2}/${1}" ] || [ -f "${2}/${3}" ]; then make_running_name "$1"
+    if [ -f "${2}/${1}" ] || [ -f "${2}/${3}" ]; then make_new_running_name "$1"
     elif [ "${3}" != "." ]; then RUNNING_FILENAME="$3"
     else RUNNING_FILENAME="$1"; fi
 
