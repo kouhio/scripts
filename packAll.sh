@@ -1,6 +1,5 @@
 #!/bin/bash
 
-HEVC_CONV=1                     # Use ffmpeg instead of avconv to handle files
 SCRUB=0                         # Instead of rm, use scrub, if this is set
 
 WORKMODE=4                      # Workmode handler (which part is to be split)
@@ -142,6 +141,8 @@ reset_handlers() {
     [ "$KEEPORG" == "1" ] && DELETE_AT_END=0
     FAILED_FUNC=""                  # Indicator of the function, where error happened
     MASSIVE_ENDSIZE=0               # Size of the splitted files combined
+    BEGTIME_DOT=""                  # Value after beginning time comma
+    ENDTIME_DOT=""                  # Value after endtime comma
 }
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -224,7 +225,7 @@ set_int() {
     [ "${#CHECKLIST[@]}" -gt "1" ] && killall $APP_STRING -s 9
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
-    [ "$RUNTIMES" -eq "1" ] && RUNTIMES=2
+    RUNTIMES=2
     printf "\n%s%s conversion interrupted %s%s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
     remove_interrupted_files
     remove_broken_split_files
@@ -271,7 +272,6 @@ print_help() {
     printf "A(udio)=     -    convert audiofile to another audio filetype\n"
     printf "a(ll)        -    print all information\n"
     printf "p(rint)      -    print only file information (if set as 1, will print everything, 2 = lessthan, 3=biggerthan, 4=else )\n"
-    printf "h(evc)       -    convert with avconv instead of ffmpeg\n"
     printf "s(crub)      -    original on completion\n"
     printf "crop         -    crop black borders (experimental atm, probably will cut too much of the area)\n\n"
     printf "sub=         -    subtitle file to be burned into video, or the number of the wanted embedded subtitle track (starting from 0), or self:SUB_EXT\n"
@@ -330,7 +330,7 @@ find_image_pos() {
 read_biggest_crop_resolution() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; RUNTIMES=$((RUNTIMES + 1)); CURR_ROW=1; SEEK_START=$(date +%s)
+    MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; CURR_ROW=1; SEEK_START=$(date +%s)
 
     while IFS='' read -r c_info || [[ -n "$c_info" ]]; do
         DIFFER=$(($(date +%s) - SEEK_START))
@@ -457,13 +457,13 @@ remove_broken_split_files() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     RUNNING_FILE_NUMBER=1
-    make_running_name
+    make_running_name ""
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
         delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "1"
         while true; do
             RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-            make_running_name
+            make_running_name ""
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
             delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "2"
         done
@@ -499,7 +499,7 @@ massive_filecheck() {
     else
         while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
             RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-            make_running_name
+            make_running_name ""
             if [ -f "${TARGET_DIR}/${RUNNING_FILENAME}" ]; then
                 CFT=$(get_file_duration "${TARGET_DIR}/${RUNNING_FILENAME}")
                 MASSIVE_TIME_COMP=$((MASSIVE_TIME_COMP + CFT))
@@ -512,17 +512,13 @@ massive_filecheck() {
         done
     fi
 
-    [ "$IGNORE" -ne "0" ] && TOO_SMALL_FILE=0
-    [ "$SPLIT_AND_COMBINE" -ne "0" ] && TOO_SMALL_FILE=0
-
-    TIME_SHORTENED=$((ORIGINAL_DURATION - MASSIVE_TIME_COMP))
-    TIME_SHORTENED=$((TIME_SHORTENED / 1000))
+    if [ "$IGNORE" -ne "0" ] || [ "$SPLIT_AND_COMBINE" -ne "0" ]; then TOO_SMALL_FILE=0; fi
+    TIME_SHORTENED=$(((ORIGINAL_DURATION - MASSIVE_TIME_COMP) / 1000))
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [ -n "$MAX_SHORT_TIME" ] && [ "$TIME_SHORTENED" -gt "$MAX_SHORT_TIME" ]; then
         printf "%sCutting over max-time:%s > %s, aborting!%s\n" "$CR" "$(lib t f "${TIME_SHORTENED}")" "$(lib t f "${MAX_SHORT_TIME}")" "$CO"
         RETVAL=19
     elif [ "$MASSIVE_TIME_COMP" -ge "$MASSIVE_TIME_CHECK" ] && [ "$TOO_SMALL_FILE" == "0" ] && [ "$SPLITTING_ERROR" == "0" ]; then
-
         if [ "$KEEPORG" == "0" ] && [ "$ERROR_WHILE_MORPH" == "0" ]; then
             SPLITTER_TIMESAVE=$((SPLITTER_TIMESAVE + MASSIVE_TIME_COMP))
             OSZ=$(du -k "$FILE" | cut -f1)
@@ -532,7 +528,6 @@ massive_filecheck() {
             [ "$SPLIT_AND_COMBINE" -eq "0" ] && printf "%s %sSaved %s and %s with splitting%s\n" "$(print_info)" "$CT" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$FINAL_TIMESAVE")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
         fi
-
     else
         printf "%sSomething wrong with cut-out time (%s < %s) Small files: %s%s\n" "$CR" "$MASSIVE_TIME_COMP" "$MASSIVE_TIME_CHECK" "$TOO_SMALL_FILE" "$CO"
         RETVAL=20
@@ -551,7 +546,7 @@ set_beg_end() {
     BEGTIME="$(calculate_time "${1}")"
     verify_time_position "$3" "$BEGTIME" "Beginning massive time pos:$COMBOARRAYPOS"
     [ "$ERROR" != "0" ] && return
-    ENDTIME=$(calculate_time "${2}")
+    ENDTIME=$(calculate_time "${2}" "1")
     verify_time_position "$3" "$ENDTIME" "Ending massive time pos:$COMBOARRAYPOS"
 
     if [ "$ENDTIME" -le "$BEGTIME" ] && [ "$ENDTIME" != "0" ]; then
@@ -613,7 +608,7 @@ new_massive_file_split() {
                 mapfile -t -d '-' array2 < <(printf "%s" "${array[index]}")
                 set_beg_end "${array2[0]}" "${array2[1]}" "$ORG_LEN"
             else
-                SPLIT_POINT=$(calculate_time "${array[index]}")
+                SPLIT_POINT=$(calculate_time "${array[index]}" "1")
                 verify_time_position "$ORG_LEN" "$SPLIT_POINT" "Beginning point split"
             fi
             [ "$ERROR" != "0" ] && ERROR_WHILE_SPLITTING=3 && break
@@ -636,7 +631,7 @@ new_massive_file_split() {
                 pack_file
                 MASSIVE_TIME_CHECK=$((MASSIVE_TIME_CHECK + (ENDTIME - BEGTIME)))
             else
-                SPLIT_POINT=$(calculate_time "${array[index]}")
+                SPLIT_POINT=$(calculate_time "${array[index]}" "1")
                 verify_time_position "$ORG_LEN" "$SPLIT_POINT" "Beginning point split"
 
                 if [ "$SPLIT_POINT" -le "$LAST_SPLIT" ] && [ "$SPLIT_POINT" != "0" ]; then
@@ -659,7 +654,6 @@ new_massive_file_split() {
             fi
 
             MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
-            RUNTIMES=$((RUNTIMES + 1))
             COMBOARRAYPOS=$((COMBOARRAYPOS + 1))
         done
 
@@ -697,7 +691,7 @@ new_massive_file_split() {
 #***************************************************************************************************************
 rename_unique_combo_file() {
     RUNNING_FILE_NUMBER=1
-    make_running_name
+    make_running_name ""
     if [ -n "$NEWNAME" ]; then move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$NEWNAME$CONV_TYPE" "17"
     else move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$FILE" "18"; fi
 }
@@ -711,7 +705,7 @@ make_combine_file() {
     RUNNING_FILE_NUMBER=1
 
     while true; do
-        make_running_name
+        make_running_name ""
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         if [ "$TARGET_DIR" == "." ]; then printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${COMBOFILE}"
@@ -731,7 +725,7 @@ remove_combine_files() {
     RUNNING_FILE_NUMBER=1
 
     while true; do
-        make_running_name
+        make_running_name ""
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "5"
@@ -779,7 +773,7 @@ combine_split_files() {
     fi
 
     if [ -f "${TARGET_DIR}/$FILE" ]; then
-        make_new_running_name
+        make_new_running_name ""
         if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "4"
         else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "5"; fi
     else
@@ -903,7 +897,7 @@ mergeFiles() {
 #***************************************************************************************************************
 # Separate and calculate given time into seconds and set to corresponting placeholder
 # 1 - time value in hh:mm:ss / mm:ss / ss or a filename
-# 2 - ???
+# 2 - set comma as endtime handler if set, otherwise for beginning
 #***************************************************************************************************************
 calculate_time() {
     #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
@@ -939,7 +933,10 @@ calculate_time() {
 
             for i in "${TA[@]}"; do CALCTIME=$((CALCTIME + i)); done
 
-            [ "$ADDTIME" != "0" ] && CALCTIME+=".${ADDTIME}"
+            if [ "$ADDTIME" != "0" ]; then
+                if [ -z "$2" ]; then BEGTIME_DOT=".${ADDTIME}"
+                else ENDTIME_DOT=".${ADDTIME}"; fi
+            fi
         fi
     fi
 
@@ -959,48 +956,28 @@ parse_handlers() {
             [ "$CROP_HAPPENED" -eq "1" ] && return
             [ -n "$2" ] && PACK_RUN+=("$1") && return
             REPACK=1; REPACK_GIVEN=1; COPY_ONLY=0
-        elif [ "$1" == "ierr" ]; then
-            IGNORE_UNKNOWN=1
-        elif [ "$1" == "bugme" ]; then
-            BUGME=1
-        elif [ "$1" == "quit" ]; then
-            EXIT_VALUE=1
-        elif [ "$1" == "repeat" ]; then
-            EXIT_REPEAT=1
-        elif [ "$1" == "command" ]; then
-            CMD_PRINT="1"
-        elif [ "$1" == "continue" ]; then
-            EXIT_CONTINUE=1
-        elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then
-            IGNORE=1
-        elif [ "$1" == "Ignore" ] || [ "$1" == "I" ]; then
-            IGNORE_SPACE=1
-        elif [ "$1" == "Force" ] || [ "$1" == "F" ]; then
-            IGNORE_SPACE_SIZE=1
-        elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then
-            KEEPORG=1; KEEP_ORG=1; DELETE_AT_END=0
-        elif [ "$1" == "quick" ]; then
-            QUICK=1
-        elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then
-            KEEPORG=1; AUDIO_PACK=1; CONV_TYPE=".wav"; CONV_CHECK="wav"; WAV_OUT=1
-        elif [ "$1" == "Mp3" ] || [ "$1" == "M" ]; then
-            KEEPORG=1; AUDIO_PACK=1; CONV_TYPE=".mp3"; CONV_CHECK="mp3"
-        elif [ "$1" == "mp3" ] || [ "$1" == "m" ]; then
-            KEEPORG=1; MP3OUT=1; CONV_TYPE=".mp3"; CONV_CHECK="mp3"
-        elif [ "$1" == "all" ] || [ "$1" == "a" ]; then
-            PRINT_ALL=1
         elif [ "$1" == "crop" ] || [ "$1" == "s" ]; then
             [ -n "$2" ] && CROP_RUN+=("$1") && return
-            CROP=10
-        elif [ "$1" == "scrub" ] || [ "$1" == "s" ]; then
-            SCRUB=1
-        elif [ "$1" == "print" ] || [ "$1" == "p" ]; then
-            PRINT_INFO=1
-        elif [ "$1" == "hevc" ] || [ "$1" == "h" ]; then
-            if ! hash avconc 2>/dev/null; then printf "avconv not found!\n"; exit 1; fi
-            APP_NAME="/usr/bin/avconv"; APP_STRING="avconv"; HEVC_CONV=0
-        elif [ "$1" == "D" ]; then
-            DEBUG_PRINT=1
+            CROP=1
+        elif [ "$1" == "ierr" ]; then                      IGNORE_UNKNOWN=1
+        elif [ "$1" == "bugme" ]; then                     BUGME=1
+        elif [ "$1" == "quit" ]; then                      EXIT_VALUE=1
+        elif [ "$1" == "repeat" ]; then                    EXIT_REPEAT=1
+        elif [ "$1" == "command" ]; then                   CMD_PRINT="1"
+        elif [ "$1" == "continue" ]; then                  EXIT_CONTINUE=1
+        elif [ "$1" == "D" ]; then                         DEBUG_PRINT=1
+        elif [ "$1" == "quick" ]; then                     QUICK=1
+        elif [ "$1" == "scrub" ] || [ "$1" == "s" ]; then  SCRUB=1
+        elif [ "$1" == "ignore" ] || [ "$1" == "i" ]; then IGNORE=1
+        elif [ "$1" == "Ignore" ] || [ "$1" == "I" ]; then IGNORE_SPACE=1
+        elif [ "$1" == "Force" ] || [ "$1" == "F" ]; then  IGNORE_SPACE_SIZE=1
+        elif [ "$1" == "keep" ] || [ "$1" == "k" ]; then   KEEPORG=1; KEEP_ORG=1; DELETE_AT_END=0
+        elif [ "$1" == "wav" ] || [ "$1" == "w" ]; then    KEEPORG=1; AUDIO_PACK=1; CONV_TYPE=".wav"; CONV_CHECK="wav"; WAV_OUT=1
+        elif [ "$1" == "Mp3" ] || [ "$1" == "M" ]; then    KEEPORG=1; AUDIO_PACK=1; CONV_TYPE=".mp3"; CONV_CHECK="mp3"
+        elif [ "$1" == "mp3" ] || [ "$1" == "m" ]; then    KEEPORG=1; MP3OUT=1; CONV_TYPE=".mp3"; CONV_CHECK="mp3"
+        elif [ "$1" == "flac" ] || [ "$1" == "f" ]; then   KEEPORG=1; AUDIO_PACK=1; CONV_TYPE=".flac"; CONV_CHECK="flac"
+        elif [ "$1" == "all" ] || [ "$1" == "a" ]; then    PRINT_ALL=1
+        elif [ "$1" == "print" ] || [ "$1" == "p" ]; then  PRINT_INFO=1
         else
             printf "Unknown handler %s\n" "$1"
             RETVAL=1; ERROR=6; FAILED_FUNC="${FUNCNAME[0]}"
@@ -1028,13 +1005,7 @@ parse_values() {
         elif [ "$HANDLER" == "end" ] || [ "$HANDLER" == "e" ]; then
             CUTTING=$((CUTTING + 1))
             [ -n "$2" ] && CUT_RUN+=("$1") && return
-            ENDTIME="$(calculate_time "$VALUE")"
-        elif [ "$HANDLER" == "max" ]; then
-            MAX_SHORT_TIME="$VALUE"
-        elif [ "$HANDLER" == "delaudio" ]; then
-            AUDIODELAY="$VALUE"
-        elif [ "$HANDLER" == "delvideo" ]; then
-            VIDEODELAY="$VALUE"
+            ENDTIME="$(calculate_time "$VALUE" "1")"
         elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "l" ]; then
             [ -n "$2" ] && SUB_RUN+=("$1") && return
             LANGUAGE="$VALUE"
@@ -1044,21 +1015,10 @@ parse_values() {
         elif [ "$HANDLER" == "audiotrack" ] || [ "$HANDLER" == "at" ]; then
             [ -n "$2" ] && PACK_RUN+=("$1") && return
             AUDIOTRACK="$VALUE"
-        elif [ "$HANDLER" == "Position" ] || [ "$HANDLER" == "P" ]; then
-            START_POSITION="$VALUE"
-        elif [ "$HANDLER" == "End" ] || [ "$HANDLER" == "E" ]; then
-            END_POSITION="$VALUE"
         elif [ "$HANDLER" == "duration" ] || [ "$HANDLER" == "d" ]; then
             CUTTING=$((CUTTING + 1))
             [ -n "$2" ] && CUT_RUN+=("$1") && return
-            DURATION_TIME="$(calculate_time "$VALUE")"
-        elif [ "$HANDLER" == "target" ] || [ "$HANDLER" == "t" ]; then
-            CONV_TYPE=".$VALUE"; CONV_CHECK="$VALUE"
-        elif [ "$HANDLER" == "Audio" ] || [ "$HANDLER" == "A" ]; then
-            AUDIO_PACK=1; CONV_TYPE=".$VALUE"; CONV_CHECK="$VALUE"
-        elif [ "$HANDLER" == "crop" ] || [ "$HANDLER" == "s" ]; then
-            [ -n "$2" ] && CROP_RUN+=("$1") && return
-            CROP="$VALUE"
+            DURATION_TIME="$(calculate_time "$VALUE" "1")"
         elif [ "$HANDLER" == "Combine" ] || [ "$HANDLER" == "C" ]; then
             CUTTING=$((CUTTING + 1))
             [ -n "$2" ] && MASS_RUN+=("$1") && return
@@ -1069,13 +1029,9 @@ parse_values() {
             [ -n "$2" ] && MASS_RUN+=("$1") && return
             MASS_SPLIT=1
             new_massive_file_split "$VALUE"
-        elif [ "$HANDLER" == "print" ] || [ "$HANDLER" == "p" ]; then
-            PRINT_INFO=$VALUE
         elif [ "$HANDLER" == "sub" ]; then
             [ -n "$2" ] && SUB_RUN+=("$1") && return
             SUBFILE="$VALUE"
-        elif [ "$HANDLER" == "w" ] || [ "$HANDLER" == "write" ]; then
-            WRITEOUT="$VALUE"
         elif [ "$HANDLER" == "n" ] || [ "$HANDLER" == "name" ]; then
             [ -n "$2" ] && CUT_RUN+=("$1") && return
             VALUE="${VALUE//\'/}"; NEWNAME="$VALUE"
@@ -1086,8 +1042,16 @@ parse_values() {
         elif [ "$HANDLER" == "T" ] || [ "$HANDLER" == "Target" ]; then
             [ -n "$2" ] && CUT_RUN+=("$1") && return
             TARGET_DIR="$VALUE"
-        elif [ "$1" == "scrub" ] || [ "$1" == "s" ]; then
-            SCRUB=$VALUE
+        elif [ "$HANDLER" == "max" ]; then                               MAX_SHORT_TIME="$VALUE"
+        elif [ "$HANDLER" == "delaudio" ]; then                          AUDIODELAY="$VALUE"
+        elif [ "$HANDLER" == "delvideo" ]; then                          VIDEODELAY="$VALUE"
+        elif [ "$HANDLER" == "Position" ] || [ "$HANDLER" == "P" ]; then START_POSITION="$VALUE"
+        elif [ "$HANDLER" == "End" ] || [ "$HANDLER" == "E" ]; then      END_POSITION="$VALUE"
+        elif [ "$HANDLER" == "target" ] || [ "$HANDLER" == "t" ]; then   CONV_TYPE=".$VALUE"; CONV_CHECK="$VALUE"
+        elif [ "$HANDLER" == "Audio" ] || [ "$HANDLER" == "A" ]; then    AUDIO_PACK=1; CONV_TYPE=".$VALUE"; CONV_CHECK="$VALUE"
+        elif [ "$HANDLER" == "print" ] || [ "$HANDLER" == "p" ]; then    PRINT_INFO=$VALUE
+        elif [ "$HANDLER" == "w" ] || [ "$HANDLER" == "write" ]; then    WRITEOUT="$VALUE"
+        elif [ "$1" == "scrub" ] || [ "$1" == "s" ]; then                SCRUB=$VALUE
         else
             printf "Unknown value %s\n" "$1"
             ERROR=7; RETVAL=2; FAILED_FUNC="${FUNCNAME[0]}"
@@ -1236,6 +1200,7 @@ print_info() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     if [ "$RUNTIMES" -gt "1" ]; then printf "%${PACKLEN}s" " "; return; fi
+    RUNTIMES=$((RUNTIMES + 1))
 
     INFO_OUT=""
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
@@ -1299,26 +1264,19 @@ setup_file_packing() {
     if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then
         verify_time_position "$DUR" "$BEGTIME" "Beginning time"
         [ "$ERROR" != "0" ] && return
-        COMMAND_LINE+=("-ss" "$BEGTIME")
+        COMMAND_LINE+=("-ss" "${BEGTIME}${BEGTIME_DOT}")
     fi
 
     if [ "$WORKMODE" == "2" ] || [ "$WORKMODE" == "3" ]; then
         verify_time_position "$DUR" "$ENDTIME" "Ending time"
         [ "$ERROR" != "0" ] && return
         ENDO=$((DUR - ENDTIME - BEGTIME))
-        COMMAND_LINE+=("-t" "$ENDO")
+        COMMAND_LINE+=("-t" "${ENDO}${ENDTIME_DOT}")
     fi
 
     AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
 
-    if [ "$HEVC_CONV" == "0" ]; then
-        if [ "$AUDIOSTUFF" -gt "0" ]; then
-            if [ "$CONV_CHECK" == "wav" ]; then COMMAND_LINE+=("-vn" "-acodec pcm_s16le" "-ar" "44100" "-ac" "2")
-            else                                COMMAND_LINE+=("-acodec" "libmp3lame"); fi
-        elif [ "$COPY_ONLY" == "0" ]; then      COMMAND_LINE+=("-map" "0" "-map_metadata" "0:s:0" "-strict" "experimental" "-s" "$PACKSIZE")
-        else                                    COMMAND_LINE+=("-map" "0" "-map_metadata" "0:s:0" "-c" "copy"); fi
-
-    elif [ "$AUDIOSTUFF" -gt "0" ]; then
+    if [ "$AUDIOSTUFF" -gt "0" ]; then
         if [ "$CONV_CHECK" == "wav" ]; then     COMMAND_LINE+=("-vn" "-acodec" "pcm_s16le" "-ar" "44100" "-ac" "2")
         elif [ "$CONV_CHECK" == "flac" ]; then  COMMAND_LINE+=("-c:a" "flac")
         elif [ "$CONV_CHECK" == "mp3" ]; then   COMMAND_LINE+=("-q:a" "0" "-map" "a")
@@ -1446,6 +1404,8 @@ check_output_errors() {
         fi
         RETVAL=6
     fi
+
+    # Cropping uses the outputfile to find the best dimensions, so keep the file
     [ "$CROP" == "0" ] && delete_file "$PACKFILE" "16"
 }
 
@@ -1664,17 +1624,18 @@ make_running_name() {
 
 #***************************************************************************************************************
 # Make a new running filename
+# 1 - if set, will be used as new name, instead of $FILE
 #***************************************************************************************************************
 make_new_running_name() {
     RUNNING_FILE_NUMBER=1
 
     if [ -n "$1" ]; then O_FILE="$FILE"; FILE="${1##*/}"; fi
-    make_running_name
+    make_running_name ""
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
         while true; do
             RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
-            make_running_name
+            make_running_name ""
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         done
     fi
@@ -1692,10 +1653,10 @@ move_to_a_running_file() {
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "10"
         DELIM_ITEM=$((DELIM_ITEM + 1))
     elif [ "$SPLIT_AND_COMBINE" == "1" ]; then
-        make_new_running_name
+        make_new_running_name ""
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "16"
     else
-        make_new_running_name
+        make_new_running_name ""
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "11"
     fi
 }
@@ -1799,33 +1760,38 @@ handle_error_file() {
 }
 
 #***************************************************************************************************************
-# Check if file was a filetype conversion, and accept the bigger filesize in that case
+# Check how the file was converted and print out accordingly
 #***************************************************************************************************************
 check_alternative_conversion() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
     xNEW_DURATION=$((NEW_DURATION / 1000)); xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000)); xNEW_FILESIZE=$((NEW_FILESIZE / 1000)); xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
-    PRINT_ERROR_DATA=""
+    PRINT_ERROR_DATA=""; ORIGINAL_SIZE=$ORIGINAL_HOLDER; ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE));
+    [ "$IGNORE" == "1" ] && ORIGINAL_SIZE=$((NEW_FILESIZE + 10000))
 
-    DURATION_CHECK=$((DURATION_CHECK - 2000))
-    if [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
-        if [ "$CROP" -ne "0" ]; then printf "%sCropped, saved:%s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
+    if [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ]; then
+        if [ "$CROP" -ne "0" ]; then printf "%sCropped, saved:%s" "$CG" "$(check_valuetype "${ENDSIZE}")"
         elif [ "$SPLIT_AND_COMBINE" == "1" ] || [ "$MASS_SPLIT" == "1" ]; then printf "%ssplit into:%s" "$CG" "$(check_valuetype "${NEW_FILESIZE}")"
-        elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -gt "$DURATION_CHECK" ]; then
-            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf " %sResized to %s" "$CG" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
-            [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && printf " %sShortened to %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")"
-        else PRINT_ERROR_DATA="Duration ($NEW_DURATION>$DURATION_CHECK) or size ($ORIGINAL_SIZE<$NEW_FILESIZE) failed!"; fi
+        elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ]; then
+            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf " %sResized and saved:%s" "$CG" "$(check_valuetype "${ENDSIZE}")"
+            [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ] && printf " %sShortened by %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")"
+        elif [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] || [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
+            [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] && PRINT_ERROR_DATA="Duration $(lib t f "$NEW_DURATION")>$(lib t f "$ORIGINAL_DURATION") "
+            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_DURATION")<$(check_valuetype "$NEW_DURATION") "
+        else PRINT_ERROR_DATA="Unknown end situation "; fi
 
         if [ -z "$PRINT_ERROR_DATA" ]; then
             handle_file_rename 1 1
             [ "$DELETE_AT_END" == "1" ] && [ "$DURATION_CUT" != "0" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
+            if [ "$MASSIVE_SPLIT" == "0" ]; then TOTALSAVE=$((TOTALSAVE + ENDSIZE))
+            else MASSIVE_ENDSIZE=$((MASSIVE_ENDSIZE + NEW_FILESIZE)); fi
             printf " %s%s" "$CC" "$(calc_dur)"
         fi
 
-        NEW_DURATION=0; DURATION_CHECK=0
-    elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK})"
+        NEW_DURATION=0
+    elif [ "$EXT_CURR" == "$CONV_CHECK" ]; then RETVAL=11; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Conversion check (${EXT_CURR}=${CONV_CHECK}) "
     elif [ "$IGNORE_UNKNOWN" == "0" ]; then
-        RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown C:$COPY_ONLY e:$EXT_CURR=$CONV_CHECK"
+        RETVAL=12; ERROR_WHILE_MORPH=1; PRINT_ERROR_DATA="Unknown C:$COPY_ONLY e:$EXT_CURR=$CONV_CHECK "
     else
         handle_file_rename 1 2
         printf "%sWarning, ignoring unknown error:%s %s%s%s, saved:%s" "$CY" "$ERROR" "$CC" "$(calc_dur)" "$CY" "$(check_valuetype "$((ORIGINAL_SIZE - NEW_FILESIZE))")"
@@ -1836,7 +1802,7 @@ check_alternative_conversion() {
         printf "%s FAILED!" "$CR"
         [ "$xNEW_DURATION" -gt "$xORIGINAL_DURATION" ] && printf " time:%s>%s" "$xNEW_DURATION" "$xORIGINAL_DURATION" && PRINT_ERROR_DATA=""
         [ "$xNEW_FILESIZE" -gt "$xORIGINAL_SIZE" ] &&  printf " size:%s>%s" "$xNEW_FILESIZE" "$xORIGINAL_SIZE" && PRINT_ERROR_DATA=""
-        [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:%s (%s)" "$PRINT_ERROR_DATA" "$ERROR"
+        [ -n "$PRINT_ERROR_DATA" ] && printf " Reason:%s(%s)" "$PRINT_ERROR_DATA" "$ERROR"
         printf " %s%s" "$CC" "$(calc_dur)"
         TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1)); SPLITTING_ERROR=1; ERROR=91; FAILED_FUNC="${FUNCNAME[0]}"
         [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
@@ -1864,7 +1830,6 @@ check_file_conversion() {
 
         [ "$MASSIVE_SPLIT" == "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + CUTTING_TIME))
 
-        DURATION_CHECK=$((ORIGINAL_DURATION - DURATION_CUT - 2000))
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
         ORIGINAL_HOLDER=$ORIGINAL_SIZE
 
@@ -1878,17 +1843,6 @@ check_file_conversion() {
             TOTAL_ERR_CNT=$((TOTAL_ERR_CNT + 1))
             SPLITTING_ERROR=2; ERROR=79; FAILED_FUNC="${FUNCNAME[0]}"
             [ "$EXIT_REPEAT" -gt "0" ] && EXIT_REPEAT=$((EXIT_REPEAT + 1))
-        elif [ "$NEW_DURATION" -gt "$DURATION_CHECK" ] && [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
-            ORIGINAL_SIZE=$ORIGINAL_HOLDER
-            ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE))
-            if [ "$MASSIVE_SPLIT" == "0" ]; then TOTALSAVE=$((TOTALSAVE + ENDSIZE))
-            else MASSIVE_ENDSIZE=$((MASSIVE_ENDSIZE + NEW_FILESIZE)); fi
-            #ENDSIZE=$((ENDSIZE / 1000))
-            [ "$DELETE_AT_END" == "1" ] && TIMESAVED=$((TIMESAVED + DURATION_CUT))
-
-            if [ "$MASSIVE_SPLIT" == 1 ]; then printf "%sSuccess %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
-            else printf "%sSaved %s %sin %s%s\n" "$CG" "$(lib size $ENDSIZE)" "$CC" "$(lib t F "$process_start_time")" "$CO"; fi
-            handle_file_rename 1 5
         else
             check_alternative_conversion
         fi
@@ -1933,8 +1887,7 @@ handle_file_packing() {
     XP=$(mediainfo '--Inform=Video;%Width%' "$FILE")
     X_WIDTH="$XP"; Y_HEIGHT="$Y"
     if [ "$REPACK" == 1 ] && [[ "$DIMENSION_PARSED" == "0" || "$XP" -le "$WIDTH" ]]; then
-        if [ "$HEVC_CONV" == 1 ]; then PACKSIZE="${XP}:${Y}"
-        else                           PACKSIZE="${XP}x${Y}"; fi
+        PACKSIZE="${XP}:${Y}"
         COPY_ONLY=0
     else
         calculate_packsize
@@ -2192,11 +2145,10 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
 
         if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then
             printf "No specific rules given, checking if there's something to do\n"
-            RUNTIMES=$((RUNTIMES + 1))
             handle_packing "file"
         fi
 
-        if [ "$RUNTIMES" -ge "1" ] && [ "$ERROR" -eq "0" ]; then
+        if [ "$RUNTIMES" -gt "2" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
             printf "%s%s TOTAL saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
