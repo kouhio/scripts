@@ -99,7 +99,7 @@ PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocki
 COMBOFILE="packcombofile.txt"   # Target combination filename
 CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
-RUNTIMES=0                      # Indicator of how many different processes were done to the same one file
+export RUNTIMES=0               # Indicator of how many different processes were done to the same one file
 CUTTING_TIME=0                  # Initial time that is to be cut from a file
 CROP_HAPPENED=0                 # Indicator if file was already cropped
 
@@ -378,10 +378,12 @@ check_and_crop() {
 
             if { [ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]; } && [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ]; then
                 PRINTLINE=$(printf "%s Cropping black borders (%sx%s->%sx%s) " "$(print_info)" "$XC" "$YC" "${CA[0]}" "${CA[1]}")
+                RUNTIMES=$((RUNTIMES + 1))
                 [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" -vf \"%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "$CROP_DATA" "$CO"
                 COMMAND_LINE=("-vf" "crop=$CROP_DATA")
                 run_pack_app
                 check_file_conversion
+                delete_file "$PACKFILE" "30"
                 [ "$ERROR" -eq "0" ] && FILE="${filename}${CONV_TYPE}"
             else
                 if [ "${CA[2]}" == "0" ] && [ "${CA[3]}" == "0" ]; then printf "%s%s Nothing to crop, skipping!%s" "$(print_info)" "$CY" "$CO"
@@ -655,6 +657,7 @@ new_massive_file_split() {
 
             MASSIVE_COUNTER=$((MASSIVE_COUNTER + 1))
             COMBOARRAYPOS=$((COMBOARRAYPOS + 1))
+            RUNTIMES=$((RUNTIMES + 1))
         done
 
         if [ "$SPLIT_P2P" == "0" ] && [ "$ENDTIME" != "0" ]; then
@@ -1395,7 +1398,7 @@ check_output_errors() {
 
     if [ -n "$app_err" ]; then
         printf "\n    %s error:%s%s%s %s%s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$(calc_dur)" "$CO"
-        [ "$ERROR" == "0" ] && ERROR=9 && FAILED_FUNC="${FUNCNAME[0]}"
+        [ "$ERROR" == "0" ] && ERROR=9 && FAILED_FUNC="${FUNCNAME[0]} err:${app_err}"
 
         if [ "$EXIT_VALUE" == "1" ]; then
             delete_file "$PACKFILE" "15"
@@ -2148,7 +2151,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
             handle_packing "file"
         fi
 
-        if [ "$RUNTIMES" -gt "2" ] && [ "$ERROR" -eq "0" ]; then
+        if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
             printf "%s%s TOTAL saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
