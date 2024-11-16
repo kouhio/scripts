@@ -1777,10 +1777,10 @@ check_alternative_conversion() {
         elif [ "$SPLIT_AND_COMBINE" == "1" ] || [ "$MASS_SPLIT" == "1" ]; then printf "%ssplit into:%s" "$CG" "$(check_valuetype "${NEW_FILESIZE}")"
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ]; then
             [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf " %sResized and saved:%s" "$CG" "$(check_valuetype "${ENDSIZE}")"
-            [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ] && printf " %sShortened by %s" "$CG" "$(lib t f "$((ORIGINAL_DURATION - NEW_DURATION))")"
+            [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ] && printf " %sShortened by %s" "$CG" "$(lib t f "${CUTTING_TIME}")"
         elif [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] || [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] && PRINT_ERROR_DATA="Duration $(lib t f "$NEW_DURATION")>$(lib t f "$ORIGINAL_DURATION") "
-            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_DURATION")<$(check_valuetype "$NEW_DURATION") "
+            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_SIZE")<$(check_valuetype "$NEW_SIZE") "
         else PRINT_ERROR_DATA="Unknown end situation "; fi
 
         if [ -z "$PRINT_ERROR_DATA" ]; then
@@ -1827,6 +1827,7 @@ check_file_conversion() {
         if [ "$AUDIO_PACK" == "1" ]; then NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
         else                              NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE"); fi
         AUDIO_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
+        [ -z "$NEW_DURATION" ] && NEW_DURATION=0
 
         NEW_FILESIZE=$(du -k "$FILE$CONV_TYPE" | cut -f1)
         DURATION_CUT=$(((BEGTIME + ENDTIME) * 1000))
@@ -1836,8 +1837,6 @@ check_file_conversion() {
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
         ORIGINAL_HOLDER=$ORIGINAL_SIZE
 
-        [ -z "$NEW_DURATION" ] && NEW_DURATION=0
-        [ "$IGNORE" == "1" ] && ORIGINAL_SIZE=$((NEW_FILESIZE + 10000))
 
         #if video length matches (with one second error tolerance) and destination file is smaller than original, then
         if [ -z "$AUDIO_DURATION" ]; then
