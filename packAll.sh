@@ -96,6 +96,7 @@ PRINTLINE=""                    # Status output string handler
 PACKLEN=58                      # Length of packloop base printout
 
 PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocking run
+RUNFILE="/tmp/pack_run.txt"     # Indicator that app is currently running
 COMBOFILE="packcombofile.txt"   # Target combination filename
 CUTTING=0                       # If any cutting is being done, set this value
 SPLIT_TIME=0                    # Indicator if the pid looper is running for splitting
@@ -227,9 +228,6 @@ set_int() {
     shopt -u nocaseglob
     RUNTIMES=2
     printf "\n%s%s conversion interrupted %s%s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
-    remove_interrupted_files
-    remove_broken_split_files
-    delete_file "$PACKFILE" "27"
     EXIT_EXT_VAL=1
     ERROR=66
 
@@ -244,7 +242,7 @@ set_int() {
         print_total
     fi
 
-    [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
+    temp_file_cleanup "1"
 }
 
 trap set_int SIGINT SIGTERM
@@ -313,7 +311,7 @@ print_help() {
 find_image_pos() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
 
-    [[ ! "$APP_STRING" =~ "ffmpeg" ]] && printf "Can't seek images without ffmpeg!\n" && exit 1
+    [[ ! "$APP_STRING" =~ "ffmpeg" ]] && printf "Can't seek images without ffmpeg!\n" && temp_file_cleanup "1"
     [ "$DEBUG_PRINT" == 1 ] && printf "Seeking time from '%s' by '%s'\n" "$1" "$2"
     IMAGEPOS=$($APP_NAME -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
     IMAGETIME=$(printf "%s" "$IMAGEPOS" |grep "blackframe" -m 1)
@@ -360,7 +358,7 @@ check_and_crop() {
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
         printf "%s Cannot crop files with %s%s%s aborting!%s\n" "$CR" "$CY" "$APP_STRING" "$CR" "$CO"
-        exit 1
+        temp_file_cleanup "1"
     fi
     [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" -vf cropdetect -f null%s\n" "$CP" "$APP_STRING" "$FILE" "$CO"
     PRINTLINE="$(print_info) Reading crop data "
@@ -577,7 +575,7 @@ new_massive_file_split() {
     if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
         if [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
             printf "%sCannot combine files with %s%s%s Aborting!%s\n" "$CR" "$CY" "$APP_STRING" "$CR" "$CO"
-            exit 1
+            temp_file_cleanup "1"
         fi
     fi
 
@@ -682,7 +680,7 @@ new_massive_file_split() {
     else
         printf "File '%s' not found, cannot multisplit!\n" "$FILE"
         ERROR=10; FAILED_FUNC="${FUNCNAME[0]}"
-        [ "$EXIT_VALUE" == "1" ] && exit 1
+        [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
     fi
 
     KEEPORG="$KEEP_ORG"
@@ -737,7 +735,7 @@ remove_combine_files() {
         RUNNING_FILE_NUMBER=$((RUNNING_FILE_NUMBER + 1))
     done
 
-    [ "$EXIT_VALUE" == "1" ] && exit 1
+    [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
 }
 
 #***************************************************************************************************************
@@ -750,7 +748,7 @@ combine_split_files() {
         printf "Failed to separate all asked parts, not combining (err:%s func:%s)\n" "$SPLITTING_ERROR" "$FAILED_FUNC"
         delete_file "${TARGET_DIR}/${COMBOFILE}" "6"
         delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "7"
-        [ "$EXIT_VALUE" == "1" ] && exit 1
+        [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
         return 0
     fi
 
@@ -771,7 +769,7 @@ combine_split_files() {
     if [ "$ERROR" -ne "0" ]; then
         printf "%sFailed%s\n" "$CR" "$CO"
         delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "9"
-        [ "$EXIT_VALUE" == "1" ] && exit 1
+        [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
         return
     fi
 
@@ -824,15 +822,15 @@ combineFiles() {
             else
                 printf "%sCombined %s files to %s/%s_%s%s\n" "$CG" "$FILESCOUNT" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CO"
             fi
-            exit 0
+            temp_file_cleanup "0"
         else
             printf "%sFailed to combine %s as %s/%s_%s%s\n" "$CR" "$FILESCOUNT" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CO"
-            exit 1
+            temp_file_cleanup "1"
         fi
     else
         [ -f "${COMBOFILE}" ] && delete_file "${COMBOFILE}" "12"
         printf "%sNo input files given to combine! Filecount:%s%s\n" "$CR" "$FILESCOUNT" "$CO"
-        exit 1
+        temp_file_cleanup "1"
     fi
 }
 
@@ -885,15 +883,15 @@ mergeFiles() {
                 printf "%sSuccess into %s/%s%s%s in %s%s\n" "$CG" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CC" "$(calc_time_tk)" "$CO"
             fi
 
-            exit 0
+            temp_file_cleanup "0"
         else
             printf "%sFailed!%s in %s%s\n" "$CR" "$CC" "$(calc_time_tk)" "$CO"
             delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "14"
-            exit 1
+            temp_file_cleanup "1"
         fi
     else
         printf "%sNot enough input files given to %s! Filecount:%s%s\n" "$CR" "$TYPE" "$FILESCOUNT" "$CO"
-        exit 1
+        temp_file_cleanup "1"
     fi
 }
 
@@ -984,7 +982,7 @@ parse_handlers() {
         else
             printf "Unknown handler %s\n" "$1"
             RETVAL=1; ERROR=6; FAILED_FUNC="${FUNCNAME[0]}"
-            [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
+            [ "$NO_EXIT_EXTERNAL" == "0" ] && temp_file_cleanup "$RETVAL"
         fi
     fi
 }
@@ -1058,7 +1056,7 @@ parse_values() {
         else
             printf "Unknown value %s\n" "$1"
             ERROR=7; RETVAL=2; FAILED_FUNC="${FUNCNAME[0]}"
-            [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
+            [ "$NO_EXIT_EXTERNAL" == "0" ] && temp_file_cleanup "$RETVAL"
         fi
         check_workmode
     fi
@@ -1076,7 +1074,7 @@ parse_dimension() {
         WIDTH=$(printf "%s" "$1" | cut -d x -f 1)
         if [ "$WIDTH" -lt "640" ]; then
             printf "%s way too small width to be used! Aborting! 640x is minimum!\n" "$WIDTH"
-            exit 1
+            temp_file_cleanup "1"
         fi
         #HEIGHT=$(printf "%s" "$1" | cut -d x -f 2)
         COPY_ONLY=0; DIMENSION_PARSED=1
@@ -1114,7 +1112,7 @@ handle_packing() {
 
     if [ -f "$FILE" ] && [ "$ERROR" == "0" ]; then
         if [ "$1" == "subs" ] && [ -n "$SUBFILE" ]; then burn_subs "$SUBFILE"
-        elif [ "$1" == "file" ] || [ "$1" == "cut" ]; then
+        elif [ "$1" == "file" ] || [ "$1" == "cut" ] || [ "$1" == "repack" ] || [ "$1" == "mass" ]; then
             pack_file
             [ "$1" == "file" ] && filename="${FILE%.*}"; FILE="${filename}${CONV_TYPE}"
         else printf "%sUnknown handler %s for '%s'%s\n" "$CR" "$1" "$FILE" "$CO"; ERROR=3; FAILED_FUNC="${FUNCNAME[0]}"; RETVAL=3; fi
@@ -1403,7 +1401,7 @@ check_output_errors() {
         if [ "$EXIT_VALUE" == "1" ]; then
             delete_file "$PACKFILE" "15"
             handle_file_rename 0 6
-            exit 1
+            temp_file_cleanup "1"
         fi
         RETVAL=6
     fi
@@ -1541,7 +1539,7 @@ burn_subs() {
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
         printf "%sCannot burn subs with %s%s%s Aborting!%s\n" "$CR" "$CY" "$APP_STRING" "$CR" "$CO"
-        exit 1
+        temp_file_cleanup "1"
     fi
 
     MKVSUB=""; RETVAL=0; SUB="$1"
@@ -1600,7 +1598,7 @@ burn_subs() {
         ERROR=2; FAILED_FUNC="${FUNCNAME[0]}"
     fi
 
-    [ "$EXIT_VALUE" == "1" ] && [ "$ERROR" != "0" ] && exit $ERROR
+    [ "$EXIT_VALUE" == "1" ] && [ "$ERROR" != "0" ] && temp_file_cleanup "$ERROR"
 }
 
 #***************************************************************************************************************
@@ -1698,7 +1696,7 @@ handle_file_rename() {
             move_file "$FILE" "./Failed" "." "15"
         fi
 
-        [ "$EXIT_VALUE" == "1" ] && exit 1
+        [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
     fi
 }
 
@@ -1758,7 +1756,7 @@ handle_error_file() {
     #move_file "$FILE" "./Error" "." "1"
     ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %s%s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
 
-    [ "$EXIT_VALUE" == "1" ] && exit 1
+    [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
     RETVAL=10
 }
 
@@ -1780,7 +1778,7 @@ check_alternative_conversion() {
             [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ] && printf " %sShortened by %s" "$CG" "$(lib t f "${CUTTING_TIME}")"
         elif [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] || [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] && PRINT_ERROR_DATA="Duration $(lib t f "$NEW_DURATION")>$(lib t f "$ORIGINAL_DURATION") "
-            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_SIZE")<$(check_valuetype "$NEW_SIZE") "
+            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_SIZE")<$(check_valuetype "$NEWSIZE") "
         else PRINT_ERROR_DATA="Unknown end situation "; fi
 
         if [ -z "$PRINT_ERROR_DATA" ]; then
@@ -1813,7 +1811,7 @@ check_alternative_conversion() {
 
     printf "%s\n" "$CO"
 
-    [ "$TOTAL_ERR_CNT" -gt "3" ] && [ "$EXIT_CONTINUE" == "0" ] && printf "\nToo many errors (%s), aborting!\n" "$TOTAL_ERR_CNT" && exit 1
+    [ "$TOTAL_ERR_CNT" -gt "3" ] && [ "$EXIT_CONTINUE" == "0" ] && printf "\nToo many errors (%s), aborting!\n" "$TOTAL_ERR_CNT" && temp_file_cleanup "1"
 }
 
 #***************************************************************************************************************
@@ -1857,7 +1855,7 @@ check_file_conversion() {
         fi
         remove_interrupted_files
         RETVAL=13
-        [ "$EXIT_VALUE" == "1" ] && exit 1
+        [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
     fi
 }
 
@@ -1873,7 +1871,7 @@ handle_file_packing() {
 
     if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ] && [ "$IGNORE_SPACE_SIZE" -eq "0" ]; then
         printf "Not enough space left! File:%s > harddrive:%s\n" "$ORIGINAL_SIZE" "$SPACELEFT"
-        [ "$IGNORE_SPACE" -eq "0" ] && [ "$NO_EXIT_EXTERNAL" == "0" ] && exit 1
+        [ "$IGNORE_SPACE" -eq "0" ] && [ "$NO_EXIT_EXTERNAL" == "0" ] && temp_file_cleanup "1"
         EXIT_EXT_VAL=1
         return
     fi
@@ -2031,7 +2029,7 @@ verify_necessary_programs() {
         printf "Missing necessary programs: "
         for miss in "${missing[@]}"; do printf "%s " "$miss"; done; printf "\n"
         EXIT_EXT_VAL=1
-        exit 1
+        temp_file_cleanup "1"
     fi
 }
 
@@ -2056,10 +2054,51 @@ check_filename_acceptance() {
 }
 
 #***************************************************************************************************************
+# Remove all unnecessary files after process is interrupted or done
+# 1 - Exit errorcode
+# 2 - if set, means basic exit, remove only partial files
+#***************************************************************************************************************
+temp_file_cleanup() {
+    [ -z "$2" ] && remove_interrupted_files
+    [ -z "$2" ] && remove_broken_split_files
+    delete_file "$PACKFILE" "27"
+    [ -z "$2" ] && remove_combine_files
+    delete_file "$RUNFILE" "31"
+    [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$1"
+}
+
+#***************************************************************************************************************
+# Run packing command
+# 1 - packing type
+# 2@ - the command array
+#***************************************************************************************************************
+run_pack_command() {
+    CMD="$1"
+    shift
+    refresh_base
+    [ "$CMD" == "repack" ] && parse_handlers "repack"
+    for var in "${@}"; do parse_data "$var"; done
+    [ "$CMD" != "mass" ] && handle_packing "$CMD"
+}
+
+#***************************************************************************************************************
+# Wait for other running packAll to finish
+#***************************************************************************************************************
+wait_for_running_package() {
+    wait_start=$(date +%s)
+
+    while [ -f "$RUNFILE" ]; do
+        printf "Already running another copy, aborting! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
+        sleep 1
+    done
+}
+
+#***************************************************************************************************************
 # The MAIN VOID function
 #***************************************************************************************************************
-if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; exit 1; fi
-if [ -f "$PACKFILE" ]; then printf "Already running another copy, aborting! (found: %s)\n" "$PACKFILE"; exit 1; fi
+if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; temp_file_cleanup "1"; fi
+if [ -f "$RUNFILE" ]; then wait_for_running_package; fi
+printf "run" > "$RUNFILE"
 reset_handlers
 verify_necessary_programs
 
@@ -2103,52 +2142,20 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         check_filename_acceptance
         loop_start_time=$(date +%s); RUNTIMES=0; DURATION_CUT=0; ERROR=0; CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
 
-        if [ "$PRINT_INFO" -gt "0" ]; then
-            print_file_info
-            continue
-        fi
+        if [ "$PRINT_INFO" -gt "0" ]; then                            print_file_info; continue; fi
+        if [ "${#SUB_RUN[@]}" -gt "0" ]; then                         run_pack_command "subs" "${SUB_RUN[@]}"; fi
+        if [ "${#CROP_RUN[@]}" -gt "0" ] && [ "$ERROR" == "0" ]; then run_pack_command "file" "${CROP_RUN[@]}"; fi
 
-        if [ "${#SUB_RUN[@]}" -gt "0" ]; then
-            refresh_base
-            for var in "${SUB_RUN[@]}"; do parse_data "$var"; done
-            handle_packing "subs"
-        fi
-
-        if [ "${#CROP_RUN[@]}" -gt "0" ] && [ "$ERROR" == "0" ]; then
-            refresh_base
-            for var in "${CROP_RUN[@]}"; do parse_data "$var"; done
-            handle_packing "file"
-        fi
-
-        if [ "${#PACK_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
-            refresh_base
+        if [ "$ERROR" == "0" ] && { [ "${#PACK_RUN[@]}" -gt "0" ] || [[ "$FILE" != *"$CONV_TYPE" ]]; }; then
             if [ "$CUTTING" -eq "0" ]; then for var in "${CUT_RUN[@]}"; do PACK_RUN+=("$var"); done; CUT_RUN=(); fi
-            for var in "${PACK_RUN[@]}"; do parse_data "$var"; done
-            handle_packing "file"
-
-        elif [[ "$FILE" != *"$CONV_TYPE" ]] && [ "$ERROR" == "0" ]; then
-            refresh_base
-            parse_handlers "repack"
-            if [ "$CUTTING" -eq "0" ]; then for var in "${CUT_RUN[@]}"; do PACK_RUN+=("$var"); done; CUT_RUN=(); fi
-            handle_packing "file"
+            if [[ "$FILE" != *"$CONV_TYPE" ]] && [ "$ERROR" == "0" ]; then run_pack_command "repack" "${PACK_RUN[@]}"
+            else                                                           run_pack_command "file" "${PACK_RUN[@]}"; fi
         fi
 
-        if [ "${#MASS_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
-            for mass in "${MASS_RUN[@]}"; do
-                refresh_base
-                for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
-                parse_data "$mass"
-            done
-        elif [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then
-            refresh_base
-            for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
-            handle_packing "cut"
-        fi
+        if [ "${#MASS_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then for mass in "${MASS_RUN[@]}"; do run_pack_command "mass" "${CUT_RUN[@]}" "$mass"; done
+        elif [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then                                 run_pack_command "cut" "${CUT_RUN[@]}"; fi
 
-        if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then
-            printf "No specific rules given, checking if there's something to do\n"
-            handle_packing "file"
-        fi
+        if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then printf "No specific rules given, checking if there's something to do\n"; handle_packing "file"; fi
 
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
@@ -2170,4 +2177,4 @@ else
 fi
 
 [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-[ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$RETVAL"
+temp_file_cleanup "$RETVAL" "1"
