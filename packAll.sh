@@ -2059,6 +2059,7 @@ check_filename_acceptance() {
 # 2 - if set, means basic exit, remove only partial files
 #***************************************************************************************************************
 temp_file_cleanup() {
+    [ -n "$wait_start" ] && exit 0
     [ -z "$2" ] && remove_interrupted_files
     [ -z "$2" ] && remove_broken_split_files
     delete_file "$PACKFILE" "27"
@@ -2091,6 +2092,7 @@ wait_for_running_package() {
         printf "Already running another copy, aborting! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
         sleep 1
     done
+    wait_start=""
 }
 
 #***************************************************************************************************************
