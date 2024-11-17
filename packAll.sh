@@ -45,6 +45,7 @@ PRINT_ALL=0                     # Print information only on file(s)
 PRINT_INFO=0                    # Will print information according to value
 
 DEBUG_PRINT=0                   # Print function name in this mode
+DEBUG_FILE="pack_debug.txt"     # Debug output file
 MASSIVE_SPLIT=0                 # Splitting one file into multiple files
 MASSIVE_TIME_SAVE=0             # Save each split total to this handler
 MASSIVE_COUNTER=0               # Counter of multisplit items handled
@@ -112,7 +113,7 @@ export EXIT_EXT_VAL             # External exit value handler
 # Reset all runtime handlers
 #***************************************************************************************************************
 reset_handlers() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     CUTTING_INDICATOR=0             # Timer split size handler
     COMBINE_RUN_COUNT=0             # Combined items running counter
@@ -167,7 +168,7 @@ TL=$((TL - 1))
 # Change printout type to corrent
 #***************************************************************************************************************
 check_valuetype() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     SAVESIZE=0; SIZETYPE="kb"; HAND_VAL="$1"
 
@@ -185,7 +186,7 @@ check_valuetype() {
 # Print total handled data information
 #***************************************************************************************************************
 print_total() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     #TOTALSAVE=$((TOTALSAVE / 1000))
@@ -210,7 +211,7 @@ print_total() {
 # Remove incomplete destination files
 #***************************************************************************************************************
 remove_interrupted_files() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     [ -f "${FILE}${CONV_TYPE}" ] && delete_file "${FILE}${CONV_TYPE}" "22"
     [ -f "${NEWNAME}" ]          && delete_file "${NEWNAME}" "25"
@@ -220,7 +221,7 @@ remove_interrupted_files() {
 #If SYS_INTERRUPTted, stop process, remove files not complete and print final situation
 #***************************************************************************************************************
 set_int() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     mapfile CHECKLIST <<<"$(pgrep -f $APP_STRING)"
     [ "${#CHECKLIST[@]}" -gt "1" ] && killall $APP_STRING -s 9
@@ -251,7 +252,7 @@ trap set_int SIGINT SIGTERM
 # Print script functional help
 #***************************************************************************************************************
 print_help() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     printf "No input file! first input is always 'combine/merge/append' or filename (filename, file type or part of filename)\n\n"
     printf "To set dimensions Nx (where N is width, height is automatically calculated to retain aspect ratio)\n\n"
@@ -309,24 +310,26 @@ print_help() {
 # 3 - first or last
 #**************************************************************************************************************
 find_image_pos() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     [[ ! "$APP_STRING" =~ "ffmpeg" ]] && printf "Can't seek images without ffmpeg!\n" && temp_file_cleanup "1"
-    [ "$DEBUG_PRINT" == 1 ] && printf "Seeking time from '%s' by '%s'\n" "$1" "$2"
+    [ "$DEBUG_PRINT" == 1 ] && printf "Seeking time from '%s' by '%s'\n" "$1" "$2" >> "$DEBUG_FILE"
+
     IMAGEPOS=$($APP_NAME -i "$1" -r 1 -loop 1 -i "$2" -an -filter_complex "blend=difference:shortest=1,blackframe=99:32,metadata=print:file=-" -f null -v quiet -)
     IMAGETIME=$(printf "%s" "$IMAGEPOS" |grep "blackframe" -m 1)
     if [ -z "$3" ]; then IMAGETIME="${IMAGEPOS#*pts_time:}"
     else IMAGETIME="${IMAGEPOS##*pts_time:}"; fi
 
     IMAGETIME="${IMAGETIME%%.*}"
-    [ "$DEBUG_PRINT" == 1 ] && printf " image at:%s\n" "$IMAGETIME"
+
+    [ "$DEBUG_PRINT" == 1 ] && printf " image at:%s\n" "$IMAGETIME" >> "$DEBUG_FILE"
 }
 
 #**************************************************************************************************************
 # Read crop data from ffmpeg outputfile and get the biggest dimension data
 #**************************************************************************************************************
 read_biggest_crop_resolution() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; CURR_ROW=1; SEEK_START=$(date +%s)
 
@@ -354,7 +357,7 @@ read_biggest_crop_resolution() {
 # Crop out black borders (this needs more work, kind of hazard at the moment.
 #***************************************************************************************************************
 check_and_crop() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
         printf "%s Cannot crop files with %s%s%s aborting!%s\n" "$CR" "$CY" "$APP_STRING" "$CR" "$CO"
@@ -399,7 +402,7 @@ check_and_crop() {
 # Check WORKMODE for removing time data
 #***************************************************************************************************************
 check_workmode() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$BEGTIME" != "D" ]; then
         if [ "$BEGTIME" -gt 0 ] && [ "$ENDTIME" -gt 0 ]; then           WORKMODE=3; WORKNAME="mid"
@@ -428,7 +431,7 @@ get_file_duration() {
 # 1 - Value to be verified and modified
 #***************************************************************************************************************
 check_zero() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     ZERORETVAL="$1"; ttime="${1:0:1}"
     [ -n "$ttime" ] && [ "$ttime" == "0" ] && ZERORETVAL="${1:1:1}"
@@ -441,7 +444,7 @@ check_zero() {
 # 2 - track to source
 #***************************************************************************************************************
 delete_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" >> "$DEBUG_FILE"
 
     if [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then   scrub -r "$1" >/dev/null 2>&1
@@ -454,7 +457,7 @@ delete_file() {
 # If splitting breaks, remove broken files
 #**************************************************************************************************************
 remove_broken_split_files() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     RUNNING_FILE_NUMBER=1
     make_running_name ""
@@ -474,7 +477,7 @@ remove_broken_split_files() {
 # Check that the timelength matches with the destination files from splitting
 #***************************************************************************************************************
 massive_filecheck() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$ERROR_WHILE_SPLITTING" != "0" ] || [ "$ERROR_WHILE_MORPH" != "0" ]; then
         printf "%sSomething went wrong with splitting %s%s\n" "$CR" "$FILE" "$CO"
@@ -541,7 +544,7 @@ massive_filecheck() {
 # 3 - full file length
 #***************************************************************************************************************
 set_beg_end() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     BEGTIME="$(calculate_time "${1}")"
     verify_time_position "$3" "$BEGTIME" "Beginning massive time pos:$COMBOARRAYPOS"
@@ -561,6 +564,8 @@ set_beg_end() {
 # 2 - error number
 #***************************************************************************************************************
 set_split_error() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     printf "%s\n" "$1"
     ERROR_WHILE_SPLITTING=1; RETVAL="$2"
 }
@@ -570,7 +575,7 @@ set_split_error() {
 # 1 - Splitting time information
 #***************************************************************************************************************
 new_massive_file_split() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ]; then
         if [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
@@ -701,7 +706,7 @@ rename_unique_combo_file() {
 # Make combine output file from existing COMBO_ files
 #***************************************************************************************************************
 make_combine_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     RUNNING_FILE_NUMBER=1
 
@@ -721,7 +726,7 @@ make_combine_file() {
 # In case of failure, remove files meant to be combined
 #***************************************************************************************************************
 remove_combine_files() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     RUNNING_FILE_NUMBER=1
 
@@ -742,7 +747,7 @@ remove_combine_files() {
 # Combine split files into one file, then remove splitted files and rename combofile
 #***************************************************************************************************************
 combine_split_files() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$SPLITTING_ERROR" != "0" ]; then
         printf "Failed to separate all asked parts, not combining (err:%s func:%s)\n" "$SPLITTING_ERROR" "$FAILED_FUNC"
@@ -794,7 +799,7 @@ combine_split_files() {
 # Combine given input files to one file
 #***************************************************************************************************************
 combineFiles() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     FILESCOUNT=0; DELETESOURCEFILES=0
 
@@ -839,7 +844,7 @@ combineFiles() {
 # 1 - If not set, is a merge, else append
 #***************************************************************************************************************
 mergeFiles() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -z "$1" ]; then SETUPSTRING=("-map" "0:v") && TYPE="Merge"
     else SETUPSTRING=("-map" "0") && TYPE="Append"; fi
@@ -901,7 +906,7 @@ mergeFiles() {
 # 2 - set comma as endtime handler if set, otherwise for beginning
 #***************************************************************************************************************
 calculate_time() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     re='^[0-9:.]+$'
     [[ ! "$1" =~ $re ]] && ERROR=11 && FAILED_FUNC="${FUNCNAME[0]}" && printf "0" && return #printf "%s%s -> not correct: '%s'%s\n" "$CR" "${FUNCNAME[0]}" "$1" "$CO" && return
@@ -950,7 +955,7 @@ calculate_time() {
 # 2 - if set, will add certain values to arrays instead of immediately settings values
 #***************************************************************************************************************
 parse_handlers() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then
         if [ "$1" == "repack" ] || [ "$1" == "r" ]; then
@@ -993,7 +998,7 @@ parse_handlers() {
 # 2 - if set, will set certain values to arrays instead of setting them imediately
 #***************************************************************************************************************
 parse_values() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then
         HANDLER=$(printf "%s" "$1" | cut -d = -f 1)
@@ -1068,7 +1073,7 @@ parse_values() {
 # 1 - dimension value Width x Height
 #***************************************************************************************************************
 parse_dimension() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then
         WIDTH=$(printf "%s" "$1" | cut -d x -f 1)
@@ -1085,7 +1090,7 @@ parse_dimension() {
 # Parse file information
 #***************************************************************************************************************
 parse_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then
         CONTINUE_PROCESS=1; FILE_STR="$1"; filename="${FILE_STR%.*}"
@@ -1108,7 +1113,7 @@ parse_file() {
 # 1 - packing type selector string (subs,file,cut)
 #***************************************************************************************************************
 handle_packing() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -f "$FILE" ] && [ "$ERROR" == "0" ]; then
         if [ "$1" == "subs" ] && [ -n "$SUBFILE" ]; then burn_subs "$SUBFILE"
@@ -1130,7 +1135,7 @@ handle_packing() {
 # 2 - if set, will separate different step options
 #***************************************************************************************************************
 parse_data() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then
         if [ "$CHECKRUN" == 0 ]; then
@@ -1159,7 +1164,7 @@ parse_data() {
 # Print video information data
 #***************************************************************************************************************
 print_file_info() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -f "$FILE" ]; then
         X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
@@ -1188,6 +1193,8 @@ print_file_info() {
 # Update the time saved by splitting
 #***************************************************************************************************************
 update_saved_time() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     if [ "$TIMESAVED" -gt "0" ] && [ "$DELETE_AT_END" == "1" ]; then
         if [ "$MASSIVE_TIME_SAVE" -gt "0" ]; then TIMESAVED=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
         else                                      TIMESAVED=$((TIMESAVED  / 1000)); fi
@@ -1198,7 +1205,7 @@ update_saved_time() {
 # Print multiple file handling information
 #***************************************************************************************************************
 print_info() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$RUNTIMES" -gt "1" ]; then printf "%${PACKLEN}s" " "; return; fi
     RUNTIMES=$((RUNTIMES + 1))
@@ -1219,6 +1226,8 @@ print_info() {
 # Update possible printlen if more than one file in printout
 #***************************************************************************************************************
 update_printlen() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     STROUT_P=0
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then STROUT_P="${#MAX_ITEMS}"
     elif [ "$FILECOUNT" -gt 1 ]; then STROUT_P="${#FILECOUNT}"; fi
@@ -1230,7 +1239,7 @@ update_printlen() {
 # Calculate time from current time data for one process and total
 #***************************************************************************************************************
 calc_dur() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     TIMERR=$(date +%s)
     processing_time=$((TIMERR - process_start_time))
@@ -1243,7 +1252,7 @@ calc_dur() {
 # 1 - filename max length
 #***************************************************************************************************************
 short_name() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     NAMENOEXT="${FILE%.*}"; NAMEEXT="${FILE##*.}"; PART_LEN=$((40 - ${#NAMENOEXT} - ${#NAMEEXT}))
 
@@ -1258,7 +1267,7 @@ short_name() {
 # Setup file packing variables
 #***************************************************************************************************************
 setup_file_packing() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     COMMAND_LINE=()
 
@@ -1283,7 +1292,6 @@ setup_file_packing() {
         elif [ "$CONV_CHECK" == "mp3" ]; then   COMMAND_LINE+=("-q:a" "0" "-map" "a")
         elif [ "$AUDIO_PACK" == "1" ]; then     COMMAND_LINE+=("-codec:a" "libmp3lame" "-q:a" "0" "-v" "error")
         else                                    COMMAND_LINE+=("-q:a" "0" "-map" "a"); fi
-
     elif [ -n "$AUDIODELAY" ]; then    COMMAND_LINE+=("-itsoffset" "$AUDIODELAY" "-c:a" "copy" "-c:v" "copy" "-map" "0:a:0" "-map" "0:v:0")
     elif [ -n "$VIDEODELAY" ]; then    COMMAND_LINE+=("-itsoffset" "$VIDEODELAY" "-c:v" "copy" "-c:a" "copy" "-map" "0:v:0" "-map" "0:a:0")
     elif [ "$COPY_ONLY" == "0" ]; then COMMAND_LINE+=("-bsf:v" "h264_mp4toannexb" "-sn" "-vcodec" "libx264" "-codec:a" "libmp3lame" "-q:a" "0" "-v" "error" "-vf" "scale=$PACKSIZE")
@@ -1315,7 +1323,7 @@ setup_file_packing() {
 # Find correct mapping positions for video on audio, if no streams have been set
 #***************************************************************************************************************
 setup_add_packing() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     VIDEOID="-1"; AUDIOSTUFF=$((MP3OUT + AUDIO_PACK + WAV_OUT))
 
@@ -1357,7 +1365,7 @@ setup_add_packing() {
 # 2 - pid of application
 ##########################################################################################
 loop_pid_time() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     STR_LEN=0
 
@@ -1389,7 +1397,7 @@ loop_pid_time() {
 # Check ffmpeg output for errors and act accordingly
 #***************************************************************************************************************
 check_output_errors() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
     [ ! -f "$PACKFILE" ] && return
 
     app_err=$(grep 'Invalid data found when processing input|not found|error in an external library|invalid format character|Unknown error' "$PACKFILE")
@@ -1417,7 +1425,7 @@ check_output_errors() {
 # 3 - error reason
 #***************************************************************************************************************
 verify_time_position() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
     if [ -z "$1" ] || [ -z "$2" ] || [ "$1" == "D" ] || [ "$2" == "D" ]; then return; fi
 
     if [ "$2" -gt "$1" ]; then
@@ -1430,7 +1438,7 @@ verify_time_position() {
 # Pack file by using enviromental variables
 #***************************************************************************************************************
 simply_pack_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     setup_file_packing
     [ "$ERROR" != "0" ] && return
@@ -1481,7 +1489,7 @@ simply_pack_file() {
 # Run APP NAME with given options
 #***************************************************************************************************************
 run_pack_app() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     process_start_time=$(date +%s); FILEDURATION=$(lib V d "$FILE"); ERROR=0
 
@@ -1506,7 +1514,7 @@ run_pack_app() {
 # 3 - If set, will not print successfully read info
 #***************************************************************************************************************
 get_sub_info() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     SUBERR=0; SUBDATA=$(mediainfo "$1"); SUBVAL="$2"; SUBVAL=$((SUBVAL + 1)); SINGLESUB=$(printf "%s" "$SUBDATA" |grep -e "Text #$SUBVAL" -m 1 -A 12)
     [ -z "$SINGLESUB" ] && SINGLESUB=$(printf "%s" "$SUBDATA" |grep -e "Text" -m 1 -A 12)
@@ -1535,7 +1543,7 @@ get_sub_info() {
 # 1 - Subtitle file
 #***************************************************************************************************************
 burn_subs() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$SPLIT_AND_COMBINE" -eq "1" ] && [[ ! "$APP_STRING" =~ "ffmpeg" ]]; then
         printf "%sCannot burn subs with %s%s%s Aborting!%s\n" "$CR" "$CY" "$APP_STRING" "$CR" "$CO"
@@ -1606,7 +1614,7 @@ burn_subs() {
 # 1 - if set, will be used as the new name (no extension!)
 #***************************************************************************************************************
 make_running_name() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; fi
 
@@ -1628,8 +1636,9 @@ make_running_name() {
 # 1 - if set, will be used as new name, instead of $FILE
 #***************************************************************************************************************
 make_new_running_name() {
-    RUNNING_FILE_NUMBER=1
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
+    RUNNING_FILE_NUMBER=1
     if [ -n "$1" ]; then O_FILE="$FILE"; FILE="${1##*/}"; fi
     make_running_name ""
 
@@ -1648,7 +1657,7 @@ make_new_running_name() {
 # When keeping an original file, make the extracted piece it's own unique number, so many parts can be extracted
 #***************************************************************************************************************
 move_to_a_running_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
         move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "10"
@@ -1667,7 +1676,7 @@ move_to_a_running_file() {
 # 1 - If bigger than zero, check one file, if 0, process failed and remove target files
 #***************************************************************************************************************
 handle_file_rename() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ "$1" -gt 0 ] && [ "$ERROR" -eq 0 ] ; then
         [ "$KEEPORG" == "0" ] && delete_file "$FILE" "20"
@@ -1704,7 +1713,8 @@ handle_file_rename() {
 # Calculate dimension ratio change
 #***************************************************************************************************************
 calculate_packsize() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     [ "$AUDIO_PACK" == 1 ] && return
 
     # Get original video dimensions
@@ -1732,7 +1742,7 @@ calculate_packsize() {
 # 4 - source ID for debugging
 #***************************************************************************************************************
 move_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4" >> "$DEBUG_FILE"
 
     if [ -f "${2}/${1}" ] && [ "$2" != "." ] && [ "$3" == "." ]; then make_new_running_name "$1"
     elif [ -f "${2}/${3}" ] && [ "$3" != "." ] && [ "$2" != "." ]; then make_new_running_name "$3"
@@ -1751,7 +1761,7 @@ move_file() {
 # Move corrupted file to a Error directory
 #***************************************************************************************************************
 handle_error_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     #move_file "$FILE" "./Error" "." "1"
     ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %s%s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
@@ -1764,7 +1774,7 @@ handle_error_file() {
 # Check how the file was converted and print out accordingly
 #***************************************************************************************************************
 check_alternative_conversion() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     xNEW_DURATION=$((NEW_DURATION / 1000)); xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000)); xNEW_FILESIZE=$((NEW_FILESIZE / 1000)); xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     PRINT_ERROR_DATA=""; ORIGINAL_SIZE=$ORIGINAL_HOLDER; ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE));
@@ -1818,7 +1828,8 @@ check_alternative_conversion() {
 # Check file handling, if size is smaller and destination file length is the same (with 2sec error marginal)
 #***************************************************************************************************************
 check_file_conversion() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
 
     if [ -f "$FILE$CONV_TYPE" ]; then
@@ -1863,7 +1874,8 @@ check_file_conversion() {
 # Check what kind of file handling will be accessed
 #***************************************************************************************************************
 handle_file_packing() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     [ ! -f "$FILE" ] && return
 
     ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
@@ -1901,7 +1913,7 @@ handle_file_packing() {
 # Get space left on target directory
 #***************************************************************************************************************
 get_space_left() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     [ ! -d "${TARGET_DIR}" ] && mkdir -p "${TARGET_DIR}"
     FULL=$(df -k "${TARGET_DIR}" |grep "/")
@@ -1924,7 +1936,8 @@ get_space_left() {
 # Main file handling function
 #***************************************************************************************************************
 pack_file() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     check_workmode
     process_start_time=$(date +%s)
 
@@ -1968,7 +1981,7 @@ pack_file() {
 # 1 - if set, get looptime instead
 #***************************************************************************************************************
 calc_time_tk() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     JUST_NOW=$(date +%s)
     SCRIPT_TOTAL_TIME=$((JUST_NOW - script_start_time))
@@ -1998,7 +2011,7 @@ calc_time_tk() {
 # 1 - time in seconds
 #***************************************************************************************************************
 calc_giv_time() {
-    #[ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     if [ -z "$1" ]; then
         TIMER_SECOND_PRINT="0"; VAL_HAND=0
@@ -2018,7 +2031,7 @@ calc_giv_time() {
 # Verify that all necessary programs are installed
 #***************************************************************************************************************
 verify_necessary_programs() {
-    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}"
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     missing=()
     hash ffmpeg 2>/dev/null || missing+=("ffmpeg") 
@@ -2037,6 +2050,8 @@ verify_necessary_programs() {
 # Update base values
 #***************************************************************************************************************
 refresh_base() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     reset_handlers
     RUNTIMES=$((RUNTIMES + 1))
 }
@@ -2045,6 +2060,8 @@ refresh_base() {
 # Verify that filename doesn't have apostrophe, as that will break the combining-part
 #***************************************************************************************************************
 check_filename_acceptance() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     NAMECHANGE="${FILE//\'/}"
     #NAMECHANGE=$(echo "$NAMECHANGE" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
     if [ "$NAMECHANGE" != "$FILE" ]; then
@@ -2059,6 +2076,8 @@ check_filename_acceptance() {
 # 2 - if set, means basic exit, remove only partial files
 #***************************************************************************************************************
 temp_file_cleanup() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     [ -n "$wait_start" ] && exit 0
     [ -z "$2" ] && remove_interrupted_files
     [ -z "$2" ] && remove_broken_split_files
@@ -2074,6 +2093,8 @@ temp_file_cleanup() {
 # 2@ - the command array
 #***************************************************************************************************************
 run_pack_command() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     CMD="$1"
     shift
     refresh_base
@@ -2086,6 +2107,8 @@ run_pack_command() {
 # Wait for other running packAll to finish
 #***************************************************************************************************************
 wait_for_running_package() {
+    [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
+
     wait_start=$(date +%s)
 
     while [ -f "$RUNFILE" ]; do
