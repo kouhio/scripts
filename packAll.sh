@@ -527,8 +527,7 @@ massive_filecheck() {
             OSZ=$(du -k "$FILE" | cut -f1)
             [ "$ERROR_WHILE_SPLITTING" == "0" ] && delete_file "$FILE" "3"
             OSZ=$((OSZ - MASSIVE_SIZE_COMP))
-            FINAL_TIMESAVE=$(((ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-            [ "$SPLIT_AND_COMBINE" -eq "0" ] && printf "%s %sSaved %s and %s with splitting%s\n" "$(print_info)" "$CT" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$FINAL_TIMESAVE")" "$CO"
+            [ "$SPLIT_AND_COMBINE" -eq "0" ] && printf "%s %sSaved %s and %s with splitting%s\n" "$(print_info)" "$CT" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$TIME_SHORTENED")" "$CO"
             GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + OSZ))
         fi
     else
