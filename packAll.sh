@@ -1202,12 +1202,12 @@ update_saved_time() {
 
 #***************************************************************************************************************
 # Print multiple file handling information
+# 1 - if set, will print everything, otherwise, will print empty
 #***************************************************************************************************************
 print_info() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
-    if [ "$RUNTIMES" -gt "1" ]; then printf "%${PACKLEN}s" " "; return; fi
-    RUNTIMES=$((RUNTIMES + 1))
+    if [ -z "$1" ]; then printf "%${PACKLEN}s" " "; return; fi
 
     INFO_OUT=""
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
@@ -1217,8 +1217,13 @@ print_info() {
         STROUT_P="${#FILECOUNT}"
         INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$CURRENTFILECOUNTER" "$FILECOUNT")"
     fi
+
+    INFO_X=$(mediainfo '--Inform=Video;%Width%' "$FILE"); INFO_Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
+    INFO_DUR=$(get_file_duration "$FILE"); INFO_SIZE=$(du -k "$FILE" | cut -f1)
+
     INFO_OUT+="$(date +%T): $(short_name) ${APP_STRING}"
-    printf "%s" "$INFO_OUT"
+    INFO_COLOR="Starting length:$(calc_giv_time "$((INFO_DUR / 1000))") dimension:${INFO_X}x${INFO_Y} size:$(check_valuetype "$INFO_SIZE")"
+    printf "%s %s%s%s\n" "$INFO_OUT" "$CY" "$INFO_COLOR" "$CO"
 }
 
 #***************************************************************************************************************
@@ -1371,7 +1376,7 @@ loop_pid_time() {
     while [ -n "$1" ] && [ -n "$2" ]; do
         DIFFER=$(($(date +%s) - $1))
         [ -f "$PACKFILE" ] && line=$(cat $PACKFILE | tail -1)
-        PRINTOUT_TIME="$(date -d@${DIFFER} -u +%T) "
+        PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T) "
         if [[ "$line" == *"time="* ]]; then
             PRINT_ITEM="${line##*time=}"
             PRINT_ITEM="${PRINT_ITEM%%.*}"
@@ -1452,24 +1457,24 @@ simply_pack_file() {
     if   [ "$AUDIO_PACK" == "1" ]; then         PRINTLINE+=$(printf " packing %s to %s " "$EXT_CURR" "$CONV_CHECK")
     elif [ "$MP3OUT" == 1 ]; then               PRINTLINE+=$(printf " extracting %s " "$CONV_CHECK")
     elif [ "${X}" == "${X_WIDTH}" ]; then
-        if [[ "$FILE" != *"$CONV_TYPE" ]]; then PRINTLINE+=$(printf " transforming to %s (%04dx%04d) " "$CONV_TYPE" "$X" "$Y")
-        else                                    PRINTLINE+=$(printf " repacking (%04dx%04d) " "$X" "$Y"); fi
-    elif [ "$COPY_ONLY" == "0" ]; then          PRINTLINE+=$(printf " packing (%04dx%04d->%04dx%04d) " "${X}" "${Y}" "$X_WIDTH" "$Y_HEIGHT")
-    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " combo split %02d/%02d (%04dx%04d) " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}" "${X}" "${Y}") && SPLIT_TIME=2
-    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " splitting %02d/%02d (%04dx%04d) " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}" "${X}" "${Y}") && SPLIT_TIME=2
-    elif [ "$CUTTING_TIME" -gt 0 ]; then        PRINTLINE+=$(printf " cutting (%04dx%04d) " "${X}" "${Y}") && SPLIT_TIME=1
-    else                                        PRINTLINE+=$(printf " copying (%04dx%04d) " "${X}" "${Y}"); fi
+        if [[ "$FILE" != *"$CONV_TYPE" ]]; then PRINTLINE+=$(printf " transforming to %s " "$CONV_TYPE")
+        else                                    PRINTLINE+=$(printf " repacking "); fi
+    elif [ "$COPY_ONLY" == "0" ]; then          PRINTLINE+=$(printf " packing to %04dx%04d " "$X_WIDTH" "$Y_HEIGHT")
+    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " combo split %02d/%02d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
+    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " splitting %02d/%02d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
+    elif [ "$CUTTING_TIME" -gt 0 ]; then        PRINTLINE+=$(printf " cutting ") && SPLIT_TIME=1
+    else                                        PRINTLINE+=$(printf " copying "); fi
 
     ORIGINAL_DURATION=$(get_file_duration "$FILE" "1")
     ORG_DUR=$((ORIGINAL_DURATION / 1000))
 
     if [ "$MASSIVE_SPLIT" == 1 ]; then                         PRINTLINE+=$(printf "to %-6s (mode:$WORKNAME) " "$(calc_giv_time "$CUTTING_INDICATOR")")
-    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf "duration:%-6s " "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")
-    elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then PRINTLINE+=$(printf "%-6s (mode:$WORKNAME) " "$(calc_giv_time $(((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))")
+    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf "audio packing ")
+    elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then PRINTLINE+=$(printf "%-6s (mode:$WORKNAME) " "$(calc_giv_time $((ORG_DUR - CUTTING_TIME)))")
     elif [ "$CUTTING_TIME" -gt 0 ]; then                       PRINTLINE+=$(printf "shortened by %-s (mode:$WORKNAME) " "$(calc_giv_time "$CUTTING_TIME")"); fi
     [ -n "$LANGUAGE_SELECTED" ] && PRINTLINE+="$LANGUAGE_SELECTED "
 
-    [ "$MASSIVE_SPLIT" == 1 ] && MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + ((ORIGINAL_DURATION / 1000) - CUTTING_TIME)))
+    [ "$MASSIVE_SPLIT" == 1 ] && MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + (ORG_DUR - CUTTING_TIME)))
 
     if [ "$CUTTING_TIME" -gt 0 ]; then
         verify_time_position "$ORG_DUR" "$CUTTING_INDICATOR" "Cutting time"
@@ -1495,7 +1500,7 @@ run_pack_app() {
     [ -n "$CMD_PRINT" ] && printf "\n%s %s %s\n" "$CY" "${COMMAND_LINE[*]}" "$CO"
     [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s \"%s%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "${COMMAND_LINE[*]}" "${FILE}" "${CONV_TYPE}" "$CO"
 
-    printf "%s " "${PRINTLINE}"
+    printf "%s" "${PRINTLINE}"
 
     $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
     PIDOF=$!
@@ -1566,7 +1571,8 @@ burn_subs() {
             ERROR=0
             X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
             Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
-            PRINTLINE+="$(printf "(%04dx%04d) " "$X" "$Y")"
+            ORIGINAL_DURATION=$(get_file_duration "$FILE")
+            PRINTLINE+="$(printf "(%04dx%04d|%s) " "$X" "$Y" "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")"
 
             if [ "$SUBERR" == "0" ]; then
                 if [ -n "$MKVSUB" ]; then COMMAND_LINE=("-vf" "subtitles='$SUB':stream_index=$MKVSUB")
@@ -1784,7 +1790,7 @@ check_alternative_conversion() {
         elif [ "$SPLIT_AND_COMBINE" == "1" ] || [ "$MASS_SPLIT" == "1" ]; then printf "%ssplit into:%s" "$CG" "$(check_valuetype "${NEW_FILESIZE}")"
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ]; then
             [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf " %sResized and saved:%s" "$CG" "$(check_valuetype "${ENDSIZE}")"
-            [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ] && printf " %sShortened by %s" "$CG" "$(lib t f "${CUTTING_TIME}")"
+            [ "$CUTTING_TIME" -gt "0" ] && printf " %sShortened by %s" "$CG" "$(lib t f "${CUTTING_TIME}")"
         elif [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] || [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] && PRINT_ERROR_DATA="Duration $(lib t f "$NEW_DURATION")>$(lib t f "$ORIGINAL_DURATION") "
             [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && PRINT_ERROR_DATA="Size $(check_valuetype "$ORIGINAL_SIZE")<$(check_valuetype "$NEWSIZE") "
@@ -2166,7 +2172,9 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         check_filename_acceptance
         loop_start_time=$(date +%s); RUNTIMES=0; DURATION_CUT=0; ERROR=0; CURRENTFILECOUNTER=$((CURRENTFILECOUNTER + 1))
 
-        if [ "$PRINT_INFO" -gt "0" ]; then                            print_file_info; continue; fi
+        if [ "$PRINT_INFO" -gt "0" ]; then                            print_file_info; continue
+        else                                                          print_info "1"; fi
+
         if [ "${#SUB_RUN[@]}" -gt "0" ]; then                         run_pack_command "subs" "${SUB_RUN[@]}"; fi
         if [ "${#CROP_RUN[@]}" -gt "0" ] && [ "$ERROR" == "0" ]; then run_pack_command "file" "${CROP_RUN[@]}"; fi
 
