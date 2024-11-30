@@ -94,7 +94,7 @@ TOTAL_ERR_CNT=0                 # Number of errors occured
 ERROR_WHILE_SPLITTING=0         # Splitting error handler
 filename=""                     # Current filename without extension
 PRINTLINE=""                    # Status output string handler
-PACKLEN=68                      # Length of packloop base printout
+PACKLEN=61                      # Length of packloop base printout
 
 PACKFILE="/tmp/ffmpeg_out.txt"  # Temporary file to handle output for non-blocking run
 RUNFILE="/tmp/pack_run.txt"     # Indicator that app is currently running
@@ -1192,11 +1192,10 @@ print_info() {
     fi
 
     INFO_OUT+="$(date +%T): $(short_name)"
-    INFO_OUT+=" ${APP_STRING^^}"
-
     INFO_X=$(mediainfo '--Inform=Video;%Width%' "$FILE"); INFO_Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
     INFO_DUR=$(get_file_duration "$FILE" "0" "1"); INFO_SIZE=$(du -k "$FILE" | cut -f1)
     if [ "$PRINT_INFO" -gt "0" ]; then PRINTSIZE=$((PRINTSIZE + INFO_SIZE)); PRINTLENGTH=$((PRINTLENGTH + INFO_DUR)); fi
+
     INFO_COLOR=""
     [ "$PRINT_INFO" == "0" ] && INFO_COLOR="Initial "
     INFO_COLOR+="$(printf "%4dx%-4d Size:%-9s Lenght:%-9s" "${INFO_X}" "${INFO_Y}" "$(check_valuetype "${INFO_SIZE}")" "$(calc_giv_time "$INFO_DUR")")"
