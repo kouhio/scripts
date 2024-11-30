@@ -109,6 +109,7 @@ for D in *; do
     fi
 done
 
+rm -fr *.srt
 #if [ $# -ne 0 ]; then
 #    for index in "${!array[@]}"; do
 #        rename "s/${array[index]}/mp4/" *
