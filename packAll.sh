@@ -1237,8 +1237,8 @@ short_name() {
     NAMENOEXT="${FILE%.*}"; NAMEEXT="${FILE##*.}"; PART_LEN=$((50 - ${#NAMENOEXT} - ${#NAMEEXT}))
 
     if [ "${#FILE}" -lt "51" ]; then        FILEprint=$(printf "%-51s" "$FILE")
-    elif [ "${#NAMENOEXT}" -lt "45" ]; then FILEprint=$(printf "%s.%s%${PART_LEN}s" "${NAMENOEXT}" "${NAMEEXT}" " ")
-    else                                    FILEprint=$(printf "%-45s.%-5s" "${NAMENOEXT:0:35}" "${NAMEEXT:0:3}"); fi
+    elif [ "${#NAMENOEXT}" -lt "46" ]; then FILEprint=$(printf "%s.%s%${PART_LEN}s" "${NAMENOEXT}" "${NAMEEXT}" " ")
+    else                                    FILEprint=$(printf "%-45s~.%-5s" "${NAMENOEXT:0:46}" "${NAMEEXT:0:3}"); fi
 
     printf "%s" "$FILEprint"
 }
