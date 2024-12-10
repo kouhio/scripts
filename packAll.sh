@@ -780,19 +780,14 @@ combine_split_files() {
 
     if [ -f "${TARGET_DIR}/$FILE" ]; then
         make_new_running_name ""
-        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "4"
-        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "5"; fi
+        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "4" "1"
+        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "5" "1"; fi
     else
-        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${FILE}" "6"
-        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "7"; fi
+        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${FILE}" "6" "1"
+        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "7" "1"; fi
     fi
 
-    if [ -n "$NEWNAME" ]; then
-        printf "%sSuccess %s%s %s%s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CY" "${NEWNAME}" "${CONV_TYPE}" "$CO"
-        FILE="${NEWNAME}${CONV_TYPE}"
-    else
-        printf "%sSuccess %s%s %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CY" "${FILE}" "$CO"
-    fi
+    printf "%sSuccess %s%s -> %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CY" "${FILE}" "$CO"
 }
 
 #***************************************************************************************************************
@@ -1238,7 +1233,7 @@ short_name() {
 
     if [ "${#FILE}" -lt "51" ]; then        FILEprint=$(printf "%-51s" "$FILE")
     elif [ "${#NAMENOEXT}" -lt "46" ]; then FILEprint=$(printf "%s.%s%${PART_LEN}s" "${NAMENOEXT}" "${NAMEEXT}" " ")
-    else                                    FILEprint=$(printf "%-45s~.%-5s" "${NAMENOEXT:0:46}" "${NAMEEXT:0:3}"); fi
+    else                                    FILEprint=$(printf "%-45s~.%-3s" "${NAMENOEXT:0:46}" "${NAMEEXT:0:3}"); fi
 
     printf "%s" "$FILEprint"
 }
@@ -1568,8 +1563,7 @@ burn_subs() {
                         delete_file "$FILE" "17"
                         [ -f "$SUB" ] && delete_file "$SUB" "18"
                         filename="${FILE%.*}"
-                        move_file "${FILE}${CONV_TYPE}" "${TARGET_DIR}" "${filename}${CONV_TYPE}" "9"
-                        FILE="${filename}${CONV_TYPE}"
+                        move_file "${FILE}${CONV_TYPE}" "${TARGET_DIR}" "${filename}${CONV_TYPE}" "9" "1"
                     fi
                     printf "%ssaved %s %sin %s%s\n" "$CG" "$(check_valuetype "${NEWSIZE}")" "$CC" "$(calc_time_tk)" "$CO"
                 else
@@ -1722,6 +1716,7 @@ calculate_packsize() {
 # 2 - target directory (skipped if set as .)
 # 3 - new name (skipped if set as .)
 # 4 - source ID for debugging
+# 5 - If set, will set new name as FILE
 #***************************************************************************************************************
 move_file() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s '%s'->'%s/%s' src:%s\n" "${FUNCNAME[0]}" "$1" "$2" "$3" "$4" >> "$DEBUG_FILE"
@@ -1737,6 +1732,8 @@ move_file() {
         if [ -n "$2" ] && [ "$2" != "." ]; then mv "$1" "${2}/${RUNNING_FILENAME}"
         else                                    mv "$1" "$RUNNING_FILENAME"; fi
     elif [ -n "$2" ] && [ "$2" != "." ]; then   mv "$1" "${2}/$RUNNING_FILENAME"; fi
+
+    [ -n "$5" ] && FILE="${RUNNING_FILENAME}"
 }
 
 #***************************************************************************************************************
@@ -2037,10 +2034,7 @@ check_filename_acceptance() {
 
     NAMECHANGE="${FILE//\'/}"
     #NAMECHANGE=$(echo "$NAMECHANGE" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
-    if [ "$NAMECHANGE" != "$FILE" ]; then
-        move_file "$FILE" "." "$NAMECHANGE" "19"
-        FILE="${NAMECHANGE}"
-    fi
+    [ "$NAMECHANGE" != "$FILE" ] && move_file "$FILE" "." "$NAMECHANGE" "19" "1"
 }
 
 #***************************************************************************************************************
