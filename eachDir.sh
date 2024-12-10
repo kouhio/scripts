@@ -48,7 +48,8 @@ for d in "${DIR_LIST[@]}"; do
     D_CNT="$((D_CNT + 1))"
     cd "$d" || continue
     printf "\n[%0${#D_MAX}s/%${#D_MAX}s] Running in %s\n" "${D_CNT}" "${D_MAX}" "$d"
-    GLOBAL_FILESAVE="$GLOBAL_FILESAVE" "${@}"
+    TOTALSAVE="$TOTALSAVE" "${@}"
+    GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
     cd "$startPath" || continue
 done
 

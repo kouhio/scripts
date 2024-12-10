@@ -9,6 +9,7 @@ KEEP=0
 IGNORE=0
 VERBOSE=0
 NOHANDLING=0
+ST_TIME=$(date +%s)
 
 ###########################################################################################################
 # Help
@@ -34,7 +35,7 @@ set_int () {
     if [ -f "${file}.new.${OUTPUT}" ]; then
         rm "${file}.new.${OUTPUT}"
     fi
-    GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
+
     echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size "$TOTALSAVE")"
     exit 1
 }
@@ -48,15 +49,19 @@ handle_cue () {
     FILE="${1%.*}"
 
     if [ "$EXT" == "cue" ]; then
+        F_TIME=$(date +%s)
         error=0
         SOURCE="${FILE}.flac"
         echo "shnsplit -f ${1} -t %n-%t -o flac ${SOURCE}"
 #ffmpeg -i input.flac -f segment -segment_time <duration> -c copy output%d.flac
         shnsplit -f "${1}" -t %n-%t -o flac "${SOURCE}"
         error=$?
+        N_TIME=$(date +%s)
+        DIFF_TIME=$((N_TIME - F_TIME))
         if [ "$error" -eq "0" ]; then
             if [ "$DELETE" == "1" ]; then rm "${1}" && rm "${SOURCE}";
             else mkdir "old" && mv "${1}" "${SOURCE}" "old"; fi
+            echo "Split cue in $(date -d@$DIFF_TIME +%M:%S)"
         else
             exit 1
         fi
@@ -69,6 +74,7 @@ handle_cue () {
 # 1 - input filename
 ###########################################################################################################
 handle_file () {
+    F_TIME=$(date +%s)
     file="${1}"
     INFO=$(mediainfo "${file}")
     FILE="${file%.*}"
@@ -87,6 +93,8 @@ handle_file () {
     INPUTSIZE=$(du -k "$file" | cut -f1)
     lame -V 0 -h "${file}" "${file}.new.${OUTPUT}" >/dev/null 2>&1
     error=$?
+    N_TIME=$(date +%s)
+    DIFF_TIME=$((N_TIME - F_TIME))
 
     if [ "$error" == 0 ]; then
         OUTPUTSIZE=$(du -k "${file}.new.${OUTPUT}" | cut -f1)
@@ -101,7 +109,7 @@ handle_file () {
            mv "${file}.new.${OUTPUT}" "${FILE}.${OUTPUT}"
 
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
-           printf "repacked succesfully, saved %-6s total:%s\n" "$(lib size $((INPUTSIZE - OUTPUTSIZE)))" "$(lib size $TOTALSAVE)"
+           printf "repacked succesfully, saved %-6s total:%s in %s\n" "$(lib size $((INPUTSIZE - OUTPUTSIZE)))" "$(lib size $TOTALSAVE)" "$(date -d@$DIFF_TIME -u +%M:%S)"
            SUCCESS=$((SUCCESS + 1))
            [ -n "$TARGET" ] && echo "$file" >> "$TARGET"
         fi
@@ -120,7 +128,7 @@ trap set_int SIGINT SIGTERM
 loop=0
 for i in "${@}"; do
     if   [ "$i" == "repack_audio.sh" ]; then continue
-    elif [ "$loop" == "0" ];    then mapfile -t -d "," MULTILIST < <(printf "%s" "$i"); INPUT="${MULTILIST[@]}"
+    elif [ "$loop" == "0" ];    then mapfile -t -d "," MULTILIST < <(printf "%s" "$i"); INPUT="${MULTILIST[0]}"
     elif [ "$i" == "delete" ];  then DELETE=1
     elif [ "$i" == "ignore" ];  then IGNORE=1
     elif [ "$i" == "keep" ];    then KEEP=1
@@ -172,7 +180,9 @@ if [ "${NOHANDLING}" -eq "0" ]; then
     done
 fi
 
+END_TIME=$(date +%s)
+DIFF_TIME=$((END_TIME - ST_TIME))
 shopt -u nocaseglob
-GLOBAL_FILESAVE=$((GLOBAL_FILESAVE + TOTALSAVE))
-echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size $TOTALSAVE)"
+
+echo "Repacked $SUCCESS files, failed $FAILED, skipped $SKIPPED nosave:$DIDNTSAVE. Saved $(lib size $TOTALSAVE) in $(date -d@$DIFF_TIME +%M:%S)"
 
