@@ -153,15 +153,16 @@ reset_handlers() {
 #***************************************************************************************************************
 # Define regular colors for printout
 #***************************************************************************************************************
-CR=$(tput setaf 1)  # Red
-CG=$(tput setaf 10) # Green
-CY=$(tput setaf 11) # Yellow
-CB=$(tput setaf 14) # Blue
-CP=$(tput setaf 5)  # Magenta
-CC=$(tput setaf 6)  # Cyan
-CT=$(tput setaf 9)  # Orange
-CO=$(tput sgr0)     # Color off
-TL=$(tput cols)     # Number of chars in current bash column
+CR=$(tput setaf 1)   # Red
+CG=$(tput setaf 10)  # Green
+CY=$(tput setaf 11)  # Yellow
+CB=$(tput setaf 14)  # Blue
+C13=$(tput setaf 13) # Purple
+CP=$(tput setaf 5)   # Magenta
+CC=$(tput setaf 6)   # Cyan
+CT=$(tput setaf 9)   # Orange
+CO=$(tput sgr0)      # Color off
+TL=$(tput cols)      # Number of chars in current bash column
 TL=$((TL - 1))
 
 #***************************************************************************************************************
@@ -1178,11 +1179,14 @@ print_info() {
     if [ -z "$1" ]; then printf "%${PACKLEN}s" " "; return; fi
 
     INFO_OUT=""
+    FIRST=0
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
         STROUT_P="${#MAX_ITEMS}"
+        [ "$COUNTED_ITEMS" -gt "1" ] && printf "\n"
         INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$COUNTED_ITEMS" "$MAX_ITEMS")"
     elif [ "$FILECOUNT" -gt 1 ]; then
         STROUT_P="${#FILECOUNT}"
+        [ "$CURRENTFILECOUNTER" -gt "1" ] && printf "\n"
         INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$CURRENTFILECOUNTER" "$FILECOUNT")"
     fi
 
@@ -2155,7 +2159,7 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
             LOOPSAVE=$((TOTALSAVE - LOOPSAVE))
             update_saved_time
-            printf "%s%s TOTAL saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$CC" "$(calc_time_tk "loop")" "$CO"
+            printf "%s%s TOTAL saved size:%s time:%s%s in %s%s\n" "$CG" "$(print_info)" "$(check_valuetype "$LOOPSAVE")" "$(calc_giv_time "$TIMESAVED")" "$C13" "$(calc_time_tk "loop")" "$CO"
             [ -z "$GLOBAL_FILECOUNT" ] && GLOBAL_FILECOUNT=$((GLOBAL_FILECOUNT + 1))
         elif [ "$ERROR" != "0" ] && [ "$ERROR" != "66" ]; then
             printf "%s%s Error:%s at function:%s %sin %s%s\n" "$CR" "$(print_info)" "$ERROR" "$FAILED_FUNC" "$CC" "$(calc_time_tk "loop")" "$CO"
