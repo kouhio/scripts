@@ -1179,14 +1179,14 @@ print_info() {
     if [ -z "$1" ]; then printf "%${PACKLEN}s" " "; return; fi
 
     INFO_OUT=""
-    FIRST=0
+
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
         STROUT_P="${#MAX_ITEMS}"
-        [ "$COUNTED_ITEMS" -gt "1" ] && printf "\n"
+        [ "$COUNTED_ITEMS" -gt "1" ] && [ "$PRINT_INFO" -eq "0" ] && printf "\n"
         INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$COUNTED_ITEMS" "$MAX_ITEMS")"
     elif [ "$FILECOUNT" -gt 1 ]; then
         STROUT_P="${#FILECOUNT}"
-        [ "$CURRENTFILECOUNTER" -gt "1" ] && printf "\n"
+        [ "$CURRENTFILECOUNTER" -gt "1" ] && [ "$PRINT_INFO" -eq "0" ] && printf "\n"
         INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$CURRENTFILECOUNTER" "$FILECOUNT")"
     fi
 

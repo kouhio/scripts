@@ -178,7 +178,7 @@ handle_file (){
            TOTALSAVE=$((TOTALSAVE + (INPUTSIZE - OUTPUTSIZE)))
            printf "repacked succesfully, saved %-6s total:%s in %s\n" "$(lib size $((INPUTSIZE - OUTPUTSIZE)))" "$(lib size $TOTALSAVE)" "$(date -d@$DIFF_TIME -u +%M:%S)"
            SUCCESS=$((SUCCESS + 1))
-           [ -n "$TARGET" ] && printf "${file}\n" >> "$TARGET"
+           [ -n "$TARGET" ] && printf "%s\n" "${file}" >> "$TARGET"
         fi
     elif [ -f "${file}.new.${OUTPUT}" ]; then
         printf "Failed to repack\n"
