@@ -1001,6 +1001,7 @@ parse_values() {
     if [ -n "$1" ]; then
         HANDLER=$(printf "%s" "$1" | cut -d = -f 1)
         VALUE=$(printf "%s" "$1" | cut -d = -f 2)
+        [ -z "$VALUE" ] && return
 
         if [ "$HANDLER" == "beg" ] || [ "$HANDLER" == "b" ]; then
             CUTTING=$((CUTTING + 1))
