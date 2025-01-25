@@ -246,7 +246,7 @@ set_int() {
         print_total
     fi
 
-    temp_file_cleanup "1"
+    [ "$PRINT_INFO" -eq "0" ] && temp_file_cleanup "1"
 }
 
 trap set_int SIGINT SIGTERM
@@ -2057,7 +2057,7 @@ temp_file_cleanup() {
     [ -z "$2" ] && remove_broken_split_files
     delete_file "$PACKFILE" "27"
     [ -z "$2" ] && remove_combine_files
-    delete_file "$RUNFILE" "31"
+    [ "$PRINT_INFO" -eq "0" ] && delete_file "$RUNFILE" "31"
     [ "$NO_EXIT_EXTERNAL" == "0" ] && exit "$1"
 }
 
@@ -2183,4 +2183,4 @@ fi
 [ "$PRINT_INFO" -gt "0" ] && printf "Total Size:%s Duration:%s in %s files\n" "$(check_valuetype "${PRINTSIZE}")" "$(calc_giv_time "$PRINTLENGTH")" "$CURRENTFILECOUNTER"
 
 [ "$MASSIVE_TIME_SAVE" -gt "0" ] && GLOBAL_TIMESAVE=$((GLOBAL_TIMESAVE + (ORIGINAL_DURATION / 1000) - MASSIVE_TIME_SAVE))
-temp_file_cleanup "$RETVAL" "1"
+[ "$PRINT_INFO" -eq "0" ] && temp_file_cleanup "$RETVAL" "1"
