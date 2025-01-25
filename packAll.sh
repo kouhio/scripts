@@ -167,6 +167,7 @@ TL=$((TL - 1))
 
 #***************************************************************************************************************
 # Change printout type to corrent
+# TODO: Print out color depending on size
 #***************************************************************************************************************
 check_valuetype() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
@@ -283,7 +284,7 @@ print_help() {
     printf "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc\n"
     printf "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc\n"
     printf "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one\n"
-    printf "             -    When setting cut or Cut, adding D as the last point, will delete the original file if successful\n\n"
+    printf "             -    When setting cut or Combine, adding D as the last point, will delete the original file if successful\n\n"
     printf "max=         -    Maximum removal time in seconds, verification for combine-functionality\n\n"
     printf "P(osition)   -    Start handling only from Nth file set in position. If not set, will handle all files\n"
     printf "E(nd)        -    Stop handling files after Nth position. If set as 0 (default) will run to the end\n\n"
@@ -1296,6 +1297,7 @@ setup_file_packing() {
         fi
     fi
 
+    [[ "$FILE" == *".mkv" ]] && [ "${#SUB_RUN[@]}" -eq "0" ] && COMMAND_LINE+=("-sn")
     COMMAND_LINE+=("-metadata" "title=")
 }
 
@@ -1549,7 +1551,7 @@ burn_subs() {
             X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
             Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
             ORIGINAL_DURATION=$(get_file_duration "$FILE")
-            PRINTLINE+="$(printf "(%04dx%04d|%s) " "$X" "$Y" "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")"
+            #PRINTLINE+="$(printf "(%04dx%04d|%s) " "$X" "$Y" "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")"
 
             if [ "$SUBERR" == "0" ]; then
                 if [ -n "$MKVSUB" ]; then COMMAND_LINE=("-vf" "subtitles='$SUB':stream_index=$MKVSUB")
@@ -1768,8 +1770,8 @@ check_alternative_conversion() {
         if [ "$CROP" -ne "0" ]; then printf "%sCropped, saved:%s " "$CG" "$(check_valuetype "${ENDSIZE}")"
         elif [ "$SPLIT_AND_COMBINE" == "1" ] || [ "$MASS_SPLIT" == "1" ]; then printf "%ssplit into:%s " "$CG" "$(check_valuetype "${NEW_FILESIZE}")"
         elif [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] || [ "$NEW_DURATION" -lt "$ORIGINAL_DURATION" ]; then
-            [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ] && printf "%sResized and saved:%s " "$CG" "$(check_valuetype "${ENDSIZE}")"
-            [ "$ORIGINAL_SIZE" -lt "$NEW_FILESIZE" ] && printf "%sResized and saved:%s " "$CR" "$(check_valuetype "${ENDSIZE}")"
+            [ "$ENDSIZE" -ge "0" ] && printf "%sResized and saved:%s " "$CG" "$(check_valuetype "${ENDSIZE}")"
+            [ "$ENDSIZE" -lt "0" ] && printf "%sResized and saved:%s " "$CR" "$(check_valuetype "${ENDSIZE}")"
             [ "$CUTTING_TIME" -gt "0" ] && printf "%sShortened by %s " "$CG" "$(lib t f "${CUTTING_TIME}")"
         elif [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] || [ "$ORIGINAL_SIZE" -gt "$NEW_FILESIZE" ]; then
             [ "$NEW_DURATION" -gt "$ORIGINAL_DURATION" ] && PRINT_ERROR_DATA="Duration $(lib t f "$NEW_DURATION")>$(lib t f "$ORIGINAL_DURATION") "
@@ -2094,8 +2096,6 @@ wait_for_running_package() {
 # The MAIN VOID function
 #***************************************************************************************************************
 if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; temp_file_cleanup "1"; fi
-if [ -f "$RUNFILE" ]; then wait_for_running_package; fi
-printf "run" > "$RUNFILE"
 reset_handlers
 verify_necessary_programs
 
@@ -2113,6 +2113,11 @@ for var in "$@"; do
     fi
 done
 update_printlen
+
+if [ "$PRINT_INFO" -eq "0" ]; then
+    [ -f "$RUNFILE" ] && wait_for_running_package
+    printf "run" > "$RUNFILE"
+fi
 
 if [ "$ERROR" != "0" ]; then
     printf "Something went (%s) wrong with calculation (or something else)! Error:%s in :%s\n" "$file" "$ERROR" "$FAILED_FUNC"

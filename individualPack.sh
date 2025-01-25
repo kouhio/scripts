@@ -57,7 +57,7 @@ printSavedData () {
 printTerminatorFunction () {
     {
         echo -e "\ncleanup () {"
-        echo -e "  echo \"Terminated, quitting process!\""
+        echo -e "  printf \"\\nTerminated do.sh, quitting process!\\n\""
         printSavedData "1"
         echo -e "  exit 1"
         echo -e "}\n"
