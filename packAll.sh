@@ -56,6 +56,7 @@ MASSIVE_TIME_CHECK=0            # Wanted total time of output files
 MASSIVE_TIME_COMP=0             # Actual total time of output files
 SPLIT_MAX=0                     # Number of files input is to be split into
 SUBERR=0                        # Subfile error checker
+PIDOF=0                         # Current running pid of ffmpeg
 
 script_start_time=$(date +%s)   # Time in seconds, when the script started running
 process_start_time=$(date +%s)  # Time in seconds, when processing started
@@ -229,6 +230,7 @@ set_int() {
 
     mapfile CHECKLIST <<<"$(pgrep -f $APP_STRING)"
     [ "${#CHECKLIST[@]}" -gt "1" ] && killall $APP_STRING -s 9
+    [ "${PIDOF}" != "0" ] && wait ${PIDOF} 2>/dev/null
     PROCESS_INTERRUPTED=1
     shopt -u nocaseglob
     printf "\n%s%s conversion interrupted %s%s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
@@ -407,6 +409,7 @@ check_and_crop() {
 check_workmode() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
+    WORKNAME=""
     if [ "$BEGTIME" != "D" ]; then
         if [ "$BEGTIME" -gt 0 ] && [ "$ENDTIME" -gt 0 ]; then           WORKMODE=3; WORKNAME="mid"
         elif [ "$BEGTIME" -gt 0 ] && [ "$DURATION_TIME" -gt 0 ]; then   WORKMODE=3; WORKNAME="mid"
@@ -894,7 +897,7 @@ mergeFiles() {
             temp_file_cleanup "1"
         fi
     else
-        printf "%sNot enough input files given to %s! Filecount:%s%s\n" "$CR" "$TYPE" "$FILESCOUNT" "$CO"
+        printf "%s %sNot enough input files given to %s! Filecount:%s%s\n" "$(print_info)" "$CR" "$TYPE" "$FILESCOUNT" "$CO"
         temp_file_cleanup "1"
     fi
 }
@@ -1446,12 +1449,13 @@ simply_pack_file() {
     ORIGINAL_DURATION=$(get_file_duration "$FILE" "1")
     ORG_DUR=$((ORIGINAL_DURATION / 1000))
 
-    if [ "$MASSIVE_SPLIT" == 1 ]; then                         PRINTLINE+=$(printf "to %-6s (mode:$WORKNAME) " "$(calc_giv_time "$CUTTING_INDICATOR")")
-    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf "audio packing ")
-    elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then PRINTLINE+=$(printf "%-6s (mode:$WORKNAME) " "$(calc_giv_time $((ORG_DUR - CUTTING_TIME)))")
-    elif [ "$CUTTING_TIME" -gt 0 ]; then                       PRINTLINE+=$(printf "shortened by %-s (mode:$WORKNAME) " "$(calc_giv_time "$CUTTING_TIME")"); fi
-    [ -n "$LANGUAGE_SELECTED" ] && PRINTLINE+="$LANGUAGE_SELECTED "
+    if [ "$MASSIVE_SPLIT" == 1 ]; then                         PRINTLINE+=$(printf "to %-6s " "$(calc_giv_time "$CUTTING_INDICATOR")")
+    elif [ "$AUDIO_PACK" == "1" ]; then                        PRINTLINE+=$(printf "audio ")
+    elif [ "$MP3OUT" == 1 ] && [ "$CUTTING_TIME" -gt 0 ]; then PRINTLINE+=$(printf "%-6s " "$(calc_giv_time $((ORG_DUR - CUTTING_TIME)))")
+    elif [ "$CUTTING_TIME" -gt 0 ]; then                       PRINTLINE+=$(printf "by %-s " "$(calc_giv_time "$CUTTING_TIME")"); fi
 
+    [ -n "$WORKNAME" ] && PRINTLINE+="(mode:$WORKNAME) "
+    [ -n "$LANGUAGE_SELECTED" ] && PRINTLINE+="$LANGUAGE_SELECTED "
     [ "$MASSIVE_SPLIT" == 1 ] && MASSIVE_TIME_SAVE=$((MASSIVE_TIME_SAVE + (ORG_DUR - CUTTING_TIME)))
 
     if [ "$CUTTING_TIME" -gt 0 ]; then
@@ -1484,6 +1488,7 @@ run_pack_app() {
     $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
     PIDOF=$!
     loop_pid_time "$process_start_time" "$PIDOF"
+    PIDOF=0
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
     printf "\r%${TL}s" " "
     printf "\r%s" "$PRINTLINE"
@@ -1869,9 +1874,9 @@ handle_file_packing() {
     get_space_left
 
     if [ "$ORIGINAL_SIZE" -gt "$SPACELEFT" ] && [ "$IGNORE_SPACE_SIZE" -eq "0" ]; then
-        printf "Not enough space left! File:%s > harddrive:%s\n" "$ORIGINAL_SIZE" "$SPACELEFT"
+        printf "%s%s Not enough space left! File:%s > harddrive:%s%s\n" "${CR}" "$(print_info)" "$ORIGINAL_SIZE" "$SPACELEFT" "${CO}"
         [ "$IGNORE_SPACE" -eq "0" ] && [ "$NO_EXIT_EXTERNAL" == "0" ] && temp_file_cleanup "1"
-        EXIT_EXT_VAL=1
+        EXIT_EXT_VAL=1; ERROR=99; FAILED_FUNC="${FUNCNAME[0]}"
         return
     fi
 
@@ -1957,6 +1962,7 @@ pack_file() {
             RETVAL=14
         else
             printf "%s %sAlready at desired size wanted:%s current:%s%s\n" "$(print_info)" "$CT" "${WIDTH}" "${X}" "$CO"
+            [[ "${FILE}" == *"${CONV_TYPE}" ]] && RUNTIMES=$((RUNTIMES + 1))
         fi
     elif [ "$PRINT_ALL" == 1 ]; then
         printf "%s width:%s skipping\n" "$(print_info)" "$X"
@@ -2083,12 +2089,15 @@ run_pack_command() {
 wait_for_running_package() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
+    lcnt=0
     wait_start=$(date +%s)
 
     while [ -f "$RUNFILE" ]; do
-        printf "Already running another copy, aborting! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
+        printf "Already running another copy, delaying! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
         sleep 1
+        lcnt=$((lcnt + 1))
     done
+    [ "$lcnt" -gt "0" ] && printf "\n"
     wait_start=""
 }
 
@@ -2159,7 +2168,8 @@ elif [ "$CONTINUE_PROCESS" == "1" ]; then
         if [ "${#MASS_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then for mass in "${MASS_RUN[@]}"; do run_pack_command "mass" "${CUT_RUN[@]}" "$mass"; done
         elif [ "${#CUT_RUN[@]}" -gt "0" ] && [ "${ERROR}" == "0" ]; then                                 run_pack_command "cut" "${CUT_RUN[@]}"; fi
 
-        if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then printf "No specific rules given, checking if there's something to do\n"; handle_packing "file"; fi
+        #TODO: if nothing to do, move the file to target folder and name
+        if [ "$RUNTIMES" -eq "0" ] && [ "$ERROR" == "0" ]; then printf "%s No specific rules given, checking if there's something to do\n" "$(print_info)"; handle_packing "file"; fi
         if [ "$ERROR" == "0" ] && [ "$RUNTIMES" -gt "0" ]; then SUCCESFULFILECNT=$((SUCCESFULFILECNT + 1)); fi
 
         if [ "$RUNTIMES" -gt "1" ] && [ "$ERROR" -eq "0" ]; then
