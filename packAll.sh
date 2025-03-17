@@ -163,8 +163,15 @@ CP=$(tput setaf 5)   # Magenta
 CC=$(tput setaf 6)   # Cyan
 CT=$(tput setaf 9)   # Orange
 CO=$(tput sgr0)      # Color off
-TL=$(tput cols)      # Number of chars in current bash column
-TL=$((TL - 1))
+
+#***************************************************************************************************************
+# Update number of chars in row and print the row empty
+#***************************************************************************************************************
+clear_column() {
+    TL=$(tput cols)      # Number of chars in current bash column
+    TL=$((TL - 1))
+    printf "\r%${TL}s" " "
+}
 
 #***************************************************************************************************************
 # Change printout type to corrent
@@ -355,7 +362,7 @@ read_biggest_crop_resolution() {
     done < "$PACKFILE"
 
     delete_file "$PACKFILE" "29"
-    printf "\r%${TL}s" " "
+    clear_column
     printf "\r%s Searching best crop resolution -> found:%s%s %s%s%s\n" "$(print_info)" "$CY" "$CROP_DATA" "$CC" "$(calc_dur)" "$CO"
 }
 
@@ -1490,7 +1497,7 @@ run_pack_app() {
     loop_pid_time "$process_start_time" "$PIDOF"
     PIDOF=0
     [ "$PROCESS_INTERRUPTED" == "1" ] && return
-    printf "\r%${TL}s" " "
+    clear_column
     printf "\r%s" "$PRINTLINE"
     check_output_errors
 }
