@@ -347,6 +347,7 @@ read_biggest_crop_resolution() {
     MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; CURR_ROW=1; SEEK_START=$(date +%s)
 
     while IFS='' read -r c_info || [[ -n "$c_info" ]]; do
+        [ "${PROCESS_INTERRUPTED}" -eq "1" ] && break
         DIFFER=$(($(date +%s) - SEEK_START))
         if [[ "$c_info" == *"crop="* ]]; then
             read_data="${c_info##*crop=}"
@@ -382,6 +383,7 @@ check_and_crop() {
     run_pack_app
     printf "%sdone %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
     read_biggest_crop_resolution
+    [ "${PROCESS_INTERRUPTED}" -eq "1" ] && return
 
     if [ -n "$CROP_DATA" ]; then
         XC=$(mediainfo '--Inform=Video;%Width%' "$FILE")
@@ -1195,11 +1197,11 @@ print_info() {
     if [ -n "$MAX_ITEMS" ] && [ -n "$COUNTED_ITEMS" ]; then
         STROUT_P="${#MAX_ITEMS}"
         [ "$COUNTED_ITEMS" -gt "1" ] && [ "$PRINT_INFO" -eq "0" ] && printf "\n"
-        INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$COUNTED_ITEMS" "$MAX_ITEMS")"
+        INFO_OUT="$(printf "%${STROUT_P}d/%-${STROUT_P}d " "$COUNTED_ITEMS" "$MAX_ITEMS")"
     elif [ "$FILECOUNT" -gt 1 ]; then
         STROUT_P="${#FILECOUNT}"
         [ "$CURRENTFILECOUNTER" -gt "1" ] && [ "$PRINT_INFO" -eq "0" ] && printf "\n"
-        INFO_OUT="$(printf "%0${STROUT_P}d/%0${STROUT_P}d " "$CURRENTFILECOUNTER" "$FILECOUNT")"
+        INFO_OUT="$(printf "%${STROUT_P}d/%-${STROUT_P}d " "$CURRENTFILECOUNTER" "$FILECOUNT")"
     fi
 
     INFO_OUT+="$(date +%T): $(short_name)"
@@ -1261,6 +1263,7 @@ setup_file_packing() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
     COMMAND_LINE=()
+    if [ "${IGNORE_UNKNOWN}" -eq "1" ]; then COMMAND_LINE+=("-err_detect" "ignore"); fi
 
     if [ "$WORKMODE" == "1" ] || [ "$WORKMODE" == "3" ]; then
         verify_time_position "$DUR" "$BEGTIME" "Beginning time"
@@ -1392,10 +1395,10 @@ check_output_errors() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
     [ ! -f "$PACKFILE" ] && return
 
-    app_err=$(grep 'Invalid data found when processing input|not found|error in an external library|invalid format character|Unknown error' "$PACKFILE")
+    app_err=$(grep -E 'Invalid data found when processing input|not found|error in an external library|invalid format character|Unknown error' "$PACKFILE" | awk -F ':' '{print $2}')
 
     if [ -n "$app_err" ]; then
-        printf "\n    %s error:%s%s%s %s%s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$(calc_dur)" "$CO"
+        #printf "\n    %s error:%s%s%s %s%s\n" "${APP_STRING}" "$CR" "$app_err" "$CC" "$(calc_dur)" "$CO"
         [ "$ERROR" == "0" ] && ERROR=9 && FAILED_FUNC="${FUNCNAME[0]} err:${app_err}"
 
         if [ "$EXIT_VALUE" == "1" ]; then
@@ -1447,9 +1450,9 @@ simply_pack_file() {
     elif [ "${X}" == "${X_WIDTH}" ]; then
         if [[ "$FILE" != *"$CONV_TYPE" ]]; then PRINTLINE+=$(printf " Transforming to %s " "$CONV_TYPE")
         else                                    PRINTLINE+=$(printf " Repacking "); fi
-    elif [ "$COPY_ONLY" == "0" ]; then          PRINTLINE+=$(printf " Packing to %04dx%04d " "$X_WIDTH" "$Y_HEIGHT")
-    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " Combo split %02d/%02d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
-    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " Splitting %02d/%02d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
+    elif [ "$COPY_ONLY" == "0" ]; then          PRINTLINE+=$(printf " Packing to %4dx%-4d " "$X_WIDTH" "$Y_HEIGHT")
+    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then  PRINTLINE+=$(printf " Combo split %2d/%-2d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
+    elif [ "$MASS_SPLIT" == "1" ]; then         PRINTLINE+=$(printf " Splitting %2d/%-2d " "${COMBOARRAYPOS}" "${COMBOARRAYSIZE}") && SPLIT_TIME=2
     elif [ "$CUTTING_TIME" -gt 0 ]; then        PRINTLINE+=$(printf " Cutting ") && SPLIT_TIME=1
     else                                        PRINTLINE+=$(printf " Copying "); fi
 
@@ -1563,7 +1566,7 @@ burn_subs() {
             X=$(mediainfo '--Inform=Video;%Width%' "$FILE")
             Y=$(mediainfo '--Inform=Video;%Height%' "$FILE")
             ORIGINAL_DURATION=$(get_file_duration "$FILE")
-            #PRINTLINE+="$(printf "(%04dx%04d|%s) " "$X" "$Y" "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")"
+            #PRINTLINE+="$(printf "(%4dx%-4d|%s) " "$X" "$Y" "$(calc_giv_time "$((ORIGINAL_DURATION / 1000))")")"
 
             if [ "$SUBERR" == "0" ]; then
                 if [ -n "$MKVSUB" ]; then COMMAND_LINE=("-vf" "subtitles='$SUB':stream_index=$MKVSUB")
@@ -1845,7 +1848,6 @@ check_file_conversion() {
         ORIGINAL_SIZE=$(du -k "$FILE" | cut -f1)
         ORIGINAL_HOLDER=$ORIGINAL_SIZE
 
-
         #if video length matches (with one second error tolerance) and destination file is smaller than original, then
         if [ -z "$AUDIO_DURATION" ]; then
             handle_file_rename 0 4
@@ -2101,7 +2103,7 @@ wait_for_running_package() {
 
     while [ -f "$RUNFILE" ]; do
         printf "Already running another copy, delaying! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
-        sleep 1
+        sleep 10
         lcnt=$((lcnt + 1))
     done
     [ "$lcnt" -gt "0" ] && printf "\n"
@@ -2111,7 +2113,7 @@ wait_for_running_package() {
 #***************************************************************************************************************
 # The MAIN VOID function
 #***************************************************************************************************************
-if [ "$#" -le 0 ]; then print_help; EXIT_EXT_VAL=1; temp_file_cleanup "1"; fi
+if [ "$#" -le 0 ]; then print_help; exit 0; fi
 reset_handlers
 verify_necessary_programs
 

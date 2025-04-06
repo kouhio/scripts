@@ -24,7 +24,7 @@ fi
 
 mapfile -t -d " " array < <(printf "%s" "$extensions")
 mapfile -t -d " " array2 < <(printf "%s" "$skiplist")
-sinput=""
+sinput="${1}"
 
 for D in *; do
     size=${#D}
@@ -43,7 +43,7 @@ for D in *; do
                         fi
 
                         if [ "$sinput" == "y" ]; then
-                            Moveall.sh
+                            Moveall.sh "${sinput}"
                             IS_DIR=0
                         else
                             IS_DIR=1
