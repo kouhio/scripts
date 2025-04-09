@@ -3,7 +3,7 @@
 # Move all files with given extensions from sub-directories to current directory
 
 extensions="mp4 mkv avi wmv webm flv m4v mpg srt sub"
-skiplist="mp3 part wav"
+skiplist="mp3 part wav ogg flac cue"
 
 #If interrupted, make sure no external compressions are continued
 set_int () {
@@ -11,20 +11,26 @@ set_int () {
 }
 
 TARGET=".."
-[ -n "$1" ] && TARGET="$1"
+sinput=""
+
+for I in "${@}"; do
+    if [ "${I,,}" == "y" ]; then sinput="${1}"
+    elif [ -d "${I}" ]; then TARGET="${I}"
+    else printf "Unknown input %s\n" "${I}"
+    fi
+done
 
 trap set_int SIGINT SIGTERM
 
 SUCS=0
 
-if [ "$PWD" == "$HOME" ]; then
-    echo "home directory! no way!"
+if [ "${PWD}" == "${HOME}" ] || [ "${TARGET}" == "${HOME}" ]; then
+    echo "target is home directory! no way!"
     exit 1
 fi
 
 mapfile -t -d " " array < <(printf "%s" "$extensions")
 mapfile -t -d " " array2 < <(printf "%s" "$skiplist")
-sinput="${1}"
 
 for D in *; do
     size=${#D}
@@ -43,7 +49,7 @@ for D in *; do
                         fi
 
                         if [ "$sinput" == "y" ]; then
-                            Moveall.sh "${sinput}"
+                            Moveall.sh "${sinput}" "${TARGET}"
                             IS_DIR=0
                         else
                             IS_DIR=1
@@ -61,7 +67,7 @@ for D in *; do
                     cnt=$(find . -maxdepth 1 -name "*.${array[index]}" |wc -l)
                     if [ "$cnt" -gt "0" ]; then
                         SUCS=$((SUCS + cnt))
-                        mv ./*"${array[index]}" "$TARGET"
+                        mv ./*"${array[index]}" "${TARGET}/"
                         echo "Found ${array[index]} in $D (*${array[index]})"
                     fi
                 done
@@ -97,7 +103,7 @@ for D in *; do
                         FILENAME="${f//./ }"
                         FILENAME="${FILENAME,,}"
                         for dir in "${DIRLIST[@]}"; do
-                            if [[ "${FILENAME}" == *"${dir// / }"* ]]; then
+                            if [[ "${FILENAME}" == *"${dir// / }"* ]] || [[ "${FILENAME,,}" == *"eng"*".srt" ]]; then
                                 mv "${f}" "${D}/"
                                 echo "Moving '$f' to '$D'"
                             fi
@@ -109,7 +115,7 @@ for D in *; do
     fi
 done
 
-rm -fr *.srt
+rm -fr ./*.srt
 #if [ $# -ne 0 ]; then
 #    for index in "${!array[@]}"; do
 #        rename "s/${array[index]}/mp4/" *

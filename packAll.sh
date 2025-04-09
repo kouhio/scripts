@@ -392,7 +392,7 @@ check_and_crop() {
         if [ -n "$XC" ] && [ -n "$YC" ]; then
             mapfile -t -d ':' CA < <(printf "%s" "$CROP_DATA")
 
-            if { [ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]; } && [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ]; then
+            if { [ "${CA[2]}" -gt "0" ] || [ "${CA[3]}" -gt "0" ]; } && { [ "${CA[0]}" -ge "320" ] && [ "${CA[1]}" -ge "240" ] || [ "$IGNORE" == "1" ]; }; then
                 PRINTLINE=$(printf "%s Cropping black borders (%sx%s->%sx%s) " "$(print_info)" "$XC" "$YC" "${CA[0]}" "${CA[1]}")
                 [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" -vf \"%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "$CROP_DATA" "$CO"
                 COMMAND_LINE=("-vf" "crop=$CROP_DATA")
@@ -402,7 +402,7 @@ check_and_crop() {
                 [ "$ERROR" -eq "0" ] && FILE="${filename}${CONV_TYPE}"
             else
                 if [ "${CA[2]}" == "0" ] && [ "${CA[3]}" == "0" ]; then printf "%s%s Nothing to crop, skipping!%s" "$(print_info)" "$CY" "$CO"
-                elif [ "${CA[0]}" -lt "320" ] || [ "${CA[1]}" -lt "240" ]; then printf "%s%s crop target too small (%sx%s), skipping!%s" "$(print_info)" "$CR" "${CA[0]}" "${CA[1]}" "$CO"
+                elif [ "${CA[0]}" -lt "320" ] || [ "${CA[1]}" -lt "240" ]; then printf "%s%s Crop target too small (%sx%s), skipping!%s" "$(print_info)" "$CR" "${CA[0]}" "${CA[1]}" "$CO"
                 else printf "%s%s UNKNOWN crop error %s, skipping!%s" "$(print_info)" "$CR" "${CROP_DATA}" "$CO"; fi
                 printf "%s %s%s\n" "$CC" "$(calc_dur)" "$CO"
             fi
@@ -1282,9 +1282,9 @@ setup_file_packing() {
 
     if [ "$AUDIOSTUFF" -gt "0" ]; then
         if [ "$CONV_CHECK" == "wav" ]; then     COMMAND_LINE+=("-vn" "-acodec" "pcm_s16le" "-ar" "44100" "-ac" "2")
-        elif [ "$CONV_CHECK" == "flac" ]; then  COMMAND_LINE+=("-c:a" "flac")
-        elif [ "$CONV_CHECK" == "mp3" ]; then   COMMAND_LINE+=("-q:a" "0" "-map" "a")
-        elif [ "$AUDIO_PACK" == "1" ]; then     COMMAND_LINE+=("-codec:a" "libmp3lame" "-q:a" "0" "-v" "error")
+        elif [ "$CONV_CHECK" == "flac" ]; then  COMMAND_LINE+=("-vn" "-c:a" "flac")
+        elif [ "$CONV_CHECK" == "mp3" ]; then   COMMAND_LINE+=("-vn" "-q:a" "0" "-map" "a")
+        elif [ "$AUDIO_PACK" == "1" ]; then     COMMAND_LINE+=("-vn" "-codec:a" "libmp3lame" "-q:a" "0" "-v" "error")
         else                                    COMMAND_LINE+=("-q:a" "0" "-map" "a"); fi
     elif [ -n "$AUDIODELAY" ]; then    COMMAND_LINE+=("-itsoffset" "$AUDIODELAY" "-c:a" "copy" "-c:v" "copy" "-map" "0:a:0" "-map" "0:v:0")
     elif [ -n "$VIDEODELAY" ]; then    COMMAND_LINE+=("-itsoffset" "$VIDEODELAY" "-c:v" "copy" "-c:a" "copy" "-map" "0:v:0" "-map" "0:a:0")
