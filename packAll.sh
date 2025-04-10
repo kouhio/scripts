@@ -1355,6 +1355,28 @@ setup_add_packing() {
 }
 
 ##########################################################################################
+# Calculate estimated total time
+# 1 - current time
+# 2 - possible video cutout time
+##########################################################################################
+calculate_estimated_time() {
+    if [ "${LAST_TIME}" == "0" ]; then
+        LAST_TIME="$(calculate_time ${1})"
+        return
+    fi
+
+    T_NOW="$(calculate_time ${1})"
+    T_DIFF="$((T_NOW - LAST_TIME))"
+
+    if [ "${2}" == "0" ]; then T_VID="$((ORIGINAL_DURATION / 1000))"
+    elif [ "${SPLIT_TIME}" -eq "2" ]; then T_VID="${CUTTING_INDICATOR}"
+    else T_VID="$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))"; fi
+
+    AVG_EST=$((T_VID / T_DIFF))
+    LAST_TIME="${T_NOW}"
+}
+
+##########################################################################################
 # Update still timer until app is done
 # 1 - start time of PID in seconds
 # 2 - pid of application
@@ -1362,23 +1384,27 @@ setup_add_packing() {
 loop_pid_time() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
-    STR_LEN=0
+    AVG_EST=0; STR_LEN=0; LAST_TIME=0
 
     while [ -n "$1" ] && [ -n "$2" ]; do
         DIFFER=$(($(date +%s) - $1))
         [ -f "$PACKFILE" ] && line=$(cat $PACKFILE | tail -1)
-        PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T) "
+        PRINTOUT_TIME="$(date -d@${DIFFER} -u +%T)"
         if [[ "$line" == *"time="* ]]; then
             PRINT_ITEM="${line##*time=}"
             PRINT_ITEM="${PRINT_ITEM%%.*}"
-            if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT="file:${PRINT_ITEM}/${FILEDURATION}"
-            elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT="file:${PRINT_ITEM}/$(calc_giv_time "$CUTTING_INDICATOR")"
-            else PRINTOUT="file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
+            calculate_estimated_time "${PRINT_ITEM}" "${CUTTING_INDICATOR}"
+            [ "${AVG_EST}" -gt "0" ] && PRINTOUT_TIME+="/$(calc_giv_time "${AVG_EST}")"
+
+            if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT=" file:${PRINT_ITEM}/${FILEDURATION}"
+            elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "$CUTTING_INDICATOR")"
+            else PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))")"; fi
         elif [ "$MASSIVE_SPLIT" -gt "0" ] || [ "$CUTTING_TIME" -gt "0" ]; then
-            PRINTOUT="seeking position"
+            PRINTOUT=" seeking position"
         fi
+
         if [[ "$PRINTOUT" != *"seeking"* ]]; then printf "%s\033[${STR_LEN}D%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CB}" "$PRINTOUT" "$CO"
-        else printf "%s\033[${STR_LEN}D%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CY}" "$PRINTOUT" "$CO"; fi
+        else printf "%s\033[${STR_LEN}D %s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CY}" "$PRINTOUT" "$CO"; fi
         STRL1="${#PRINTOUT_TIME}"; STRL2="${#PRINTOUT}"
         STR_LEN="$((STRL1 + STRL2))"
 
