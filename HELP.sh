@@ -143,6 +143,7 @@ printBash () {
     echo -en "Split string into array with delimiter    mapfile -t -d ' ' $ARRAY < <(printf \"%s\" \"$STRING\")\n"
     echo -en "Set IFS for enter                         NEW_LINE=$'\\\x0A'; export IFS=\"\${NEW_LINE}\";\n\n"
     echo -en "Find all file extensions                  find . -type f -name '*.*' | sed 's|.*\.||' | sort -u\n"
+    echo -en "Find all duplicate files                  find . -type f -printf '%p/ %f\n' | sort -k2 | uniq -f1 --all-repeated=separate\n"
 }
 
 printRename () {

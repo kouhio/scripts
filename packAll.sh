@@ -1236,7 +1236,7 @@ calc_dur() {
 
     TIMERR=$(date +%s)
     processing_time=$((TIMERR - process_start_time))
-    printf "in %s" "$(date -d@${processing_time} -u +%T)"
+    printf "in %s/%s" "$(date -d@${processing_time} -u +%T)" "$(calc_giv_time "${AVG_EST}")"
     process_start_time="$TIMERR"
 }
 
@@ -1361,18 +1361,24 @@ setup_add_packing() {
 ##########################################################################################
 calculate_estimated_time() {
     if [ "${LAST_TIME}" == "0" ]; then
-        LAST_TIME="$(calculate_time ${1})"
+        LAST_TIME="$(calculate_time "${1}")"
         return
     fi
 
-    T_NOW="$(calculate_time ${1})"
+    T_NOW="$(calculate_time "${1}")"
     T_DIFF="$((T_NOW - LAST_TIME))"
 
     if [ "${2}" == "0" ]; then T_VID="$((ORIGINAL_DURATION / 1000))"
     elif [ "${SPLIT_TIME}" -eq "2" ]; then T_VID="${CUTTING_INDICATOR}"
     else T_VID="$(((ORIGINAL_DURATION / 1000) - CUTTING_INDICATOR))"; fi
 
-    AVG_EST=$((T_VID / T_DIFF))
+    if [ "${T_DIFF}" -gt "0" ]; then
+        AVG_EST=$((T_VID / T_DIFF))
+        AVG_TOTAL=$((AVG_TOTAL + AVG_EST))
+        AVG_CNT=$((AVG_CNT + 1))
+        AVG_EST=$((AVG_TOTAL / AVG_CNT))
+    fi
+
     LAST_TIME="${T_NOW}"
 }
 
@@ -1384,12 +1390,12 @@ calculate_estimated_time() {
 loop_pid_time() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
-    AVG_EST=0; STR_LEN=0; LAST_TIME=0
+    AVG_EST=0; STR_LEN=0; LAST_TIME=0; AVG_CNT=0; AVG_TOTAL=0;
 
     while [ -n "$1" ] && [ -n "$2" ]; do
         DIFFER=$(($(date +%s) - $1))
         [ -f "$PACKFILE" ] && line=$(cat $PACKFILE | tail -1)
-        PRINTOUT_TIME="$(date -d@${DIFFER} -u +%T)"
+        PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T)"
         if [[ "$line" == *"time="* ]]; then
             PRINT_ITEM="${line##*time=}"
             PRINT_ITEM="${PRINT_ITEM%%.*}"
