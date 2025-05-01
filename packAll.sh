@@ -46,7 +46,7 @@ PRINT_INFO=0                    # Will print information according to value
 PRINTSIZE=0                     # Info printout size
 PRINTLENGTH=0                   # Info printout time
 
-DEBUG_PRINT=1                   # Print function name in this mode
+DEBUG_PRINT=0                   # Print function name in this mode
 DEBUG_FILE="pack_debug.txt"     # Debug output file
 MASSIVE_SPLIT=0                 # Splitting one file into multiple files
 MASSIVE_TIME_SAVE=0             # Save each split total to this handler
@@ -470,9 +470,9 @@ check_workmode() {
 
     WORKNAME=""
     if [ "$BEGTIME" != "D" ]; then
-        if [ "${BEGTIME%.*}" -gt 0 ] && [ "${ENDTIME%.*}" -gt 0 ]; then           WORKMODE=3; WORKNAME="mid"
+        if [ "${BEGTIME%.*}" -gt 0 ] && [ "${ENDTIME%.*}" -gt 0 ]; then      WORKMODE=3; WORKNAME="mid"
         elif [ "${BEGTIME%.*}" -gt 0 ] && [ "${ENDPOINT%.*}" -gt 0 ]; then   WORKMODE=3; WORKNAME="mid"
-        elif [ "${BEGTIME%.*}" -gt 0 ]; then                                      WORKMODE=1; WORKNAME="beg"
+        elif [ "${BEGTIME%.*}" -gt 0 ]; then                                 WORKMODE=1; WORKNAME="beg"
         elif [ "${ENDTIME%.*}" -gt 0 ] || [ "${ENDPOINT%.*}" -gt 0 ]; then   WORKMODE=2; WORKNAME="end"; fi
     fi
 }
