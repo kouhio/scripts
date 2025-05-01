@@ -146,6 +146,7 @@ reset_handlers() {
     [ "$KEEPORG" == "1" ] && DELETE_AT_END=0
     FAILED_FUNC=""                  # Indicator of the function, where error happened
     MASSIVE_ENDSIZE=0               # Size of the splitted files combined
+    c_row=0; c_col=0                # Print starting position handlers
 }
 
 # If this value is not set, external program is not accessing this and exit -function will be used normally
@@ -341,11 +342,10 @@ get_cursor_position() {
 # 3 - alternative column position
 #*************************************************************************************************************
 print_last_pos() {
-    [ -n "${2}" ] && org_r="${c_row}" && c_row="${2}"
-    [ -n "${3}" ] && org_c="${c_col}" && c_col="${3}"
-    printf "\33[%d;%dH%s\33[%d;%dH" "${c_row}" "${c_col}" "${1}" "${c_row}" "${c_col}"
-    [ -n "${org_r}" ] && c_row="${org_r}" && org_r=""
-    [ -n "${org_c}" ] && c_col="${org_c}" && org_c=""
+    if [ "${c_row}" -eq "0" ] || [ "${c_col}" -eq "0" ]; then get_cursor_position; fi
+
+    if [ -n "${2}" ] && [ -n "${3}" ]; then printf "%s\33[%d;%dH" "${1}" "${2}" "${3}"
+    else                                    printf "%s\33[%d;%dH" "${1}" "${c_row}" "${c_col}"; fi
 }
 
 #*************************************************************************************************************
@@ -1451,7 +1451,7 @@ calculate_estimated_time() {
 loop_pid_time() {
     [ "$DEBUG_PRINT" == 1 ] && printf "%s\n" "${FUNCNAME[0]}" >> "$DEBUG_FILE"
 
-    AVG_EST=0; LAST_TIME=0; AVG_CNT=-1; AVG_TOTAL=0; SEEKTIME=1
+    AVG_EST=0; LAST_TIME=0; AVG_CNT=-1; AVG_TOTAL=0; SEEKTIME=1; c_row=0; c_col=0
 
     while [ -n "$1" ] && [ -n "$2" ]; do
         DIFFER=$(($(date +%s) - $1))
@@ -1587,7 +1587,6 @@ run_pack_app() {
     [ "$BUGME" -eq "1" ] && printf "\n    %s%s -i \"%s\" %s \"%s%s\"%s\n" "$CP" "$APP_STRING" "$FILE" "${COMMAND_LINE[*]}" "${FILE}" "${CONV_TYPE}" "$CO"
 
     printf "%s" "${PRINTLINE}"
-    get_cursor_position
 
     ((RUNTIMES++))
     $APP_NAME -i "$FILE" "${COMMAND_LINE[@]}" "${FILE}${CONV_TYPE}" -v info 2>$PACKFILE &
