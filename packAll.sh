@@ -418,7 +418,8 @@ get_cursor_position() {
 # 3 - alternative column position
 #*************************************************************************************************************
 print_last_pos() {
-    if [ -z "${c_col}" ] || [ "${c_col}" -le "0" ]; then get_cursor_position; fi
+    [ -z "${c_col}" ] && c_col=0
+    if [ "${c_col}" -le "0" ]; then get_cursor_position; fi
     last_row="$(tput lines)"
 
     if [ -n "${2}" ] && [ -n "${3}" ]; then printf "%s\33[%d;%dH" "${1}" "${2}" "${3}"
@@ -1165,7 +1166,7 @@ parse_handlers() {
         elif [ "$1" == "all" ] || [ "$1" == "a" ]; then    PRINT_ALL=1
         elif [ "$1" == "print" ] || [ "$1" == "p" ]; then  PRINT_INFO=1
         else
-            printf "%sUnknown handler %s %s%s\n" "${CR}" "$1" "${FUNCNAME[@]}" "${CO}"
+            printf "%sUnknown handler %s %s%s\n" "${CR}" "$1" "${FUNCNAME[0]}" "${CO}"
             RETVAL=1; ERROR=6; FAILED_FUNC="${FUNCNAME[0]}"
             [ "$NO_EXIT_EXTERNAL" == "0" ] && temp_file_cleanup "$RETVAL"
         fi
@@ -2042,7 +2043,7 @@ move_file() {
 
     [ ! -d "${DIRNAME}" ] && mkdir -p "${DIRNAME}"
     mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}"
-    [ "${#NAME_RUN[@]}" -eq "0" ] && printf -- "-> %s'%s%s'%s " "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"
+    [ "${#NAME_RUN[@]}" -eq "0" ] && printf -- "\n%s   -> %s'%s%s'%s " "$(print_info)" "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"
     [ -n "$5" ] && FILE="${RUNNING_FILENAME}"
 }
 
@@ -2416,7 +2417,7 @@ if [ "$1" == "combine" ]; then COMBINEFILE=1; shift
 elif [ "$1" == "merge" ]; then COMBINEFILE=2; shift
 elif [ "$1" == "append" ]; then COMBINEFILE=3; shift; fi
 
-print_last_pos "" "${last_row}" "0"
+print_last_pos "" "" ""
 for var in "$@"; do
     if [ "$COMBINEFILE" != "0" ]; then
         COMBINELIST+=("$var")
