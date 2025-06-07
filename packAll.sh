@@ -601,14 +601,12 @@ delete_file() {
 remove_broken_split_files() {
     debug_print
 
-    RUNNING_FILE_NUMBER=1
-    make_running_name ""
+    make_running_name "-"
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
         delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "1"
         while true; do
-            ((RUNNING_FILE_NUMBER++))
-            make_running_name ""
+            make_running_name "+"
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
             delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "2"
         done
@@ -630,32 +628,18 @@ massive_filecheck() {
 
     MASSIVE_TIME_COMP=0; RUNNING_FILE_NUMBER=0; MASSIVE_SIZE_COMP=0; TOO_SMALL_FILE=0
 
-    if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
-        DELIM_ITEM=0
-        for CHECKITEM in "${SN_NAMES[@]}"; do
-            DELIMNAME="${TARGET_DIR}/${SN_BEGIN}.$((DELIM_ITEM + 1)) ${CHECKITEM}$CONV_TYPE"
-            CFT=$(get_file_duration "$DELIMNAME")
+    while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
+        make_running_name "+"
+        if [ -f "${TARGET_DIR}/${RUNNING_FILENAME}" ]; then
+            CFT=$(get_file_duration "${TARGET_DIR}/${RUNNING_FILENAME}")
             ((MASSIVE_TIME_COMP += CFT))
-            MSC=$(du -k "$DELIMNAME" | cut -f1)
+            MSC=$(du -k "${TARGET_DIR}/$RUNNING_FILENAME" | cut -f1)
             [ "$MSC" -lt "3000" ] && ((TOO_SMALL_FILE++))
             ((MASSIVE_SIZE_COMP += MSC))
-            ((DELIM_ITEM++))
-        done
-    else
-        while [ "$RUNNING_FILE_NUMBER" -lt "$SPLIT_MAX" ]; do
-            ((RUNNING_FILE_NUMBER++))
-            make_running_name ""
-            if [ -f "${TARGET_DIR}/${RUNNING_FILENAME}" ]; then
-                CFT=$(get_file_duration "${TARGET_DIR}/${RUNNING_FILENAME}")
-                ((MASSIVE_TIME_COMP += CFT))
-                MSC=$(du -k "${TARGET_DIR}/$RUNNING_FILENAME" | cut -f1)
-                [ "$MSC" -lt "3000" ] && ((TOO_SMALL_FILE++))
-                ((MASSIVE_SIZE_COMP += MSC))
-            else
-                break
-            fi
-        done
-    fi
+        else
+            break
+        fi
+    done
 
     if [ "$IGNORE" -ne "0" ] || [ "$SPLIT_AND_COMBINE" -ne "0" ]; then TOO_SMALL_FILE=0; fi
     TIME_SHORTENED=$(((ORIGINAL_DURATION - MASSIVE_TIME_COMP) / 1000))
@@ -727,14 +711,6 @@ new_massive_file_split() {
 
     ERROR_WHILE_SPLITTING=0; MASSIVE_TIME_CHECK=0; MASSIVE_SPLIT=1; KEEPORG=1; IGNORE=1; DELETE_AT_END=0
 
-    if [ -n "$DELIMITER" ]; then
-        SN_BEGIN="${FILE%% *}"
-        SN_END="${FILE#* }"
-        SN_END="${SN_END%.*}"
-        mapfile -t -d "${DELIMITER}" SN_NAMES < <(printf "%s" "$SN_END")
-        DELIM_ITEM=0
-    fi
-
     if [ -f "$FILE" ]; then
         EXT_CURR="${FILE##*.}"
         LEN=$(get_file_duration "$FILE" "0" "1")
@@ -745,7 +721,7 @@ new_massive_file_split() {
 
         mapfile -t -d ',' array < <(printf "%s" "$1")
         SPLIT_MAX=${#array[@]}
-        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=0; COMBOARRAYPOS=1
+        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=0; COMBOARRAYPOS=1; KEEPORG=1
 
         # Verify each time point before doing anything else
         for index in "${!array[@]}"; do
@@ -831,8 +807,7 @@ new_massive_file_split() {
         [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
     fi
 
-    KEEPORG="$KEEP_ORG"
-    [ "$KEEPORG" == "0" ] && DELETE_AT_END=1
+    KEEPORG="${KEEP_ORG}"
 }
 
 #***************************************************************************************************************
@@ -841,8 +816,7 @@ new_massive_file_split() {
 rename_unique_combo_file() {
     if [ "${#NAME_RUN[@]}" -gt "0" ]; then return; fi
 
-    RUNNING_FILE_NUMBER=1
-    make_running_name ""
+    make_running_name "-"
     if [ -n "$NEWNAME" ]; then move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$NEWNAME$CONV_TYPE" "17"
     else move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$FILE" "18"; fi
     ((RUNTIMES++))
@@ -854,17 +828,16 @@ rename_unique_combo_file() {
 make_combine_file() {
     debug_print
 
-    RUNNING_FILE_NUMBER=1
+    RUNNING_FILE_NUMBER=0
 
     while true; do
-        make_running_name ""
+        make_running_name "+"
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         if [ "$TARGET_DIR" == "." ]; then printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${COMBOFILE}"
         else                              printf "file '%s'\n" "${RUNNING_FILENAME}" >> "${TARGET_DIR}/${COMBOFILE}"; fi
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
-        ((RUNNING_FILE_NUMBER++))
     done
 }
 
@@ -874,16 +847,15 @@ make_combine_file() {
 remove_combine_files() {
     debug_print
 
-    RUNNING_FILE_NUMBER=1
+    RUNNING_FILE_NUMBER=0
 
     while true; do
-        make_running_name ""
+        make_running_name "+"
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "5"
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
-        ((RUNNING_FILE_NUMBER++))
     done
 
     [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
@@ -1086,11 +1058,17 @@ calculate_time() {
 
 #**************************************************************************************************************
 # Fetch video name from possible url, NEWNAME or original filename
+# 1 - position value for delimiter (starting from 1)
 #**************************************************************************************************************
 fetchname() {
-    SEASON=""; EPISODE=""; EPNAME=""; EXTRA=""
+    SEASON=""; EPISODE=""; EPNAME=""; EXTRA=""; DELIM="${1:-1}"
 
-    if [ -n "${FETCHURL}" ] && [ -n "${URL_DATA}" ]; then
+    if [ -n "${DELIMITER}" ]; then
+        SN_BEGIN="${FILE%% *}"
+        SN_END="${FILE#* }"
+        SN_END="${SN_END%.*}"
+        mapfile -t -d "${DELIMITER}" SN_NAMES < <(printf "%s" "$SN_END")
+    elif [ -n "${FETCHURL}" ] && [ -n "${URL_DATA}" ]; then
         pos=0
         re='^[0-9]+$'
         season=false
@@ -1127,7 +1105,7 @@ fetchname() {
                     fi
                 done
             elif [[ "${FETCHURL,,}" == *"wikipedia"* ]]; then
-                season=0; episode=0; name=""; c_count=0; t_count=0
+                season=0; episode=0; c_count=0; t_count=0
                 for i in "${URLDATA[@]}"; do
                     if [ "${season}" == "0" ]; then
                         if [[ "${i}" == *"id=\"ep"* ]]; then ((c_count++)); fi
@@ -1144,6 +1122,7 @@ fetchname() {
 
     filename="${FILE%.*}"
     if [ -n "${SEASON}" ] && [ -n "${EPISODE}" ] && [ -n "${EPNAME}" ]; then printf "%d%02d %s%s" "${SEASON}" "${EPISODE}" "${EPNAME}" "${CONV_TYPE}"
+    elif [ -n "${DELIMITER}" ]; then printf "%s.%d %s%s" "${SN_BEGIN}" "${DELIM}" "${SN_NAMES[$((DELIM - 1))]}" "$CONV_TYPE"
     elif [ -n "${NEWNAME}" ] && [[ "${NEWNAME}" != "COMBO_"* ]]; then printf "%s%s" "${NEWNAME}" "${CONV_TYPE}"
     else printf "%s%s" "${filename}" "${CONV_TYPE}"; fi
 }
@@ -1268,12 +1247,7 @@ parse_values() {
             [ -n "$2" ] && NAME_RUN+=("$1") && return
             FETCHURL="${VALUE}"
         elif [ "$HANDLER" == "N" ]; then
-            ((CUTTING++))
-            if [ -n "$2" ]; then
-                CUT_RUN+=("$1")
-                NAME_RUN+=("$1")
-                return
-            fi
+            if [ -n "$2" ]; then NAME_RUN+=("$1"); return; fi
             DELIMITER="$VALUE"
         elif [ "$HANDLER" == "T" ] || [ "$HANDLER" == "Target" ]; then
             [ -n "$2" ] && NAME_RUN+=("$1") && return
@@ -1339,43 +1313,46 @@ parse_file() {
 }
 
 #***************************************************************************************************************
+# Print directory path, if not current folder
+# 1- Target directory
+#***************************************************************************************************************
+print_dir() {
+    printf "%s" "$([ "${1}" != "." ] && printf "%s/" "${1}")"
+}
+
+#***************************************************************************************************************
 # Rename all files to designated names
 #***************************************************************************************************************
 rename_files() {
-    FNAME="$(fetchname)"
-    loopitem=1
-    TD="${TARGET_DIR}"
+    FNAME="$(fetchname)"; loopitem=1
 
-    if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
-        mapfile -t -d "${DELIMITER}" SN_NAMES < <(printf "%s" "$SN_END")
-        for name in "${SN_NAMES[@]}"; do
-            SNAME="${SN_BEGIN}.${loopitem} ${SN_NAMES[$((loopitem - 1))]}$CONV_TYPE"
-            [ "${TARGET_DIR}" != "." ] && move_file "${SNAME}" "${TARGET_DIR}" "${SNAME}" "105"
-            printf "%s %sDelimiter %d/%d moved to %s%s%s\n" "$(print_info)" "$CT" "${loopitem}" "${#SN_NAMES[@]}" "$([ "${TD}" != "." ] && printf "%s/" "${TD}")" "${SNAME}" "$CO"
-            ((loopitem++))
-        done
-    elif [ "${MASS_SPLIT}" == "1" ] && [ "${MASSIVE_COUNTER}" -eq "1" ]; then
-        rename "s/_01//" "${FILE%.*}"*
-        if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then
-            move_file "${FILE}" "${TARGET_DIR}" "${FNAME}" "109"
-            printf "%s %sMoved to %s%s%s\n" "$(print_info)" "$CT" "$([ "${TD}" != "." ] && printf "%s/" "${TD}")" "${FNAME}" "$CO"
+    if [ "$MASS_SPLIT" == "1" ]; then
+        if [ "${MASSIVE_COUNTER}" -eq "1" ]; then
+            if [ "${DELETE_AT_END}" -eq "1" ]; then rename "s/_01//" "${FILE%.*}"*
+            else make_running_name "-" ; FILE="${RUNNING_FILENAME}"; fi
+
+            if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then move_file "${FILE}" "${TARGET_DIR}" "${FNAME}" "109"
+            else RUNNING_FILENAME="${FNAME}"; fi
+            printf "%s %sMoved to %s%s%s\n" "$(print_info)" "$CT" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}" "$CO"
+        else
+            make_running_name "-"
+            while [ -f "${RUNNING_FILENAME}" ]; do
+                CURR_FILENAME="${RUNNING_FILENAME}"
+                if [ -n "${DELIMITER}" ]; then RUNNING_FILENAME="$(fetchname "${loopitem}")"; P_OUT="Delimiter"
+                else make_running_name "${FNAME}"; P_OUT="Splitted"; fi
+
+                move_file "${CURR_FILENAME}" "${TARGET_DIR}" "${RUNNING_FILENAME}" "107"
+                printf "%s %s%s file %d/%d to %s%s%s\n" "$(print_info)" "$CT" "${P_OUT}" "${loopitem}" "${MASSIVE_COUNTER}" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}" "$CO"
+                make_running_name "+"
+                ((loopitem++))
+            done
         fi
-    elif [ "${MASS_SPLIT}" == "1" ]; then
-        RUNNING_FILE_NUMBER=1
-        make_running_name ""
-        while [ -f "${RUNNING_FILENAME}" ]; do
-            CURR_FILENAME="${RUNNING_FILENAME}"
-            make_running_name "${FNAME}"
-            move_file "${CURR_FILENAME}" "${TARGET_DIR}" "${RUNNING_FILENAME}" "107"
-            printf "%s %sSplitted file %d/%d to %s%s%s\n" "$(print_info)" "$CT" "${loopitem}" "${MASSIVE_COUNTER}" "$([ "${TD}" != "." ] && printf "%s/" "${TD}")" "${RUNNING_FILENAME}" "$CO"
-            ((RUNNING_FILE_NUMBER++))
-            make_running_name ""
-            ((loopitem++))
-        done
     else
+        if [ "${SPLIT_AND_COMBINE}" -eq "1" ]; then make_running_name "-"; FILE="${RUNNING_FILENAME}"; fi
+
         if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then
             move_file "$FILE" "${TARGET_DIR}" "${FNAME}" "106"
-            printf "%s %sRenamed to %s%s%s\n" "$(print_info)" "$CT" "$([ "${TD}" != "." ] && printf "%s/" "${TD}")" "${FNAME}" "$CO"
+            printf "%s %sRenamed to %s%s%s\n" "$(print_info)" "$CT" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}" "$CO"
         fi
     fi
     ((RUNTIMES++))
@@ -1932,23 +1909,32 @@ burn_subs() {
 #***************************************************************************************************************
 # Make a filename with incrementing value
 # 1 - if set, will be used as the new name (no extension!)
+#     + to increase the filenumber automatically
+#     - to reset the filenumber to 1
+# 2 - if set 1 set as + then this will be used as the new name (no extension!)
 #***************************************************************************************************************
 make_running_name() {
     debug_print
+    O_FILE=""
 
-    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; fi
+    if [ -n "$1" ]; then
+        if [ "${1}" == "+" ]; then ((RUNNING_FILE_NUMBER++)); shift
+        elif [ "${1}" == "-" ]; then RUNNING_FILE_NUMBER=1; shift
+        else O_FILE="$FILE"; FILE="$1"; fi
+    fi
+
+    if [ -n "$2" ]; then O_FILE="$FILE"; FILE="$2"; fi
 
     ExtLen=${#EXT_CURR}; NameLen=${#FILE}; LEN_NO_EXT=$((NameLen - ExtLen - 1))
+    [ "${LEN_NO_EXT}" -le "0" ] && LEN_NO_EXT="${#1:-${#FILE}}"
 
     if [ -z "$NEWNAME" ]; then RUNNING_FILENAME=${FILE:0:$LEN_NO_EXT}
     else                       RUNNING_FILENAME=$NEWNAME; fi
 
-    if [ "$RUNNING_FILE_NUMBER" -lt "10" ]; then RUNNING_FILENAME+="_0$RUNNING_FILE_NUMBER$CONV_TYPE"
-    else                                         RUNNING_FILENAME+="_$RUNNING_FILE_NUMBER$CONV_TYPE"; fi
-
+    RUNNING_FILENAME+="$(printf "_%02d%s" "$RUNNING_FILE_NUMBER" "$CONV_TYPE")"
     if [ "$SPLIT_AND_COMBINE" == "1" ] && [ -z "$1" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
 
-    if [ -n "$1" ]; then FILE="$O_FILE"; fi
+    if [ -n "${O_FILE}" ]; then FILE="$O_FILE"; fi
 }
 
 #***************************************************************************************************************
@@ -1958,14 +1944,12 @@ make_running_name() {
 make_new_running_name() {
     debug_print
 
-    RUNNING_FILE_NUMBER=1
     if [ -n "$1" ]; then O_FILE="$FILE"; FILE="${1##*/}"; fi
-    make_running_name ""
+    make_running_name "-"
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
         while true; do
-            ((RUNNING_FILE_NUMBER++))
-            make_running_name ""
+            make_running_name "+"
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
         done
     fi
@@ -1979,17 +1963,8 @@ make_new_running_name() {
 move_to_a_running_file() {
     debug_print
 
-    if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
-        move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "10"
-        #[ "${TARGET_DIR}" != "." ] && printf "%sRenamed to %s%s " "$CT" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "$CO"
-        ((DELIM_ITEM++))
-    elif [ "$SPLIT_AND_COMBINE" == "1" ]; then
-        make_new_running_name ""
-        move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "16"
-    else
-        make_new_running_name ""
-        move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "11"
-    fi
+    make_new_running_name ""
+    move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "16"
 }
 
 #***************************************************************************************************************
@@ -2003,14 +1978,8 @@ handle_file_rename() {
         [ "$KEEPORG" == "0" ] && delete_file "$FILE" "20"
 
         if [ "$KEEPORG" == "0" ]; then
-            if [ -n "$DELIMITER" ] && [ "$MASS_SPLIT" == "1" ]; then
-                move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "12"
-                #[ "${TARGET_DIR}" != "." ] && printf "\n%s %sRenamed to %s%s [2]\n" "$(print_info)" "$CT" "${SN_BEGIN}.$((DELIM_ITEM + 1)) ${SN_NAMES[${DELIM_ITEM}]}$CONV_TYPE" "$CO"
-                ((DELIM_ITEM++))
-            else
-                FNAME="$(fetchname)"
-                move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${FNAME}" "14" "1"
-            fi
+            FNAME="$(fetchname)"
+            move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${FNAME}" "14" "1"
         else
             move_to_a_running_file
         fi
@@ -2062,22 +2031,18 @@ calculate_packsize() {
 # 5 - If set, will set new name as FILE
 #***************************************************************************************************************
 move_file() {
-    debug_print "'$1'->'$2/$3' src:$4"
+    debug_print "'$1'->'$2/$3' src:$4 update:$5"
+    SRCNAME="${1}"; TRGNAME="${3}"; DIRNAME="${2:-.}"
 
-    if [ -f "${2}/${1}" ] && [ "$2" != "." ] && [ "$3" == "." ]; then make_new_running_name "$1"
-    elif [ -f "${2}/${3}" ] && [ "$3" != "." ] && [ "$2" != "." ]; then make_new_running_name "$3"
-    elif [ "${3}" != "." ]; then RUNNING_FILENAME="$3"
-    else RUNNING_FILENAME="$1"; fi
+    if [ -z "${TRGNAME}" ]; then
+        if [ -f "${DIRNAME}/${SRCNAME}" ]; then make_new_running_name "${SRCNAME}"
+        else RUNNING_FILENAME="${SRCNAME}"; fi
+    elif [ -f "${DIRNAME}/${TRGNAME}" ]; then make_new_running_name "${TRGNAME}"
+    else RUNNING_FILENAME="${TRGNAME}"; fi
 
-    if [ -n "$2" ] && [ "$2" != "." ]; then [ ! -d "$2" ] && mkdir -p "$2"; fi
-
-    if [ "${1}" != "${RUNNING_FILENAME}" ] || [ "${2}" != "." ]; then
-        if [ -n "$3" ] && [ "$3" != "." ]; then
-            if [ -n "$2" ] && [ "$2" != "." ]; then mv "$1" "${2}/${RUNNING_FILENAME}"
-            else                                    mv "$1" "$RUNNING_FILENAME"; fi
-        elif [ -n "$2" ] && [ "$2" != "." ]; then   mv "$1" "${2}/$RUNNING_FILENAME"; fi
-    fi
-
+    [ ! -d "${DIRNAME}" ] && mkdir -p "${DIRNAME}"
+    mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}"
+    [ "${#NAME_RUN[@]}" -eq "0" ] && printf -- "-> %s'%s%s'%s " "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"
     [ -n "$5" ] && FILE="${RUNNING_FILENAME}"
 }
 
@@ -2087,7 +2052,7 @@ move_file() {
 handle_error_file() {
     debug_print
 
-    #move_file "$FILE" "./Error" "." "1"
+    #move_file "$FILE" "./Error" "" "1"
     ERROR=19; FAILED_FUNC="${FUNCNAME[0]}"; printf "%s %sSomething corrupted %s%s%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
 
     [ "$EXIT_VALUE" == "1" ] && temp_file_cleanup "1"
@@ -2186,7 +2151,7 @@ check_file_conversion() {
     else
         if [ "$ERROR" != 13 ]; then
             printf "%sNo destination file!%s %s (func:%s)%s\n" "$CR" "$CC" "$(calc_dur)" "$FAILED_FUNC" "$CO"
-            #move_file "$FILE" "./Nodest" "." "2"
+            #move_file "$FILE" "./Nodest" "" "2"
         fi
         remove_interrupted_files
         RETVAL=13
@@ -2383,7 +2348,7 @@ check_filename_acceptance() {
 
     NAMECHANGE="${FILE//\'/}"
     #NAMECHANGE=$(printf "%s" "$NAMECHANGE" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
-    [ "$NAMECHANGE" != "$FILE" ] && move_file "$FILE" "." "$NAMECHANGE" "19" "1"
+    [ "$NAMECHANGE" != "$FILE" ] && move_file "$FILE" "" "$NAMECHANGE" "19" "1"
 }
 
 #***************************************************************************************************************
