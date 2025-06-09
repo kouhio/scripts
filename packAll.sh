@@ -100,6 +100,7 @@ PRINTLINE=""                    # Status output string handler
 PACKLEN=61                      # Length of packloop base printout
 NO_CODEC=0                      # If enabled, won't use codecs
 save_written=false              # Indicator if the final situation was changed already
+LANGUAGE="en"                   # Wanted audiotrack language
 
 RND_VAL="$(more /dev/urandom | tr -cd 'a-f0-9' | head -c 32)"   # Create a random string to avoid possible collisions
 [ -z "${GLOBAL_TIMESAVE}" ] && export GLOBAL_TIMESAVE=0
@@ -148,7 +149,6 @@ reset_handlers() {
     CROP=0                          # Crop video handler
     BEGTIME=0                       # Time where video should begin
     ENDTIME=0                       # Time where video ending is wanter
-    LANGUAGE="en"                   # Wanted audiotrack language
     VIDEOTRACK=""                   # Videotrack number
     AUDIOTRACK=""                   # Audiotrack number
     ENDPOINT=0                      # Point where to stop instead of time from the end
@@ -1215,7 +1215,7 @@ parse_values() {
             [ -n "$2" ] && CUT_RUN+=("$1") && return
             ENDTIME="$(calculate_time "$VALUE")"
         elif [ "$HANDLER" == "language" ] || [ "$HANDLER" == "l" ]; then
-            [ -n "$2" ] && SUB_RUN+=("$1") && return
+            #[ -n "$2" ] && SUB_RUN+=("$1") && return
             LANGUAGE="$VALUE"
         elif [ "$HANDLER" == "videotrack" ] || [ "$HANDLER" == "vt" ]; then
             [ -n "$2" ] && PACK_RUN+=("$1") && return
@@ -1349,7 +1349,7 @@ rename_files() {
             done
         fi
     else
-        if [ "${SPLIT_AND_COMBINE}" -eq "1" ]; then make_running_name "-"; FILE="${RUNNING_FILENAME}"; fi
+        if [ "${SPLIT_AND_COMBINE}" -eq "1" ] && [ "${DELETE_AT_END}" -eq "0" ]; then make_running_name "-"; FILE="${RUNNING_FILENAME}"; fi
 
         if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then
             move_file "$FILE" "${TARGET_DIR}" "${FNAME}" "106"
@@ -1660,6 +1660,7 @@ loop_pid_time() {
     AVG_EST=0; LAST_TIME=0; AVG_CNT=-1; AVG_TOTAL=0; SEEKTIME=1; c_col=0 #c_row=0;
 
     while [ -n "$1" ] && [ -n "$2" ]; do
+        [ "$PROCESS_INTERRUPTED" == "1" ] && break
         DIFFER=$(($(date +%s) - $1))
         [ -f "$PACKFILE" ] && line=$(cat < "${PACKFILE}" | tail -1)
         PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T)"
@@ -1983,6 +1984,7 @@ handle_file_rename() {
             move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${FNAME}" "14" "1"
         else
             move_to_a_running_file
+            if [ "${SPLIT_AND_COMBINE}" -eq "0" ] && [ "${MASS_SPLIT}" -eq "0" ]; then FILE="${RUNNING_FILENAME}"; fi
         fi
     else
         [ "$ERROR" -ne "0" ] && printf "%sSomething went wrong, keeping original!%s %s%s err:%s src:%s\n" "$CR" "$CC" "$(calc_dur)" "$CO" "$ERROR" "$2"
@@ -2042,8 +2044,11 @@ move_file() {
     else RUNNING_FILENAME="${TRGNAME}"; fi
 
     [ ! -d "${DIRNAME}" ] && mkdir -p "${DIRNAME}"
-    mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}"
-    [ "${#NAME_RUN[@]}" -eq "0" ] && printf -- "\n%s   -> %s'%s%s'%s " "$(print_info)" "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"
+    mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}" || ERROR=22
+    if [ "${ERROR}" == "22" ]; then
+        printf -- "\n%s %smv failed! 1:%s 2:%s 3:%s FILE:%s RUN:%s %s " "${CR}" "${1}" "${2}" "${3}" "${FILE}" "${RUNNING_FILENAME}" "${CO}" "${FUNCNAME[1]}"
+    elif [ "${#NAME_RUN[@]}" -eq "0" ] && [ "${SRCNAME}" != "${RUNNING_FILENAME}" ]; then
+        printf -- "\n%s   -> %s'%s%s'%s " "$(print_info)" "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"; fi
     [ -n "$5" ] && FILE="${RUNNING_FILENAME}"
 }
 
