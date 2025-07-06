@@ -139,6 +139,7 @@ reset_handlers() {
     MASSIVE_SPLIT=0                 # Splitting one file into multiple files
     SPLIT_AND_COMBINE=0             # If set, will combine a new file from splitted files
     MASS_SPLIT=0                    # Mass split enabled handler
+    MASS_SPLIT_VALUE=""             # Handler for mass split value
     CUTTING_INDICATOR=0             # Timer split size handler
     COMBINE_RUN_COUNT=0             # Combined items running counter
     RUNNING_FILENAME=""             # Running numbered filename handler
@@ -319,7 +320,7 @@ set_int() {
     shopt -u nocaseglob
     printf "\n%s%s conversion interrupted %s%s!%s\n" "$(print_info)" "$CR" "$CC" "$(calc_dur)" "$CO"
     EXIT_EXT_VAL=1
-    ERROR=666
+    ERROR=66
 
     [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "26"
 
@@ -481,31 +482,49 @@ calculate_estimated_read_time() {
 }
 
 #**************************************************************************************************************
+# Get all different crop values, remove repeated values from list for quicker handling
+#**************************************************************************************************************
+get_diff_for_crop() {
+    DATA_OUTPUT=$(awk -F'crop=' '
+    {
+        split($2, a, /[ \t]/);   # Get the value after crop= and split at whitespace
+        if (a[1] != last) {
+            print;
+            last = a[1];
+        }
+    }
+    ' "$PACKFILE")
+
+    mapfile -t CROP_ARRAY< <(printf "%s" "${DATA_OUTPUT}")
+}
+
+#**************************************************************************************************************
 # Read crop data from ffmpeg outputfile and get the biggest dimension data
 #**************************************************************************************************************
 read_biggest_crop_resolution() {
     debug_print
 
-    MAX_ROWS=$(wc -l < "${PACKFILE}"); X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; CURR_ROW=1; SEEK_START=$(date +%s); AVG_CNT=0;
+    get_diff_for_crop
+    MAX_ROWS="${#CROP_ARRAY[@]}"; X_MAX=0; Y_MAX=0; CROP_DATA=""; LAST_DIFFER=0; CURR_ROW=1; SEEK_START=$(date +%s); AVG_CNT=0; AVG_EST=0
 
-    while IFS='' read -r c_info || [[ -n "$c_info" ]]; do
+    for c_info in "${CROP_ARRAY[@]}"; do
         [ "${PROCESS_INTERRUPTED}" -eq "1" ] && break
         DIFFER=$(($(date +%s) - SEEK_START))
         if [[ "$c_info" == *"crop="* ]]; then
             read_data="${c_info##*crop=}"
             mapfile -t -d ':' CROP_POINT < <(printf "%s" "$read_data")
-            if [ "$X_MAX" -lt "${CROP_POINT[0]}" ] && [ "$Y_MAX" -lt "${CROP_POINT[1]}" ]; then
+            if [ "$X_MAX" -lt "${CROP_POINT[0]}" ] || [ "$Y_MAX" -lt "${CROP_POINT[1]}" ]; then
                 X_MAX="${CROP_POINT[0]}"; Y_MAX="${CROP_POINT[1]}"; CROP_DATA="$read_data"
             fi
         fi
 
         if [ "$DIFFER" != "$LAST_DIFFER" ]; then
             calculate_estimated_read_time "${CURR_ROW}"
-            printf "%s Searching best crop resolution %s%s/%s row:%d/%d%s\r" "$(print_info)" "$CB" "$(date -d@${DIFFER} -u +%T)" "$(calc_giv_time "${AVG_EST}")" "$CURR_ROW" "$MAX_ROWS" "$CO"
+            printf "%s Searching best crop resolution %s %s%s/%s row:%d/%d%s\r" "$(print_info)" "${CROP_DATA}" "$CB" "$(date -d@${DIFFER} -u +%T)" "$(calc_giv_time "${AVG_EST}")" "$CURR_ROW" "$MAX_ROWS" "$CO"
         fi
         ((CURR_ROW++))
         LAST_DIFFER="$DIFFER"
-    done < "$PACKFILE"
+    done
 
     delete_file "$PACKFILE" "29"
     clear_column
@@ -519,10 +538,21 @@ read_biggest_crop_resolution() {
 # 3 - original y value
 #**************************************************************************************************************
 verify_crop_information() {
-    CROP_ERR=""; ORGX="${2}"; ORGY="${3}"; CROP_DATA=""
+    CROP_ERR=""; ORGX="${2}"; ORGY="${3}"
     if [ "${IGNORE}" -ne "0" ]; then return; fi
 
     mapfile -t -d ':' CUT < <(printf "%s" "${1}")
+
+    if [ "${#CUT[@]}" -eq "2" ]; then
+        if [ "${CUT[0]}" -eq "0" ] && [ "${CUT[1]}" -eq "0" ]; then CROP_ERR="No crop data found from ${1}!"; return; fi
+    elif [ "${#CUT[@]}" -eq "4" ]; then
+        if [ "${CUT[2]}" -eq "0" ] && [ "${CUT[3]}" -eq "0" ]; then CROP_ERR="No crop data found from ${1}!"; return; fi
+    else
+        CROP_ERR="Invalid crop data ${1}"; return
+    fi
+
+    if [ "${CROP}" == "seek" ]; then return; fi
+
     if [ "${#CUT[@]}" -eq "2" ]; then CA=("$((ORGX - (2 * CUT[0])))" "$((ORGY - (2 * CUT[1])))" "${CUT[0]}" "${CUT[1]}" )
     elif [ "${#CUT[@]}" -ne "4" ]; then CROP_ERR="Uncompatible data '${1}'"; return
     elif { [ "${CUT[2]}" -gt "0" ] || [ "${CUT[3]}" -gt "0" ]; } && [ "${CROP}" != "seek" ];  then
@@ -533,6 +563,33 @@ verify_crop_information() {
     if [ -z "${CROP_ERR}" ] && [ "${IGNORE}" -eq "0" ]; then
         if [ "${CA[0]}" -lt "100" ] || [ "${CA[1]}" -lt "100" ] || { [ "${CA[2]}" -eq "0" ] && [ "${CA[3]}" -eq "0" ]; }; then CROP_ERR="End file too small ${CA[*]}"
         else CROP_DATA="${CA[*]}"; CROP_DATA="${CROP_DATA// /:}"; fi
+    fi
+}
+
+#**************************************************************************************************************
+# If cropped but also has cutout time, get the best time from beginning to end
+#**************************************************************************************************************
+get_possible_cutout_range() {
+    for var in "${CUT_RUN[@]}"; do parse_data "$var"; done
+
+    if [ -n "${MASS_SPLIT_VALUE}" ]; then
+        mapfile -t -d ',' split_array < <(printf "%s" "${MASS_SPLIT_VALUE}")
+        mapfile -t -d '-' start_array < <(printf "%s" "${split_array[0]}")
+        LAST_ITEM="${#split_array[@]}"; ((LAST_ITEM--))
+        [ "${split_array[LAST_ITEM]}" == "D" ] && ((LAST_ITEM--))
+        mapfile -t -d '-' end_array < <(printf "%s" "${split_array[LAST_ITEM]}")
+
+        COMMAND_LINE+=("-ss" "${start_array[0]}")
+        if [ -n "${end_array[1]}" ]; then COMMAND_LINE+=("-to" "${end_array[1]}")
+        else COMMAND_LINE+=("-to" "${end_array[0]}"); fi
+    else
+        if [ "${BEGTIME}" -gt "0" ]; then COMMAND_LINE+=("-ss" "${BEGTIME}"); fi
+
+        if [ "${ENDTIME}" -gt "0" ]; then
+            DUR=$((ORIGINAL_DURATION / 1000))
+            ENDO=$(bc <<< "scale=2;(${DUR} - ${ENDTIME} - ${BEGTIME})")
+            COMMAND_LINE+=("-t" "${ENDO}")
+        fi
     fi
 }
 
@@ -552,6 +609,8 @@ check_and_crop() {
     if [ "${CROP}" == "seek" ] || [ "${CROP}" == "print" ]; then
         PRINTLINE="$(print_info) Reading crop data "
         COMMAND_LINE=("-vf" "cropdetect" "-f" "null")
+
+        if [ "${#CUT_RUN[@]}" -gt "0" ]; then get_possible_cutout_range; fi
         run_pack_app
         printf "%sdone %s%s%s\n" "$CG" "$CC" "$(calc_dur)" "$CO"
         read_biggest_crop_resolution
@@ -570,7 +629,7 @@ check_and_crop() {
         YC=$(mediainfo '--Inform=Video;%Height%' "$FILE")
 
         if [ -n "$XC" ] && [ -n "$YC" ]; then
-            if [ "${CROP}" != "seek" ]; then verify_crop_information "${CROP_DATA}" "${XC}" "${YC}"; fi
+            verify_crop_information "${CROP_DATA}" "${XC}" "${YC}"
 
             if [ -z "${CROP_ERR}" ]; then
                 PRINTLINE="$(printf "%s Cropping black borders (%sx%s->%s) " "$(print_info)" "$XC" "$YC" "${CROP_DATA}")"
@@ -1173,7 +1232,7 @@ fetchname() {
     fi
 
     filename="${FILE%.*}"
-    if [ -n "${SEASON}" ] && [ -n "${EPISODE}" ] && [ -n "${EPNAME}" ]; then printf "%d%02d %s%s" "${SEASON}" "${EPISODE}" "${EPNAME}" "${CONV_TYPE}"
+    if [ -n "${SEASON}" ] && [ -n "${EPISODE}" ] && [ -n "${EPNAME}" ]; then printf "%d%02d %s%s" "${SEASON}" "${EPISODE}" "${EPNAME//\/-}" "${CONV_TYPE}"
     elif [ -n "${DELIMITER}" ]; then printf "%s.%d %s%s" "${SN_BEGIN}" "${DELIM}" "${SN_NAMES[$((DELIM - 1))]}" "$CONV_TYPE"
     elif [ -n "${NEWNAME}" ] && [[ "${NEWNAME}" != "COMBO_"* ]]; then printf "%s%s" "${NEWNAME}" "${CONV_TYPE}"
     else printf "%s%s" "${filename}" "${CONV_TYPE}"; fi
@@ -1230,8 +1289,22 @@ parse_handlers() {
 #**************************************************************************************************************
 update_url() {
     [ -n "${URL_DATA}" ] && return
+
+    ALTFILE="${1//\//}"
+    ALTFILE="${ALTFILE//:/}"
+    nowtime="$(date +%s)"
+
+    if [ -f "/tmp/${ALTFILE}" ]; then
+        read -r TIMEDATA < "/tmp/${ALTFILE}"
+        if [[ "$((nowtime - TIMEDATA))" -lt "50000" ]]; then
+            URL_DATA="$(cat "/tmp/${ALTFILE}")"
+            printf "%s: Reading information from file '%s'" "$(date +%H:%M:%S)" "${1}"
+            return
+        fi
+    fi
+
     fcnt=0
-    printf "%s: Reading information from '%s' " "$(date +%H:%M:%S)" "${1}"
+    printf "%s: Reading information from url '%s' " "$(date +%H:%M:%S)" "${1}"
 
     while [ -z "${URL_DATA}" ]; do
         URL_DATA="$(timeout -v 15s wget url "${1}" -qO -)"
@@ -1241,7 +1314,10 @@ update_url() {
 
     if [ -z "${URL_DATA}" ]; then printf "%sFAILED! No data read!%s\n" "${CR}" "${CO}" && exit 1
     elif [[ "${URL_DATA}" != *"1x01"* ]] && [[ "${URL_DATA}" != *"id=\"ep1"* ]]; then printf "%sFAILED! No correct information found!%s %s\n" "${CR}" "${CO}" "${1}" && exit 2
-    else printf "%sSuccess!%s\n" "${CG}" "${CO}"; fi
+    else
+        printf "%sSuccess!%s\n" "${CG}" "${CO}"
+        printf "%s\n%s\n" "${nowtime}" "${URL_DATA}" >"/tmp/${ALTFILE}"
+    fi
 }
 
 #**************************************************************************************************************
@@ -1280,13 +1356,13 @@ parse_values() {
         elif [ "$HANDLER" == "Combine" ] || [ "$HANDLER" == "C" ]; then
             ((CUTTING++))
             [ -n "$2" ] && MASS_RUN+=("$1") && return
-            SPLIT_AND_COMBINE=1
-            new_massive_file_split "$VALUE"
+            SPLIT_AND_COMBINE=1; MASS_SPLIT_VALUE="${VALUE}"
+            [ -z "${CROP}" ] && new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "cut" ] || [ "$HANDLER" == "c" ]; then
             ((CUTTING++))
             [ -n "$2" ] && MASS_RUN+=("$1") && return
-            MASS_SPLIT=1
-            new_massive_file_split "$VALUE"
+            MASS_SPLIT=1; MASS_SPLIT_VALUE="${VALUE}"
+            [ -z "${CROP}" ] && new_massive_file_split "$VALUE"
         elif [ "$HANDLER" == "sub" ]; then
             [ -n "$2" ] && SUB_RUN+=("$1") && return
             SUBFILE="$VALUE"
@@ -1391,7 +1467,7 @@ rename_files() {
             else RUNNING_FILENAME="${FNAME}"; fi
             printf "%s %sMoved to %s%s%s\n" "$(print_info)" "$CT" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}" "$CO"
         else
-            make_running_name "-"
+            make_running_name "-" "${FILE}"
             while [ -f "${RUNNING_FILENAME}" ]; do
                 CURR_FILENAME="${RUNNING_FILENAME}"
                 if [ -n "${DELIMITER}" ]; then RUNNING_FILENAME="$(fetchname "${loopitem}")"; P_OUT="Delimiter"
@@ -1399,7 +1475,7 @@ rename_files() {
 
                 move_file "${CURR_FILENAME}" "${TARGET_DIR}" "${RUNNING_FILENAME}" "107"
                 printf "%s %s%s file %d/%d to %s%s%s\n" "$(print_info)" "$CT" "${P_OUT}" "${loopitem}" "${MASSIVE_COUNTER}" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}" "$CO"
-                make_running_name "+"
+                make_running_name "+" "${FILE}"
                 ((loopitem++))
             done
         fi
@@ -1677,31 +1753,14 @@ setup_add_packing() {
 # 2 - possible video cutout time
 ##########################################################################################
 calculate_estimated_time() {
-    if [ "${LAST_TIME}" == "0" ]; then
-        LAST_TIME="$(calculate_time "${1}")"
-        AVG_TOTAL=$(bc <<< "scale=3;($AVG_TOTAL + $LAST_TIME)")
-        return
-    fi
-
     T_NOW="$(calculate_time "${1}")"
-    T_DIFF=$(bc <<< "scale=3;($T_NOW - $LAST_TIME)")
-
-    if (( $(bc <<< "${T_DIFF} <= 0") > 0 )); then
-        [ "${AVG_CNT}" -gt "1" ] && ((AVG_CNT--))
-        ((SEEKTIME++))
-        return
-    fi
 
     if [ "${2}" == "0" ]; then T_VID="$((ORIGINAL_DURATION / 1000))"
     elif [ "${SPLIT_TIME}" -eq "2" ]; then T_VID="${CUTTING_INDICATOR%.*}"
     else T_VID="$(((ORIGINAL_DURATION / 1000) - ${CUTTING_INDICATOR%.*}))"; fi
 
-    AVG_EST=$(bc <<< "scale=3;($T_VID / $T_DIFF)")
-    AVG_TOTAL=$(bc <<< "scale=3;($AVG_TOTAL + $AVG_EST)")
     ((AVG_CNT++))
-    if [ "${AVG_CNT}" -gt "0" ]; then AVG_EST=$(bc <<< "scale=3;(($AVG_TOTAL / $AVG_CNT) + $SEEKTIME)")
-    else AVG_EST=0; fi
-    LAST_TIME="${T_NOW}"
+    [ "${T_NOW%%.*}" -gt "0" ] && AVG_EST=$(bc <<< "scale=3;(($T_VID / ($T_NOW / $AVG_CNT)) + $SEEKTIME)")
 }
 
 ##########################################################################################
@@ -1714,6 +1773,7 @@ read_crop_data_time() {
     CALC_CROP_DATA="${DATA1%.*}"
     re='^[0-9]+$'
     [[ "${CALC_CROP_DATA}" =~ $re ]] && CROP_TIME="${CALC_CROP_DATA}"
+    calculate_estimated_time "${CROP_TIME}" "0"
 }
 
 ##########################################################################################
@@ -1724,39 +1784,41 @@ read_crop_data_time() {
 loop_pid_time() {
     debug_print
 
-    AVG_EST=0; LAST_TIME=0; AVG_CNT=-1; AVG_TOTAL=0; SEEKTIME=1; c_col=0 #c_row=0;
+    AVG_EST=0; AVG_CNT=0; SEEKTIME=1; c_col=0; LAST_DIFFER=0 #c_row=0;
 
     while [ -n "$1" ] && [ -n "$2" ]; do
         [ "$PROCESS_INTERRUPTED" == "1" ] && break
         DIFFER=$(($(date +%s) - $1))
-        [ -f "$PACKFILE" ] && line=$(cat < "${PACKFILE}" | tail -1)
-        PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T)"
-        if [[ "$line" == *"time="* ]] || [[ "$line" == *"cropdetect"* ]]; then
-            if [[ "$line" != *"cropdetect"* ]]; then
-                PRINT_ITEM="${line##*time=}"
-                calculate_estimated_time "${PRINT_ITEM%% *}" "${CUTTING_INDICATOR}";
-                PRINT_ITEM="${PRINT_ITEM%%.*}"
-            else
-                read_crop_data_time "${line}"
-                PRINT_ITEM="$(calc_giv_time "${CROP_TIME}")"
+        if [ "$DIFFER" != "$LAST_DIFFER" ]; then
+            [ -f "$PACKFILE" ] && line=$(cat < "${PACKFILE}" | tail -1)
+            PRINTOUT_TIME=" $(date -d@${DIFFER} -u +%T)"
+            if [[ "$line" == *"time="* ]] || [[ "$line" == *"cropdetect"* ]]; then
+                if [[ "$line" != *"cropdetect"* ]]; then
+                    PRINT_ITEM="${line##*time=}"
+                    calculate_estimated_time "${PRINT_ITEM%% *}" "${CUTTING_INDICATOR}";
+                    PRINT_ITEM="${PRINT_ITEM%%.*}"
+                else
+                    read_crop_data_time "${line}"
+                    PRINT_ITEM="$(calc_giv_time "${CROP_TIME}")"
+                fi
+                [ "${AVG_EST}" != "0" ] && PRINTOUT_TIME+="/$(calc_giv_time "${AVG_EST}")"
+
+                if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT=" file:${PRINT_ITEM}/${FILEDURATION}"
+                elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "${CUTTING_INDICATOR}")"
+                else PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - ${CUTTING_INDICATOR%.*}))")"; fi
+            elif [ "$MASSIVE_SPLIT" -gt "0" ] || [ "${CUTTING_TIME%.*}" -gt "0" ]; then
+                PRINTOUT=" seeking position"
+                ((SEEKTIME++))
             fi
-            [ "${AVG_EST}" != "0" ] && PRINTOUT_TIME+="/$(calc_giv_time "${AVG_EST}")"
 
-            if [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT=" file:${PRINT_ITEM}/${FILEDURATION}"
-            elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "${CUTTING_INDICATOR}")"
-            else PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - ${CUTTING_INDICATOR%.*}))")"; fi
-        elif [ "$MASSIVE_SPLIT" -gt "0" ] || [ "${CUTTING_TIME%.*}" -gt "0" ]; then
-            PRINTOUT=" seeking position"
-            ((SEEKTIME++))
+            if [[ "$PRINTOUT" != *"seeking"* ]]; then PRINTOUT_ITEM="$(printf "%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CB}" "$PRINTOUT")"
+            else PRINTOUT_ITEM="$(printf "%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CY}" "$PRINTOUT")"; fi
+            print_last_pos "${PRINTOUT_ITEM}      "
+
+            if ! kill -s 0 "$2" >/dev/null 2>&1; then break; fi
         fi
-
-        if [[ "$PRINTOUT" != *"seeking"* ]]; then PRINTOUT_ITEM="$(printf "%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CB}" "$PRINTOUT")"
-        else PRINTOUT_ITEM="$(printf "%s%s%s%s" "$CC" "$PRINTOUT_TIME" "${CY}" "$PRINTOUT")"; fi
-        print_last_pos "${PRINTOUT_ITEM}      "
-
         [ "$PROCESS_INTERRUPTED" == "1" ] && break
-        if ! kill -s 0 "$2" >/dev/null 2>&1; then break; fi
-        sleep 1
+        LAST_DIFFER="$DIFFER"
     done
 
     printf "%s" "${CO}"
@@ -1811,7 +1873,6 @@ simply_pack_file() {
 
     setup_file_packing
     [ "$ERROR" != "0" ] && return
-    setup_add_packing
     [ "$ENDPOINT" != "0" ] && ENDTIME="${ENDPOINT}"
 
     PRINTLINE="$(print_info)"
@@ -1859,6 +1920,7 @@ simply_pack_file() {
 #***************************************************************************************************************
 run_pack_app() {
     debug_print
+    setup_add_packing
 
     process_start_time=$(date +%s); FILEDURATION=$(lib V d "$FILE"); ERROR=0
 
@@ -1989,24 +2051,24 @@ burn_subs() {
 #***************************************************************************************************************
 make_running_name() {
     debug_print
-    O_FILE=""
+    O_FILE=""; NNAME=""
 
     if [ -n "$1" ]; then
         if [ "${1}" == "+" ]; then ((RUNNING_FILE_NUMBER++)); shift
         elif [ "${1}" == "-" ]; then RUNNING_FILE_NUMBER=1; shift
-        else O_FILE="$FILE"; FILE="$1"; fi
+        else O_FILE="$FILE"; FILE="$1"; NNAME="1"; shift; fi
     fi
 
-    if [ -n "$2" ]; then O_FILE="$FILE"; FILE="$2"; fi
+    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; NNAME="1"; shift; fi
 
     ExtLen=${#EXT_CURR}; NameLen=${#FILE}; LEN_NO_EXT=$((NameLen - ExtLen - 1))
     [ "${LEN_NO_EXT}" -le "0" ] && LEN_NO_EXT="${#1:-${#FILE}}"
 
-    if [ -z "$NEWNAME" ]; then RUNNING_FILENAME=${FILE:0:$LEN_NO_EXT}
-    else                       RUNNING_FILENAME=$NEWNAME; fi
+    if [ -z "$NEWNAME" ] || [ -n "${NNAME}" ]; then RUNNING_FILENAME="${FILE:0:$LEN_NO_EXT}"
+    else                                            RUNNING_FILENAME="$NEWNAME"; fi
 
     RUNNING_FILENAME+="$(printf "_%02d%s" "$RUNNING_FILE_NUMBER" "$CONV_TYPE")"
-    if [ "$SPLIT_AND_COMBINE" == "1" ] && [ -z "$1" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
+    if [ "$SPLIT_AND_COMBINE" == "1" ] && [ -z "${NNAME}" ]; then RUNNING_FILENAME="COMBO_${RUNNING_FILENAME}"; fi
 
     if [ -n "${O_FILE}" ]; then FILE="$O_FILE"; fi
 }
@@ -2119,7 +2181,7 @@ move_file() {
     mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}" || ERROR=22
     if [ "${ERROR}" == "22" ]; then
         printf -- "\n%s %smv failed! 1:%s 2:%s 3:%s FILE:%s RUN:%s %s " "${CR}" "${1}" "${2}" "${3}" "${FILE}" "${RUNNING_FILENAME}" "${CO}" "${FUNCNAME[1]}"
-    elif [ "${#NAME_RUN[@]}" -eq "0" ] && [ "${FILE}" != "${RUNNING_FILENAME}" ]; then
+    elif [ "${#NAME_RUN[@]}" -eq "0" ] && [ "${FILE}" != "${RUNNING_FILENAME}" ] && [ "$SPLIT_AND_COMBINE" != "1" ]; then
         printf -- "\n%s   -> %s'%s%s'%s " "$(print_info)" "$CT" "$(print_dir "${DIRNAME}")" "${RUNNING_FILENAME}" "$CO"; fi
     [ -n "$5" ] && FILE="${RUNNING_FILENAME}"
 }
@@ -2478,12 +2540,13 @@ wait_for_running_package() {
 
     lcnt=0
     wait_start=$(date +%s)
+    RND_NMB="$(more /dev/urandom | tr -cd '2-9' | head -c 1)"   # Create a random string to avoid possible collisions
 
     while [ -f "$RUNFILE" ]; do
         printf "Already running another copy, delaying! (found: %s). Waited for %s\r" "$RUNFILE" "$(lib t F "$wait_start")"
         sleep 1
         ((lcnt++))
-        [ ! -f "${RUNFILE}" ] && sleep 5
+        [ ! -f "${RUNFILE}" ] && sleep "${RND_NMB}"
     done
     [ "$lcnt" -gt "0" ] && printf "\n"
     wait_start=""
