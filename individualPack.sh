@@ -384,7 +384,7 @@ printBaseData() {
     printToFile "  elif [ -f \"\$INPUTFILE\" ]; then"
     printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
     printToFile "    if [ \$ERROR -ne 0 ]; then ERROR_CNT=\$((ERROR_CNT + 1)); fi"
-    printToFile "    ERROR=0"
+    printToFile "    export ERROR=0"
     printToFile "  fi"
     printToFile "  [ \"\$PROCESS_INTERRUPTED\" -ne \"0\" ] && cleanup"
     printToFile "}"
