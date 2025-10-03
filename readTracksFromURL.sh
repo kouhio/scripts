@@ -30,6 +30,14 @@ echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT_FILE 'wget url $SO
 LIST=$(wget url "$SOURCE" -qO -)
 tracks=()
 
+if [ -z "${LIST}" ]; then
+    LIST=$(curl -v ${SOURCE})
+    if [ -z "${LIST}" ]; then
+        echo "Couldn't read data from ${SOURCE}"
+        exit 1
+    fi
+fi
+
 if [[ "$SOURCE" =~ "spotify" ]]; then
     echo -en "Parsing Spotify"
     LIST+="\n\n<end>\n"
@@ -97,11 +105,17 @@ else
 fi
 
 if [ -n "$OUTPUT_FILE" ]; then
-    echo " -> Found $BAND - $YEAR - $ALBUM with ${#tracks[@]} tracks"
-    echo "D:$BAND - $YEAR - $ALBUM" >> "$OUTPUT_FILE"
-    for index in "${tracks[@]}"; do
-        echo "$index" >> "$OUTPUT_FILE"
-    done
+    if [ "${#tracks[@]}" -eq "0" ]; then
+        rm -fr "${OUTPUT_FILE}"
+        echo " Failed to read data from $SOURCE"
+        exit 1
+    else
+        echo " -> Found $BAND - $YEAR - $ALBUM with ${#tracks[@]} tracks"
+        echo "D:$BAND - $YEAR - $ALBUM" >> "$OUTPUT_FILE"
+        for index in "${tracks[@]}"; do
+            echo "$index" >> "$OUTPUT_FILE"
+        done
+    fi
 else
     echo "$BAND - $YEAR - $ALBUM"
     for index in "${tracks[@]}"; do
