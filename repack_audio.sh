@@ -245,6 +245,10 @@ if [ "${NOHANDLING}" -eq "0" ]; then
             handle_file "${file}"
             F_CURR=$((F_CURR + 1))
         done
+
+        if [ -f "names.txt" ] && [ "${F_CURR}" -gt "1" ]; then
+            Renamer.sh names.txt
+        fi
     done
 fi
 
