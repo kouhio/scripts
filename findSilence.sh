@@ -1,15 +1,31 @@
 #!/bin/bash
 
 #**************************************************************************************************************
-# If the script is cancelled, will stop all functionlity
+# Print error and exit
 #**************************************************************************************************************
-set_int () {
-    echo "$0 has been interrupted!"
+err() {
+    Color.sh red
+    printf "%s\n" "${1}"
+    Color.sh
+
     exit 1
 }
 
-trap set_int SIGINT SIGTERM
+#**************************************************************************************************************
+# Print function debug if enabled
+#**************************************************************************************************************
+debug() {
+    if [ "$DEBUG_PRINT" == 1 ]; then printf "%s\n" "${FUNCNAME[1]}"; fi
+}
 
+#**************************************************************************************************************
+# If the script is cancelled, will stop all functionlity
+#**************************************************************************************************************
+set_int () {
+    err "$0 has been interrupted!"
+}
+
+trap set_int SIGINT SIGTERM
 
 #**************************************************************************************************************
 # Initialize arguments
@@ -18,12 +34,11 @@ init () {
     FILENAME=""         # Current filename
     SILENCEDATA=""      # Current file's silencedata
     DURATION=5          # Duration of silence to be seeked
-    MIN_DURATION=0      # Minimum duration of piece to be separated
     NOISE=0.001         # Noise limit, to be concidered silence
     FILE=""             # Output filename for filelist
-    SPLIT=0             # Enable split of file
+    SPLIT=false         # Enable split of file
     TARGET_EXT=""       # Convert input to this format
-    DELETE=0            # Delete original file after done
+    DELETE=false        # Delete original file after done
     ERROR=0             # Error has happened during extraction
     error_code=0        # Error checking code for external functionalities
     NAMEPATH=""         # path to text file with previously given filenames in order
@@ -31,29 +46,29 @@ init () {
     TARGET_DIR=""       # Directory where to put the output files
     INFO_FROM_FILE=""   # Split data from file instead of silence
     NAMECOUNT=0         # Number of tracks in the namefile
-    LASTFILENO=0        # Last separated audio item number
+    trackInfo=()
 }
 
 #**************************************************************************************************************
 # Print help options
 #**************************************************************************************************************
 print_help() {
-    echo "Usage: $0 -options"
-    echo "Without any options, will start from current directory and recursively go through everything with default options."
-    echo "Options with arguments:"
-    echo "-h    This help window"
-    echo "-i    Input filename or directory (works also without prefix)"
-    echo "-d    Minimum duration in seconds to be calculated as silence (default: 5)"
-    echo "-n    Noise level maximum to be calculated as silence (default: 0.001)"
-    echo "-f    Output filename for list of files with silence (instead of splitting)"
-    echo "-t    Target output format extension (default: input filetype)"
-    echo "-m    Minimum duration of piece to be extracted (default: same as silence minimum duration)"
-    echo "-F    Path to filenames in order to put as output tracks (add to D:target path to file for automatic output dir)"
-    echo "-T    Path to output directory"
-    echo "-S    Path to file with splitting information (start-end;trackname)"
-    echo "Options without arguments: "
-    echo "-s    Split input file to files without silence"
-    echo "-D    Delete input file after successful splitting"
+    printf -- "Usage: %s -options\n\n" "${0}"
+    printf -- "Options with arguments:\n"
+    printf -- "-h    This help window\n"
+    printf -- "-i    Input filename or directory (works also without prefix)\n"
+    printf -- "-d    Minimum duration in seconds to be calculated as silence (default: 5)\n"
+    printf -- "-n    Noise level maximum to be calculated as silence (default: 0.001)\n"
+    printf -- "-f    Output filename for list of files with silence (instead of splitting)\n"
+    printf -- "-t    Target output format extension (default: input filetype)\n"
+    printf -- "-F    Path to filenames in order to put as output tracks (add to D:target path to file for automatic output dir)\n"
+    printf -- "-T    Path to output directory\n"
+    printf -- "-S    Path to file with splitting information (start-end;trackname)\n\n"
+    printf -- "Options without arguments: \n"
+    printf -- "-s    Split input file to files without silence\n"
+    printf -- "-D    Delete input file after successful splitting\n"
+
+    exit
 }
 
 #**************************************************************************************************************
@@ -62,83 +77,29 @@ print_help() {
 #**************************************************************************************************************
 parse_arguments () {
     getopt --test > /dev/null || error_code=$?
-    if [[ $error_code -ne 4 ]]; then
-        echo "$0 getopt --test failed!"
-        exit 1
-    fi
+    if [[ $error_code -ne 4 ]]; then err "$0 getopt --test failed!"; fi
 
-    SHORT="d:n:m:f:F:t:T:sDhi:S:"
-
-    if ! PARSED=$(getopt --options $SHORT --name "$0" -- "$@"); then
-        print_help
-        exit 1
-    fi
-
-    eval set -- "$PARSED"
+    SHORT="d:n:f:F:t:T:sDhi:S:"
+    if ! PARSED=$(getopt --options ${SHORT} --name "${0}" -- "${@}"); then print_help; fi
+    eval set -- "${PARSED}"
 
     while true; do
-        case "$1" in
-            -h)
-                print_help
-                exit
-                ;;
-            -i)
-                FILENAME="$2"
-                shift 2
-                ;;
-            -d)
-                DURATION="$2"
-                shift 2
-                ;;
-            -n)
-                NOISE="$2"
-                shift 2
-                ;;
-            -f)
-                FILE="${PWD}/${2}"
-                shift 2
-                ;;
-            -t)
-                TARGET_EXT="$2"
-                shift 2
-                ;;
-            -m)
-                MIN_DURATION="$2"
-                shift 2
-                ;;
-            -D)
-                DELETE=1
-                shift
-                ;;
-            -s)
-                SPLIT=1
-                shift
-                ;;
-            -S)
-                INFO_FROM_FILE="$2"
-                NAMEPATH="$2"
-                NAMECOUNT=$(wc -l < "$NAMEPATH")
-                NAMECOUNT=$((NAMECOUNT - 1))
-                shift 2
-                ;;
-            -F)
-                NAMEPATH="$2"
-                NAMECOUNT=$(wc -l < "$NAMEPATH")
-                NAMECOUNT=$((NAMECOUNT - 1))
-                shift 2
-                ;;
-            -T)
-                TARGET_DIR="$2"
-                shift 2
-                ;;
-            --)
-                FILENAME="$2"
-                shift 2
-                break
-                ;;
-            *)
-                exit 1
-                ;;
+        case "${1}" in
+            -h) print_help ;;
+            -i) FILENAME="${2}";      shift 2 ;;
+            -d) DURATION="${2}";      shift 2 ;;
+            -n) NOISE="${2}";         shift 2 ;;
+            -f) FILE="${2}";          shift 2 ;;
+            -t) TARGET_EXT="${2}";    shift 2 ;;
+            -D) DELETE=true;          shift   ;;
+            -s) SPLIT=true;           shift   ;;
+            -T) TARGET_DIR="${2}";    shift 2 ;;
+            -S|-F)
+                if [ "${1}" == "-S" ]; then INFO_FROM_FILE="${2}"; fi
+                NAMEPATH="${2}"; NAMECOUNT=$(wc -l < "${NAMEPATH}"); NAMECOUNT=$((NAMECOUNT - 1))
+                shift 2 ;;
+            --) FILENAME="${2}"; break ;;
+            *) err "Unknown option ${1}" ;;
         esac
     done
 }
@@ -148,7 +109,7 @@ parse_arguments () {
 # 1 - input string
 #**************************************************************************************************************
 print_info () {
-    mapfile -t -d " " array < <(printf "%s" "$1")
+    mapfile -t -d " " array < <(printf "%s" "${1}")
 
     OUTPUT_DATA=""
     for index in "${!array[@]}"; do
@@ -156,7 +117,7 @@ print_info () {
             OUTPUT_DATA+="${array[index]} ${array[index+1]} "
         fi
     done
-    OUTPUT_DATA=$(echo "$OUTPUT_DATA" | tr '\n' ' ')
+    OUTPUT_DATA=$(printf "%s" "${OUTPUT_DATA}" | tr '\n' ' ')
 }
 
 #**************************************************************************************************************
@@ -164,15 +125,11 @@ print_info () {
 # 1 - Found silencedata
 #**************************************************************************************************************
 write_silencedata () {
-    print_info "$1"
+    debug
+    print_info "${1}"
 
-    if [ -z "$FILE" ]; then
-        Color.sh red
-        echo -e "$PWD/$2 -> $OUTPUT_DATA"
-        Color.sh
-    else
-        echo -e "$PWD/$2\n    -> $OUTPUT_DATA" >> "$FILE"
-    fi
+    if [ -z "$FILE" ]; then err "%s/%s -> %s" "${PWD}/${2} -> ${OUTPUT_DATA}"
+    else printf "%s/%s\n    -> %s\n" "${PWD}" "${2}" "${OUTPUT_DATA}" >> "$FILE"; fi
 }
 
 #**************************************************************************************************************
@@ -180,15 +137,16 @@ write_silencedata () {
 # 1 - Possible Target ID (for multiple albums)
 #**************************************************************************************************************
 find_target_in_file () {
+    debug
     SEEKER=1
 
-    while IFS='' read -r line || [[ -n "$line" ]]; do
-        if [[ $line =~ "D:" ]]; then
-            TARGET_DIR="${line##*:}"
-            [ "$1" == "$SEEKER" ] && break
+    for item in "${trackInfo[@]}"; do
+        if [[ ${item} == "D:"* ]]; then
+            TARGET_DIR="${item##*:}"
+            [ "${1}" == "${SEEKER}" ] && break
             SEEKER=$((SEEKER + 1))
         fi
-    done < "$NAMEPATH"
+    done
 }
 
 #**************************************************************************************************************
@@ -196,23 +154,20 @@ find_target_in_file () {
 # 1 - filenumber (aka the row in the file
 #**************************************************************************************************************
 find_name_in_file () {
-    [ -n "$INFO_FROM_FILE" ] && return
+    debug
+    if [ -n "${INFO_FROM_FILE}" ]; then return
+    elif [ "${#trackInfo[@]}" -eq "0" ]; then mapfile -t trackInfo< <(cat "${NAMEPATH}"); fi
 
-    cnt=1
-    albcnt=0
-    albcheck="$TARGETID"
+    cnt=1; albcnt=0; albcheck="${TARGETID}"
 
-    while IFS='' read -r line || [[ -n "$line" ]]; do
+    for line in "${trackInfo[@]}"; do
         if [[ $line =~ "D:" ]]; then
             albcnt=$((albcnt + 1))
 
             # There is more than one album in the trackfile, update data to new album, reset tracknumber and update NAMECOUNT check value to one smaller
             if [ "$cnt" -gt "1" ] && [ "$albcnt" -gt "$albcheck" ]; then
-                TARGETID=$((TARGETID + 1))
-                TRACKNUMBER=1
-                TRACKNUM=1
-                NAMECOUNT=$((NAMECOUNT - 1))
-                find_target_in_file "$TARGETID"
+                TARGETID=$((TARGETID + 1)); TRACKNUMBER=1; NAMECOUNT=$((NAMECOUNT - 1))
+                find_target_in_file "${TARGETID}"
             fi
             continue
         fi
@@ -223,80 +178,85 @@ find_name_in_file () {
         fi
 
         cnt=$((cnt + 1))
-    done < "$NAMEPATH"
+    done
 
-    if [ -z "$CURRENT_NAME" ]; then
-        CURRENT_NAME="unknown"
-    fi
+    if [ -z "${CURRENT_NAME}" ]; then CURRENT_NAME="unknown"; fi
+}
+
+#**************************************************************************************************************
+# Check if value is bigger than the other value
+# 1 - Value to compare
+# 2 - Value to compare to
+# Return: 1 if true, 0 if false
+#**************************************************************************************************************
+bigger_than() {
+    return "$(echo "${1} > ${2}" |bc -l)"
+}
+
+#**************************************************************************************************************
+# Check if value is smaller than the other value
+# 1 - Value to compare
+# 2 - Value to compare to
+# Return: 1 if true, 0 if false
+#**************************************************************************************************************
+smaller_than() {
+    return "$(echo "${1} < ${2}" |bc -l)"
 }
 
 #**************************************************************************************************************
 # Split data from file between silences
 # 1 - filename
 # 2 - starttime
-# 3 - duration
-# 4 - number in the file
-# 5 - tracknumber
+# 3 - endtime
+# 4 - number of the output file
 #**************************************************************************************************************
 split_to_file () {
+    debug
+    EXT="${1##*.}"; FNAME="${1%.*}"; OUTPUT="$(printf "%s_%02d.%s" "${FNAME}" "${4}" "${EXT}")"
 
-    error_code=0
-    TRACKNUM="$5"
-    [ -z "$TRACKNUM" ] && TRACKNUM="$4"
-    OUTPUT=$(printf "%02d - $1" "$4")
+    if [ "${2}" == "0" ]; then OPTIONS=("-to" "${3}")
+    elif [ "${3}" == "0" ]; then OPTIONS=("-ss" "${2}")
+    else OPTIONS=("-ss" "${2}" "-to" "${3}"); fi
 
-    if [ -n "$TARGET_EXT" ]; then
-        if [ -z "$NAMEPATH" ]; then
-            PACK_OUTPUT=$(printf "%02d - ${1%.*}.$TARGET_EXT" "$4")
-        else
-            find_name_in_file "$4"
-            PACK_OUTPUT=$(printf "%02d - ${CURRENT_NAME}.$TARGET_EXT" "$TRACKNUM")
-            CURRENT_NAME=""
-        fi
-        [ -n "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
-    elif [ -n "$NAMEPATH" ]; then
-        find_name_in_file "$4"
-        PACK_OUTPUT=$(printf "%02d - $CURRENT_NAME" "$TRACKNUM")
-        CURRENT_NAME=""
-        [ -n "$TARGET_DIR" ] && PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
+    error_code=0; pack_error=0
+
+    if [ -n "${TARGET_EXT}" ]; then
+        PACK_OUTPUT="$(printf "%s_%02d.%s" "${FNAME}" "${4}" "${TARGET_EXT}")"
+    elif [ -n "${NAMEPATH}" ]; then
+        find_name_in_file "${4}"
+        PACK_OUTPUT="$(printf "%02d %s.%s" "${4}" "${CURRENT_NAME:-${FNAME}}" "${EXT}")"
     fi
 
-    if  [ -n "$TARGET_DIR" ]; then
-        [ ! -d "$TARGET_DIR" ] && mkdir "$TARGET_DIR"
+    if [ -n "$TARGET_DIR" ]; then
+        PACK_OUTPUT="${TARGET_DIR}/${PACK_OUTPUT}"
+        [ ! -d "${TARGET_DIR}" ] && mkdir "${TARGET_DIR}"
     fi
 
-    ORG_EXT="${1##*.}"
-    pack_error=0
-
-    if [ "$ORG_EXT" == "mp3" ]; then
-        echo "Extracting mp3 from $1! | Start:$(lib time full "$2") Duration:$(lib time full "$3"), Min:$MIN_DURATION"
-        ffmpeg -i "$1" -ss "$2" -t "$3" -c copy "$OUTPUT" # -v quiet >/dev/null 2>&1 || error_code=$?
+    if [ "${EXT}" == "mp3" ]; then
+        printf "Extracting mp3 from %s! | Start:%s End:%s\n" "${1}" "$(lib time full "${2}")" "$(lib time full "${3}")"
+        ffmpeg -i "$1" "${OPTIONS[@]}" -c copy "${OUTPUT}" -v quiet >/dev/null 2>&1 || error_code=$?
     else
-        echo "Extracting $OUTPUT | Start:$(lib time full "$2") Duration:$(lib time full "$3"), Min:$MIN_DURATION"
-        ffmpeg -i "$1" -ss "$2" -t "$3" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
+        printf "Extracting %s | Start:%s End:%s\n" "${OUTPUT}" "$(lib time full "${2}")" "$(lib time full "${3}")"
+        ffmpeg -i "$1" "${OPTIONS[@]}" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
-        if [ -n "$TARGET_EXT" ] && [ "$error_code" -eq "0" ]; then
-            if [ "$TARGET_EXT" == "mp3" ]; then
-                echo "  Packing to mp3 with lame '$OUTPUT' to '$PACK_OUTPUT'"
-                lame -V 0 -h "$OUTPUT" "$PACK_OUTPUT" >/dev/null 2>&1 || error_code=$?
-                if [ $error_code -eq 0 ]; then
-                    rm "$OUTPUT"
+        if [ -n "${TARGET_EXT}" ] && [ "$error_code" -eq "0" ]; then
+            if [ "${TARGET_EXT}" == "mp3" ]; then
+                printf "  Packing to mp3 with lame '%s' to '%s'\n" "${OUTPUT}" "${PACK_OUTPUT}"
+                lame -V 0 -h "${OUTPUT}" "${PACK_OUTPUT}" >/dev/null 2>&1 || error_code=$?
+                if [ ${error_code} -eq 0 ]; then
+                    rm "${OUTPUT}"
                     pack_error=1
                 fi
             else
-                echo "  Packing target type $TARGET_EXT not supported, yet!"
+                printf "  Packing target type %s not supported, yet!\n" "${TARGET_EXT}"
             fi
         fi
     fi
 
-    if [ $error_code -ne 0 ]; then
-        Color.sh red
-        if [ "$pack_error" == "0" ]; then echo "ffmpeg failed to extract $4 audio from $1"
-        else                              echo "lame failed to pack $OUTPUT -> $PACK_OUTPUT"; fi
-        Color.sh
-        ERROR=1
-        exit 1
-    else LASTFILENO="$4"
+    if [ ${error_code} -ne 0 ]; then
+        ERROR="${error_code}"
+        if [ "${pack_error}" == "0" ]; then err "ffmpeg failed to extract ${4} audio from ${1}"
+        else                              err "lame failed to pack ${OUTPUT} -> ${PACK_OUTPUT}"; fi
     fi
 }
 
@@ -306,137 +266,39 @@ split_to_file () {
 # 2 - Source filename
 #**************************************************************************************************************
 split_file_by_silence () {
-    SILENCEDATA="$1"
-    mapfile -t array < <(printf "%s" "$1")
-    START=0
-    END=0
-    FILENUMBER=1
-    TRACKNUMBER=1
-    TARGETID=1
-    LASTTARGET=0
+    debug
+
+    mapfile -t silenceList< <(printf "%s" "${1}")
     TOTAL_LENGTH=$(ffprobe -i "$2" -show_entries format=duration -v quiet -of csv="p=0")
+    silentItems=()
 
-    if [ "$MIN_DURATION" -le 0 ]; then
-        MIN_DURATION="$DURATION"
-    fi
-
-    for index in "${!array[@]}"; do
-        if [[ ${array[index]} =~ "silence_start" ]]; then
-            if (( $(echo "${array[index + 1]} > 0" |bc -l) )); then
-                START=$(bc <<< "${array[index + 1]} + 0.25")
-            fi
-        elif [[ ${array[index]} =~ "silence_end" ]]; then
-            END=$(bc <<< "${array[index + 1]} - 0.25")
-        fi
-
-        if [ -n "$NAMEPATH" ] && [ "$LASTTARGET" != "$TARGETID" ]; then
-            find_target_in_file "$TARGETID"
-            LASTTARGET="$TARGETID"
-        fi
-
-        if [ "$END" != "0" ] && [ "$START" != "0" ]; then
-            if (( $(echo "$START < $END" |bc -l) )); then
-                # There is no silence in the beginning, so the first file start from the beginning
-                if (( $(echo "$START < $MIN_DURATION" |bc -l) )); then
-                    FILENUMBER=$((FILENUMBER - 1))
-                    TRACKNUMBER=$((TRACKNUMBER - 1))
-                else
-                    split_to_file "$2" "0" "$START" "$FILENUMBER" "$TRACKNUMBER"
-                fi
-                START=0
-            else
-                DURATION_2=$(bc <<< "$START - $END")
-                if  (( $(echo "$DURATION_2 < $MIN_DURATION" |bc -l) )); then
-                    FILENUMBER=$((FILENUMBER - 1))
-                    TRACKNUMBER=$((TRACKNUMBER - 1))
-                else
-                    split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER" "$TRACKNUMBER"
-                fi
-                START=0
-                END=0
-            fi
-            FILENUMBER=$((FILENUMBER + 1))
-            TRACKNUMBER=$((TRACKNUMBER + 1))
+    for i in "${silenceList[@]}"; do
+        if [[ "${i}" == *"silence_start:"* ]]; then
+            silentItems+=("start=${i##*: }")
+        elif [[ "${i}" == *"silence_end:"* ]]; then
+            HANDLER="${i% |*}"
+            silentItems+=("stop=${HANDLER##*: }")
         fi
     done
 
-    if [ $START != 0 ] && [ $FILENUMBER == 1 ] && [ $END = 0 ]; then
-        #there is only one file and silence at the end, remove silence
-        split_to_file "$2" "0" "$START" "$FILENUMBER" "$TRACKNUMBER"
-    elif [ $END != "0" ]; then
-        # The is no silence at the end of the file, so the last file is created here
-        DURATION_2=$(bc <<< "$TOTAL_LENGTH - $END")
-        if  (( $(echo "$DURATION_2 >= $MIN_DURATION" |bc -l) )); then
-            split_to_file "$2" "$END" "$DURATION_2" "$FILENUMBER" "$TRACKNUMBER"
-        fi
-    fi
+    silentItems+=("dummy"); LAST=0; FILENUMBER=0
 
-    if [ $ERROR == "0" ] && [ $DELETE == "1" ]  && [ "$FILENUMBER" -gt "1" ]; then
-        if [ "$NAMECOUNT" -gt "0"  ] && [ "$NAMECOUNT" -ne "$LASTFILENO" ]; then
-            echo "Expected count $NAMECOUNT doesn't equal split count $LASTFILENO (FNo:$FILENUMBER), keeping original files!"
-        else
-            echo "everythings fine, deleting original. Expected $NAMECOUNT files, Got $LASTFILENO (Fno:$FILENUMBER)"
+    for i in "${silentItems[@]}"; do
+        CURRENT="${i##*=}"
+        if [[ "${i}" == *"start="* ]]; then
+            if [ "${LAST}" == "0" ] && ! bigger_than "${CURRENT}" "0"; then split_to_file "${2}" "0" "${CURRENT}" "${FILENUMBER}"
+            elif [ "${LAST}" != "0" ]; then                                 split_to_file "${2}" "${LAST}" "${CURRENT}" "${FILENUMBER}"; fi
+        elif [[ "${i}" == *"stop="* ]]; then
+            (( FILENUMBER++ ))
+        elif [ "${i}" == "dummy" ] && ! smaller_than "${LAST}" "${TOTAL_LENGTH}" && ! bigger_than "$(bc <<< "$TOTAL_LENGTH - $LAST")" "1"; then
+            split_to_file "${2}" "${LAST}" "0" "${FILENUMBER}"
+        fi
+        LAST="${CURRENT}"
+    done
+
+    if [ ${ERROR} == "0" ] && ${DELETE}; then
             rm "$2"
-            [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
-        fi
-    fi
-}
-
-#***************************************************************************************************************
-# Check if given value starts with a 0 and remove it
-# 1 - Value to be verified and modified
-#***************************************************************************************************************
-check_zero () {
-    if [ "$DEBUG_PRINT" == 1 ]; then
-        echo "change_zero"
-    fi
-
-    ZERORETVAL="$1"
-    ttime="${1:0:1}"
-    if [ -n "$ttime" ]; then
-        if [ "$ttime" == "0" ]; then
-            ZERORETVAL="${1:1:1}"
-        fi
-    fi
-}
-
-#***************************************************************************************************************
-# Separate and calculate given time into seconds and set to corresponting placeholder
-# 1 - time value in hh:mm:ss / mm:ss / ss
-#***************************************************************************************************************
-calculate_time () {
-    if [ "$DEBUG_PRINT" == 1 ]; then
-        echo "calculate_time"
-    fi
-
-    if [ -n "$1" ]; then
-        t1=$(echo "$1" | cut -d : -f 1)
-        t2=$(echo "$1" | cut -d : -f 2)
-        t3=$(echo "$1" | cut -d : -f 3)
-
-        occ=$(grep -o ":" <<< "$1" | wc -l)
-
-        check_zero "$t1"
-        t1=$ZERORETVAL
-        check_zero "$t2"
-        t2=$ZERORETVAL
-        check_zero "$t3"
-        t3=$ZERORETVAL
-
-        if [ "$occ" == "0" ]; then
-            calc_time=$1
-        elif [ "$occ" == "1" ]; then
-            t1=$((t1 * 60))
-            calc_time=$((t1 + t2))
-        else
-            t1=$((t1 * 3600))
-            t2=$((t2 * 60))
-            calc_time=$((t1 + t2 + t3))
-        fi
-
-        CALCTIME=$calc_time
-    else
-        CALCTIME=0
+            [ -f "${NAMEPATH}" ] && rm "${NAMEPATH}"
     fi
 }
 
@@ -445,64 +307,29 @@ calculate_time () {
 # 1 - Source filename
 #**************************************************************************************************************
 split_file_by_input_file () {
-    START=0
-    END=0
-    FILENUMBER=1
-    TRACKNUMBER=1
+    debug
+
+    START=0; END=0; TRACKNUMBER=1
     TOTAL_LENGTH=$(ffprobe -i "$1" -show_entries format=duration -v quiet -of csv="p=0")
 
-    if [ "$MIN_DURATION" -le 0 ]; then
-        MIN_DURATION="$DURATION"
-    fi
+    mapfile -t inputs < <(cat "${INFO_FROM_FILE}")
 
-    ROWSDATA=""
-    while IFS='' read -r line || [[ -n "$line" ]]; do
-        ROWSDATA+=" ${line// /_}"
-    done < "$INFO_FROM_FILE"
-
-    mapfile -t -d "/" inputs < <(printf "%s" "$ROWSDATA")
-    #inputs=(${ROWSDATA//\// })
-
-    for index in "${!inputs[@]}"; do
-
-        line="${inputs[index]}"
-
-        if [[ ${inputs[index]} =~ "D:" ]]; then
-            TARGET_DIR="${line##*:}"
-            TRACKNUMBER=1
-            continue
-        fi
-        CURRENT_NAME="$line"
-
-        TIMEDATA=${CURRENT_NAME%;*}
-        START=${TIMEDATA%-*}
-        END=${TIMEDATA#*-}
-        CURRENT_NAME=${CURRENT_NAME#*;}
-
-        calculate_time "$START"
-        START="$CALCTIME"
-        calculate_time "$END"
-        END="$CALCTIME"
-
-        if [ -z "$END" ] || [ "$END" == "0" ]; then
-            TOTAL_LENGTH=${TOTAL_LENGTH%.*}
-            END=$((TOTAL_LENGTH - START))
-        else
-            END=$((END - START))
+    for line in "${inputs[@]}"; do
+        if [[ ${line} == "D:"* ]]; then
+            TARGET_DIR="${line##*:}"; TRACKNUMBER=1; continue
         fi
 
-        split_to_file "$1" "$START" "$END" "$FILENUMBER" "$TRACKNUMBER"
-        START=0
-        END=0
-        FILENUMBER=$((FILENUMBER + 1))
-        TRACKNUMBER=$((TRACKNUMBER + 1))
+        TIMEDATA=${line%;*}; START=${TIMEDATA%-*}; END=${TIMEDATA#*-}; CURRENT_NAME=${line#*;}
+
+        split_to_file "${1}" "${START}" "${END}" "${TRACKNUMBER}"
+        START=0; END=0; TRACKNUMBER=$((TRACKNUMBER + 1))
     done
 
-    if [ $ERROR == "0" ] && [ $DELETE == "1" ] && [ "$FILENUMBER" -gt "1" ]; then
-        echo "everythings fine, deleting original"
-        rm "$1"
-        [ -f "$NAMEPATH" ] && rm "$NAMEPATH"
-        [ -f "$INFO_FROM_FILE" ] && rm "$INFO_FROM_FILE"
+    if [ $ERROR == "0" ] && ${DELETE} && [ "${TRACKNUMBER}" -gt "1" ]; then
+        printf "everythings fine, deleting original\n"
+        rm -fr "$1"
+        [ -f "${NAMEPATH}" ] && rm "${NAMEPATH}"
+        [ -f "${INFO_FROM_FILE}" ] && rm "${INFO_FROM_FILE}"
     fi
 }
 
@@ -511,39 +338,15 @@ split_file_by_input_file () {
 # 1 - Sourcefile
 #**************************************************************************************************************
 check_file () {
-    #EXT="${1##*.}"
-    TIMELEN=$(mediainfo '--Inform=Audio;%Duration%' "$1")
-    if [ -n "$TIMELEN" ]; then
+    debug
 
-        if [ -f "$1" ]; then
-            SILENCEDATA=$(ffmpeg -i "$1" -af "silencedetect=noise=$NOISE:d=$DURATION" -f null - 2>&1 >/dev/null |grep "silence")
-            if [ -n "$SILENCEDATA" ]; then
-                if [ $SPLIT == 1 ]; then
-                    split_file_by_silence "$SILENCEDATA" "$1"
-                else
-                    write_silencedata "$SILENCEDATA" "$1"
-                fi
-            fi
+    if [ -n "$(mediainfo '--Inform=Audio;%Duration%' "${1}")" ] && [ -f "${1}" ] ; then
+        SILENCEDATA=$(ffmpeg -i "$1" -af "silencedetect=noise=${NOISE}:d=${DURATION}" -f null - 2>&1 >/dev/null |grep "silence")
+        if [ -n "${SILENCEDATA}" ]; then
+            if ${SPLIT}; then split_file_by_silence "${SILENCEDATA}" "${1}"
+            else              write_silencedata "${SILENCEDATA}" "${1}"; fi
         fi
     fi
-}
-
-#**************************************************************************************************************
-# Go through all files and directories in given directory and act accordingly
-#**************************************************************************************************************
-do_directory () {
-    for f in * ; do
-        if [ "$f" != "lost+found" ]; then
-            if [ -f "$f" ]; then
-                check_file "$f"
-            elif [ -d "$f" ]; then
-                # Enter directory and repeat function recursively
-                cd "$f" || continue
-                echo "Entering $f"
-                do_directory
-            fi
-        fi
-    done
 }
 
 #**********************************************************************************
@@ -551,50 +354,46 @@ do_directory () {
 #**********************************************************************************
 verify_dependencies() {
     error_code=0
-    hash ffmpeg || error_code=$?
-    hash ffprobe || error_code=$?
-    hash awk || error_code=$?
-    hash lame || error_code=$?
-    hash mediainfo || error_code=$?
+    deplist=()
+    hash ffmpeg     || deplist+=("ffmpeg")
+    hash ffprobe    || deplist+=("ffprobe")
+    hash awk        || deplist+=("awk")
+    hash lame       || deplist+=("lame")
+    hash mediainfo  || deplist+=("mediainfo")
 
-    if [ $error_code -ne 0 ]; then
-        echo "Missing one (or more) necessary dependencies: ffmpeg, ffprobe, awk, lame, mediainfo"
-        exit 1
-    fi
+    if [ "${#deplist}" -gt "0" ]; then err "Missing necessary dependencies: ${deplist[*]}"; fi
 }
 
 #**************************************************************************************************************
 # The main function
 #**************************************************************************************************************
 run_main() {
-    if [ -n "$FILE" ] && [ -z "$INFO_FROM_FILE" ] && [ ! -f "$FILE" ]; then
-        echo "Seeking silence with $DURATION secs or more" > "$FILE"
+    debug
+    if [ -n "$FILE" ] && [ -z "${INFO_FROM_FILE}" ]; then
+        if [ -f "${FILE}" ]; then rm -fr "${FILE}"; fi
+        printf "Seeking silence with %s secs or more" "${DURATION}" > "${FILE}"
     fi
 
-    if [ -z "$FILENAME" ]; then
-        echo "Starting seek from $PWD $FILENAME"
-        do_directory
-    elif [ -d "$FILENAME" ]; then
-        echo "Starting seek from directory $FILENAME"
-        cd "$FILENAME" || return
-        do_directory
-        cd ..
-    else
-        echo "Seeking silence from $FILENAME"
-        if [ -z "$INFO_FROM_FILE" ]; then
-            check_file "$FILENAME"
-        else
-            echo "Splitting $FILENAME by $INFO_FROM_FILE"
-            split_file_by_input_file "$FILENAME"
-        fi
-    fi
+    fileList=()
+    if [ -f "${FILENAME}" ]; then fileList+=("${FILENAME}")
+    elif [ -d "${FILENAME}" ]; then mapfile -t fileList< <(find "${FILENAME}" -type f | sort)
+    elif [ -z "${FILENAME}" ]; then err "Give a filename, path or extension type!"
+    else mapfile -t fileList< <(find . -iname "*.${FILENAME}" -type f | sort); fi
+
+    for file in "${fileList[@]}"; do
+        WIDTH=$(($(tput cols) - 2))
+        PRINTOUT="$(printf "Checking %s%${WIDTH}s" "${file}" " ")"
+        printf "%s\r" "${PRINTOUT:0:${WIDTH}}"
+        if [ -z "${INFO_FROM_FILE}" ]; then check_file "${file}"
+        else split_file_by_input_file "${file}"; fi
+    done
 }
 
 #**************************************************************************************************************
 
 verify_dependencies
 init
-parse_arguments "$@"
-
+parse_arguments "${@}"
 run_main
 
+printf "\n"
