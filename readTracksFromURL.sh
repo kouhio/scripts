@@ -11,6 +11,22 @@ help () {
     exit
 }
 
+fix_name() {
+    NEWTEMP="${1}"
+
+    if [[ "${NEWTEMP}" == *"\\"* ]]; then NEWTEMP="${NEWTEMP//\\/\[BS\]}"; fi
+    if [[ "${NEWTEMP}" == *"<"* ]]; then NEWTEMP="${NEWTEMP//</\[LT\]}"; fi
+    if [[ "${NEWTEMP}" == *">"* ]]; then NEWTEMP="${NEWTEMP//>/\[GT\]}"; fi
+    if [[ "${NEWTEMP}" == *":"* ]]; then NEWTEMP="${NEWTEMP//:/\[COL\]}"; fi
+    if [[ "${NEWTEMP}" == *"\""* ]]; then NEWTEMP="${NEWTEMP//\"/\[QT\]}"; fi
+    if [[ "${NEWTEMP}" == *"/"* ]]; then NEWTEMP="${NEWTEMP//\//\[FS\]}"; fi
+    if [[ "${NEWTEMP}" == *"|"* ]]; then NEWTEMP="${NEWTEMP//|/\[VB\]}"; fi
+    if [[ "${NEWTEMP}" == *"?"* ]]; then NEWTEMP="${NEWTEMP//?/\[Q\]}"; fi
+    if [[ "${NEWTEMP}" == *"\*"* ]]; then NEWTEMP="${NEWTEMP//\*/\[AS\]}"; fi
+
+    printf "%s" "${NEWTEMP}"
+}
+
 for i in "$@"; do
     if [[ "$i" =~ "http" ]]; then SOURCE="$i"
     elif [[ "$i" =~ "fix" ]]; then FIX=1
@@ -24,6 +40,7 @@ for i in "$@"; do
     fi
 done
 
+[ -z "${OUTPUT_FILE}" ] && OUTPUT_FILE="names.txt"
 [ -z "$SOURCE" ] && echo "No source URL given!" && exit 1
 [[ "$SOURCE" =~ "https" ]] && SOURCE="${SOURCE/https/http}"
 echo "Reading data from '$SOURCE' Charfix:$FIX Output:$OUTPUT_FILE 'wget url $SOURCE -qO -'"
@@ -31,7 +48,7 @@ LIST=$(wget url "$SOURCE" -qO -)
 tracks=()
 
 if [ -z "${LIST}" ]; then
-    LIST=$(curl -v ${SOURCE})
+    LIST=$(curl -v "${SOURCE}")
     if [ -z "${LIST}" ]; then
         echo "Couldn't read data from ${SOURCE}"
         exit 1
@@ -111,14 +128,14 @@ if [ -n "$OUTPUT_FILE" ]; then
         exit 1
     else
         echo " -> Found $BAND - $YEAR - $ALBUM with ${#tracks[@]} tracks"
-        echo "D:$BAND - $YEAR - $ALBUM" >> "$OUTPUT_FILE"
+        echo "D:$(fix_name "$BAND") - $(fix_name "$YEAR") - $(fix_name "$ALBUM")" >> "$OUTPUT_FILE"
         for index in "${tracks[@]}"; do
-            echo "$index" >> "$OUTPUT_FILE"
+            echo "$(fix_name "$index")" >> "$OUTPUT_FILE"
         done
     fi
 else
-    echo "$BAND - $YEAR - $ALBUM"
+    echo "$(fix_name "$BAND") - $(fix_name "$YEAR") - $(fix_name "$ALBUM")"
     for index in "${tracks[@]}"; do
-        echo "$index"
+        echo "$(fix_name "$index")"
     done
 fi

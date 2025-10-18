@@ -150,6 +150,7 @@ printRename () {
     STRING="${1:-STRING}"
     echo -en "Remove all after char                 rename \"s/${STRING}.*//\" *\n"
     echo -en "Insert string to beginning of file    rename \"s/^/$STRING/\" *\n"
+    echo -en "Replace XX TEXT to XX - TEXT          rename 's/^(\\d{2}) (.+)/$1 - $2/' *\n"
 }
 
 printScreen () {
