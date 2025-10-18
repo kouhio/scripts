@@ -314,8 +314,8 @@ print_total() {
 remove_interrupted_files() {
     debug_print
 
-    [ -f "${FILE}${CONV_TYPE}" ] && delete_file "${FILE}${CONV_TYPE}" "22"
-    [ -f "${NEWNAME}" ]          && delete_file "${NEWNAME}" "25"
+    [ -f "${FILE}${CONV_TYPE}" ] && delete_file "${FILE}${CONV_TYPE}"
+    [ -f "${NEWNAME}" ]          && delete_file "${NEWNAME}"
 }
 
 #***************************************************************************************************************
@@ -381,7 +381,7 @@ read_sizefile() {
 
     if ${printtime}; then PRINT "${CY}" "Loaded previous data size:%s time:%s\n" "$(check_valuetype "$GLOBAL_FILESAVE")" "$(calc_giv_time "$GLOBAL_TIMESAVE")" ; fi
     if ${printtime} || [ -n "${URL_DATA}" ]; then printf "\n"; fi
-    delete_file "${GLOBAL_FILESAVE}" "199"
+    delete_file "${GLOBAL_FILESAVE}"
 }
 
 #***************************************************************************************************************
@@ -399,7 +399,7 @@ set_int() {
     PRINT "RC" "${CR}" "conversion interrupted %s%s!\n" "$CC" "$(calc_dur)"
     set_error "interrupted" "" "1"
 
-    [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "26"
+    [ -f "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" ] && delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
 
     [ "${MASSIVE_TIME_SAVE%.*}" -gt "0" ] && ((GLOBAL_TIMESAVE =+ (ORIGINAL_DURATION / 1000) - ${MASSIVE_TIME_SAVE%.*}))
 
@@ -619,7 +619,7 @@ read_biggest_crop_resolution() {
         LAST_DIFFER="$DIFFER"
     done
 
-    delete_file "$PACKFILE" "29"
+    delete_file "$PACKFILE"
     clear_column
     PRINT "${CY}" "Searching best crop resolution -> found:%s%s %s\n" "$CROP_DATA" "$CC" "$(calc_dur)"
 }
@@ -730,7 +730,7 @@ check_and_crop() {
                 COMMAND_LINE=("-vf" "crop=$CROP_DATA")
                 run_pack_app
                 check_file_conversion
-                delete_file "$PACKFILE" "30"
+                delete_file "$PACKFILE"
                 [ -z "$ERROR" ] && FILE="${filename}${CONV_TYPE}"
             else
                 set_error "Crop error"
@@ -787,10 +787,9 @@ check_zero() {
 #**************************************************************************************************************
 # Delete file / scrub file
 # 1 - path to filename
-# 2 - track to source
 #***************************************************************************************************************
 delete_file() {
-    debug_print "'$1' src:$2"
+    debug_print "'$1' src:${FUNCNAME[1]}"
 
     if [ -f "$1" ]; then
         if [ "$SCRUB" == "1" ]; then   scrub -r "$1" >/dev/null 2>&1
@@ -808,11 +807,11 @@ remove_broken_split_files() {
     make_running_name "-"
 
     if [ -f "${TARGET_DIR}/$RUNNING_FILENAME" ]; then
-        delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "1"
+        delete_file "${TARGET_DIR}/$RUNNING_FILENAME"
         while true; do
             make_running_name "+"
             [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-            delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "2"
+            delete_file "${TARGET_DIR}/$RUNNING_FILENAME"
         done
     fi
 }
@@ -855,7 +854,7 @@ massive_filecheck() {
         if ! ${KEEPORG} && ! ${ERROR_WHILE_MORPH}; then
             ((SPLITTER_TIMESAVE += MASSIVE_TIME_COMP))
             OSZ=$(du -k "$FILE" | cut -f1)
-            if ! ${ERROR_WHILE_SPLITTING}; then delete_file "$FILE" "3"; fi
+            if ! ${ERROR_WHILE_SPLITTING}; then delete_file "$FILE"; fi
             ((OSZ -= MASSIVE_SIZE_COMP))
             if ! ${SPLIT_AND_COMBINE}; then PRINT "${CT}" "Saved %s and %s with splitting\n" "$(check_valuetype "$OSZ")" "$(calc_giv_time "$TIME_SHORTENED")"; fi
             ((GLOBAL_FILESAVE += OSZ))
@@ -1022,8 +1021,8 @@ rename_unique_combo_file() {
     if [ "${#NAME_RUN[@]}" -gt "0" ]; then return; fi
 
     make_running_name "-"
-    if [ -n "$NEWNAME" ]; then move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$NEWNAME$CONV_TYPE" "17"
-    else move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$FILE" "18"; fi
+    if [ -n "$NEWNAME" ]; then move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$NEWNAME$CONV_TYPE"
+    else move_file "${TARGET_DIR}/${RUNNING_FILENAME}" "${TARGET_DIR}" "$FILE"; fi
     ((RUNTIMES++))
 }
 
@@ -1058,7 +1057,7 @@ remove_combine_files() {
         make_running_name "+"
 
         [ ! -f "${TARGET_DIR}/$RUNNING_FILENAME" ] && break
-        delete_file "${TARGET_DIR}/$RUNNING_FILENAME" "5"
+        delete_file "${TARGET_DIR}/$RUNNING_FILENAME"
 
         COMBINE_RUN_COUNT="$RUNNING_FILE_NUMBER"
     done
@@ -1074,8 +1073,8 @@ combine_split_files() {
 
     if ${SPLITTING_ERROR}; then
         PRINT "${CR}" "Failed to separate all asked parts, not combining (err:%s func:%s)\n" "$SPLITTING_ERROR" "$FAILED_FUNC"
-        delete_file "${TARGET_DIR}/${COMBOFILE}" "6"
-        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "7"
+        delete_file "${TARGET_DIR}/${COMBOFILE}"
+        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE"
         if ${EXIT_VALUE}; then temp_file_cleanup "1"; fi
         return 0
     fi
@@ -1091,23 +1090,23 @@ combine_split_files() {
     check_output_errors
 
     cd "$CURRDIR" || return
-    delete_file "${TARGET_DIR}/${COMBOFILE}" "8"
+    delete_file "${TARGET_DIR}/${COMBOFILE}"
     remove_combine_files
 
     if [ -n "$ERROR" ]; then
         APPEND "${CR}" "Failed\n"
-        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "9"
+        delete_file "${TARGET_DIR}/tmp_combo$CONV_TYPE"
         if ${EXIT_VALUE}; then temp_file_cleanup "1"; fi
         return
     fi
 
     if [ -f "${TARGET_DIR}/$FILE" ]; then
         make_new_running_name ""
-        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "4" "1"
-        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "5" "1"; fi
+        if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "1"
+        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "1"; fi
     else
         if [ -z "$NEWNAME" ]; then move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${FILE}" "6" "1"
-        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "7" "1"; fi
+        else                       move_file "${TARGET_DIR}/tmp_combo$CONV_TYPE" "${TARGET_DIR}" "${NEWNAME}${CONV_TYPE}" "1"; fi
     fi
 
     APPEND "${CG}" "Success %s%s\n" "$CC" "$(calc_dur)"
@@ -1136,11 +1135,11 @@ combineFiles() {
         $APP_NAME -f concat -safe 0 -i "${COMBOFILE}" -c copy "${TARGET_DIR}/${NEWNAME}_${CONV_TYPE}" -v info 2>"${PACKFILE}" || set_error "combine"
         check_output_errors
 
-        delete_file "${COMBOFILE}" "10"
+        delete_file "${COMBOFILE}"
 
         if [ -z "$ERROR" ]; then
             if ${DELETESOURCEFILES}; then
-                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && delete_file "$file" "11"; done
+                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && delete_file "$file"; done
                 APPEND "${CG}" "Combined %s files to %s/%s_%s, deleted all sourcefiles\n" "$FILESCOUNT" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}"
             else
                 APPEND "${CG}" "Combined %s files to %s/%s_%s\n" "$FILESCOUNT" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}"
@@ -1151,7 +1150,7 @@ combineFiles() {
             temp_file_cleanup "1"
         fi
     else
-        [ -f "${COMBOFILE}" ] && delete_file "${COMBOFILE}" "12"
+        [ -f "${COMBOFILE}" ] && delete_file "${COMBOFILE}"
         APPEND "${CR}" "No input files given to combine! Filecount:%s\n" "$FILESCOUNT"
         temp_file_cleanup "1"
     fi
@@ -1197,10 +1196,10 @@ mergeFiles() {
 
         if [ -z "$ERROR" ]; then
             if ${DELETESOURCEFILES}; then
-                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && delete_file "$file" "13"; done
+                for file in "${COMBINELIST[@]}"; do [ -f "$file" ] && delete_file "$file"; done
                 NEWSIZE=$(du -k "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" | cut -f1)
                 NEWSIZE=$((ORGSIZE - NEWSIZE))
-                [ "$NEWNAME" != "$ORIGNAME" ] && move_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "${TARGET_DIR}" "${ORIGNAME}" "8"
+                [ "$NEWNAME" != "$ORIGNAME" ] && move_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "${TARGET_DIR}" "${ORIGNAME}"
                 APPEND "${CG}" "Success into %s/%s,%s deleted all sources %sin %s%s saved %s\n" "${TARGET_DIR}" "${ORIGNAME}" "$CO" "$CC" "$(calc_time_tk)" "$CO" "$(check_valuetype "${NEWSIZE}")"
             else
                 APPEND "${CG}" "Success into %s/%s%s%s in %s\n" "${TARGET_DIR}" "${NEWNAME}" "${CONV_TYPE}" "$CC" "$(calc_time_tk)"
@@ -1209,7 +1208,7 @@ mergeFiles() {
             temp_file_cleanup "0"
         else
             APPEND "${CR}" "Failed!%s in %s\n" "$CC" "$(calc_time_tk)"
-            delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}" "14"
+            delete_file "${TARGET_DIR}/${NEWNAME}.${CONV_TYPE}"
             temp_file_cleanup "1"
         fi
     else
@@ -1371,7 +1370,7 @@ parse_handlers() {
         elif [ "$1" == "all" ] || [ "$1" == "a" ]; then    PRINT_ALL=true
         elif [ "$1" == "print" ] || [ "$1" == "p" ]; then  PRINT_INFO=1
         else
-            PRINT "${CR}" "Unknown handler %s %s\n" "$1" "${FUNCNAME[0]}"
+            PRINT "${CR}" "Unknown handler %s %s (%s)\n" "$1" "${FUNCNAME[0]}" "${dim_val}"
             set_error "parse handler" "1"
             if ! ${NO_EXIT_EXTERNAL}; then temp_file_cleanup "$RETVAL"; fi
         fi
@@ -1557,11 +1556,11 @@ rename_files() {
     if ${MASS_SPLIT}; then
         if [ "${MASSIVE_COUNTER}" -eq "1" ]; then
             if ${DELETE_AT_END}; then
-                if [ -f "${FILE}" ]; then delete_file "${FILE}" "97"; fi
+                if [ -f "${FILE}" ]; then delete_file "${FILE}"; fi
                 rename "s/_01//" "${FILE%.*}"*
             else make_running_name "-" ; FILE="${RUNNING_FILENAME}"; fi
 
-            if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then move_file "${FILE}" "${TARGET_DIR}" "${FNAME}" "109"
+            if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then move_file "${FILE}" "${TARGET_DIR}" "${FNAME}"
             else RUNNING_FILENAME="${FNAME}"; fi
             PRINT "${CT}" "Moved to %s%s\n" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}"
         else
@@ -1571,7 +1570,7 @@ rename_files() {
                 if [ -n "${DELIMITER}" ]; then RUNNING_FILENAME="$(fetchname "${loopitem}")"; P_OUT="Delimiter"
                 else make_running_name "${FNAME}"; P_OUT="Splitted"; fi
 
-                move_file "${CURR_FILENAME}" "${TARGET_DIR}" "${RUNNING_FILENAME}" "107"
+                move_file "${CURR_FILENAME}" "${TARGET_DIR}" "${RUNNING_FILENAME}"
                 PRINT "${CT}" "%s file %d/%d to %s%s\n" "${P_OUT}" "${loopitem}" "${MASSIVE_COUNTER}" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}"
                 make_running_name "+" "${FILE}"
                 ((loopitem++))
@@ -1581,7 +1580,7 @@ rename_files() {
         if ${SPLIT_AND_COMBINE} && ! ${DELETE_AT_END}; then make_running_name "-"; FILE="${RUNNING_FILENAME}"; fi
 
         if [ "${FNAME}" != "${FILE}" ] || [ "${TARGET_DIR}" != "." ]; then
-            move_file "$FILE" "${TARGET_DIR}" "${FNAME}" "106"
+            move_file "$FILE" "${TARGET_DIR}" "${FNAME}"
             PRINT "${CT}" "Renamed to %s%s\n" "$(print_dir "${TARGET_DIR}")" "${RUNNING_FILENAME}"
         fi
     fi
@@ -1624,20 +1623,17 @@ parse_data() {
     debug_print
 
     if [ -n "$1" ]; then
-        if [ "$CHECKRUN" == 0 ] || [ -f "${1}" ]; then
+        if [ -f "${1}" ]; then
             parse_file "$1"
         else
             dim_val=false
             [ -z "${DIMENSION_PARSED}" ] && DIMENSION_PARSED=false
-            if ! ${DIMENSION_PARSED} && [ ! -f "${1}" ] && [ "${#1}" -le "5" ]; then
+
+            if [ ! -f "${1}" ] && [ "${#1}" -le "5" ]; then
                 if [[ "$1" =~ ^[0-9x]+$ ]]; then dim_val=true; fi
-                #if [ "${xss}" -gt "0" ]; then
-                #    if [[ "${xss}" =~ ^[0-9]+$ ]]; then xss=$(grep -o "x" <<< "$1" | wc -l)
-                #    else xss=0; fi
-                #fi
             fi
 
-            if ! ${dim_val} || [[ "$1" == *"="* ]]; then
+            if ! ${dim_val}; then
                 if [[ "${1}" != *"="* ]]; then parse_handlers "$1" "$2"
                 else                           parse_values "$1" "$2"; fi
             else
@@ -1938,14 +1934,14 @@ check_output_errors() {
         [ -z "$ERROR" ] && set_error "$(printf "app:%s" "${app_err}" | tr -d '\n')" "6"
 
         if ${EXIT_VALUE}; then
-            delete_file "$PACKFILE" "15"
+            delete_file "$PACKFILE"
             handle_file_rename 0 6
             temp_file_cleanup "1"
         fi
     fi
 
     # Cropping uses the outputfile to find the best dimensions, so keep the file
-    [ -z "$CROP" ] && delete_file "$PACKFILE" "16"
+    [ -z "$CROP" ] && delete_file "$PACKFILE"
 }
 
 #***************************************************************************************************************
@@ -2118,15 +2114,15 @@ burn_subs() {
 
                 if [ -z "$ERROR" ]; then
                     if ! ${KEEPORG}; then
-                        delete_file "$FILE" "17"
-                        [ -f "$SUB" ] && delete_file "$SUB" "18"
+                        delete_file "$FILE"
+                        [ -f "$SUB" ] && delete_file "$SUB"
                         filename="${FILE%.*}"
-                        move_file "${FILE}${CONV_TYPE}" "${TARGET_DIR}" "${filename}${CONV_TYPE}" "9" "1"
+                        move_file "${FILE}${CONV_TYPE}" "${TARGET_DIR}" "${filename}${CONV_TYPE}" "1"
                     fi
                     APPEND "${CG}" "saved %s %sin %s\n" "$(check_valuetype "${NEWSIZE}")" "$CC" "$(calc_time_tk)"
                 else
                     APPEND "${CR}" "Failed (%s) %sin %s\n" "$ERROR" "$CC" "$(calc_time_tk)"
-                    delete_file "${FILE}${CONV_TYPE}" "19"
+                    delete_file "${FILE}${CONV_TYPE}"
                     RETVAL=8
                 fi
             else
@@ -2206,7 +2202,7 @@ move_to_a_running_file() {
     debug_print
 
     make_new_running_name ""
-    move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}" "16"
+    move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${RUNNING_FILENAME}"
 }
 
 #***************************************************************************************************************
@@ -2217,11 +2213,11 @@ handle_file_rename() {
     debug_print
 
     if [ "$1" -gt 0 ] && [ -z "$ERROR" ] ; then
-        if ! ${KEEPORG}; then delete_file "$FILE" "20"; fi
+        if ! ${KEEPORG}; then delete_file "$FILE"; fi
 
         if ! ${KEEPORG}; then
             FNAME="$(fetchname)"
-            move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${FNAME}" "14" "1"
+            move_file "$FILE$CONV_TYPE" "${TARGET_DIR}" "${FNAME}" "1"
         else
             move_to_a_running_file
             if ! ${SPLIT_AND_COMBINE} && ! ${MASS_SPLIT}; then FILE="${RUNNING_FILENAME}"; fi
@@ -2229,11 +2225,11 @@ handle_file_rename() {
     else
         [ -n "$ERROR" ] && PRINT "RC" "${CR}" "Something went wrong, keeping original!%s err:%s(%s) src:%s\n" "$ERROR" "$1" "$2" "${FUNCNAME[1]}"
 
-        delete_file "$FILE$CONV_TYPE" "21"
+        delete_file "$FILE$CONV_TYPE"
 
         if [ "$EXT_CURR" == "$CONV_CHECK" ] && ! ${COPY_ONLY}; then
             RETVAL=9
-            move_file "$FILE" "./Failed" "." "15"
+            move_file "$FILE" "./Failed" "."
         fi
 
         if ${EXIT_VALUE}; then temp_file_cleanup "1"; fi
@@ -2270,11 +2266,10 @@ calculate_packsize() {
 # 1 - filename
 # 2 - target directory (skipped if set as .)
 # 3 - new name (skipped if set as .)
-# 4 - source ID for debugging
-# 5 - If set, will set new name as FILE
+# 4 - If set, will set new name as FILE
 #***************************************************************************************************************
 move_file() {
-    debug_print "'$1'->'$2/$3' src:$4 update:$5"
+    debug_print "'$1'->'$2/$3' src:${FUNCNAME[1]} update:$5"
     SRCNAME="${1}"; TRGNAME="${3}"; DIRNAME="${2:-.}"
 
     if [ -z "${TRGNAME}" ]; then
@@ -2299,7 +2294,7 @@ move_file() {
 handle_error_file() {
     debug_print
 
-    #move_file "$FILE" "./Error" "" "1"
+    #move_file "$FILE" "./Error" ""
     set_error "error file" "10"; PRINT "${CR}" "Something corrupted %s%s\n" "$CC" "$(calc_dur)"
 
     if ${EXIT_VALUE}; then temp_file_cleanup "1"; fi
@@ -2311,7 +2306,6 @@ handle_error_file() {
 check_alternative_conversion() {
     debug_print
 
-#DODO
     xNEW_DURATION=$((NEW_DURATION / 1000)); xORIGINAL_DURATION=$((ORIGINAL_DURATION / 1000)); xNEW_FILESIZE=$((NEW_FILESIZE / 1000)); xORIGINAL_SIZE=$((ORIGINAL_SIZE / 1000))
     PRINT_ERROR_DATA=""; ORIGINAL_SIZE=$ORIGINAL_HOLDER; ENDSIZE=$((ORIGINAL_SIZE - NEW_FILESIZE));
     if ${IGNORE}; then ORIGINAL_SIZE=$((NEW_FILESIZE + 10000)); fi
@@ -2369,7 +2363,7 @@ check_file_conversion() {
 
     if ${PROCESS_INTERRUPTED}; then return; fi
 
-    if [ -f "$FILE$CONV_TYPE" ]; then
+    if [ -f "$FILE$CONV_TYPE" ] && ! ${PROCESS_INTERRUPTED}; then
         if ${AUDIO_PACK}; then NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
         else                   NEW_DURATION=$(get_file_duration "$FILE$CONV_TYPE"); fi
         AUDIO_DURATION=$(get_file_duration "$FILE$CONV_TYPE" "1")
@@ -2398,7 +2392,7 @@ check_file_conversion() {
     else
         if [ "$ERROR" != "time position" ]; then
             APPEND "${CR}" "No destination file!%s %s (func:%s)\n" "$CC" "$(calc_dur)" "$FAILED_FUNC"
-            #move_file "$FILE" "./Nodest" "" "2"
+            #move_file "$FILE" "./Nodest" ""
         fi
         remove_interrupted_files
         RETVAL=13
@@ -2599,7 +2593,7 @@ check_filename_acceptance() {
 
     NAMECHANGE="${FILE//\'/}"
     #NAMECHANGE=$(printf "%s" "$NAMECHANGE" | uconv -x "::Latin; ::Latin-ASCII; ([^\x00-\x7F]) > ;")
-    [ "$NAMECHANGE" != "$FILE" ] && move_file "$FILE" "" "$NAMECHANGE" "19" "1"
+    [ "$NAMECHANGE" != "$FILE" ] && move_file "$FILE" "" "$NAMECHANGE" "1"
 }
 
 #***************************************************************************************************************
@@ -2613,9 +2607,9 @@ temp_file_cleanup() {
     [ -n "$wait_start" ] && exit 0
     [ -z "$2" ] && remove_interrupted_files
     [ -z "$2" ] && remove_broken_split_files
-    delete_file "$PACKFILE" "27"
+    delete_file "$PACKFILE"
     [ -z "$2" ] && remove_combine_files
-    [ "$PRINT_INFO" -eq "0" ] && delete_file "$RUNFILE" "31"
+    [ "$PRINT_INFO" -eq "0" ] && delete_file "$RUNFILE"
     save_sizefile
     if ! ${NO_EXIT_EXTERNAL}; then exit "$1"; fi
 }
@@ -2691,7 +2685,7 @@ read_last_time
 verify_necessary_programs
 
 if [ -n "$ERROR" ]; then
-    PRINT "${CR}" "Something went (%s/%s) wrong with calculation (or something else)! Error:%s in :%s\n" "${1}" "${FILE_STR}" "$ERROR" "$FAILED_FUNC"
+    PRINT "${CR}" "Something went (%s) wrong with calculation (or something else)! Error:%s in :%s\n" "${FILE_STR}" "$ERROR" "$FAILED_FUNC"
     RETVAL="9"
 
 elif [ "$COMBINEFILE" == "1" ]; then
@@ -2770,3 +2764,4 @@ fi
 [ "$PRINT_INFO" -eq "0" ] && temp_file_cleanup "$RETVAL" "1"
 save_sizefile
 save_current_time
+printf "%s" "${CO}"
