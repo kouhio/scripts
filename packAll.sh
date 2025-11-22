@@ -2234,7 +2234,7 @@ make_running_name() {
         else O_FILE="$FILE"; FILE="$1"; NNAME="1"; shift; fi
     fi
 
-    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; NNAME="1"; shift; fi
+    if [ -n "$1" ]; then O_FILE="$FILE"; FILE="$1"; NNAME="2"; shift; fi
 
     ExtLen=${#EXT_CURR}; NameLen=${#FILE}; LEN_NO_EXT=$((NameLen - ExtLen - 1))
     if [ "${LEN_NO_EXT}" -le "0" ]; then
@@ -2246,7 +2246,8 @@ make_running_name() {
         if [ -z "$NEWNAME" ] || [ -n "${NNAME}" ]; then RUNNING_FILENAME="${FILE:0:$LEN_NO_EXT}"
         else                                            RUNNING_FILENAME="$NEWNAME"; fi
     else
-        RUNNING_FILENAME="${FILE:0:$LEN_NO_EXT}"
+        if [ -n "${NNAME}" ] && [ "${NNAME}" == "1" ] && [ -n "${NEWNAME}" ]; then RUNNING_FILENAME="${NEWNAME}"
+        else RUNNING_FILENAME="${FILE:0:$LEN_NO_EXT}"; fi
     fi
 
     [[ "${RUNNING_FILENAME}" != "COMBO_"* ]] && RUNNING_FILENAME+="$(printf "_%02d%s" "$RUNNING_FILE_NUMBER" "$CONV_TYPE")"
