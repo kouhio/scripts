@@ -220,11 +220,11 @@ split_to_file () {
 
     error_code=0; pack_error=0
 
-    if [ -n "${TARGET_EXT}" ]; then
-        PACK_OUTPUT="$(printf "%s_%02d.%s" "${FNAME}" "${4}" "${TARGET_EXT}")"
-    elif [ -n "${NAMEPATH}" ]; then
+    if [ -n "${NAMEPATH}" ]; then
         find_name_in_file "${4}"
         PACK_OUTPUT="$(printf "%02d %s.%s" "${4}" "${CURRENT_NAME:-${FNAME}}" "${EXT}")"
+    elif [ -n "${TARGET_EXT}" ]; then
+        PACK_OUTPUT="$(printf "%s_%02d.%s" "${FNAME}" "${4}" "${TARGET_EXT}")"
     fi
 
     if [ -n "$TARGET_DIR" ]; then
@@ -233,10 +233,12 @@ split_to_file () {
     fi
 
     if [ "${EXT}" == "mp3" ]; then
-        printf "Extracting mp3 from %s! | Start:%s End:%s\n" "${1}" "$(lib time full "${2}")" "$(lib time full "${3}")"
+        if [[ "${2}" == *":"* ]] || [[ "${3}" == *":"* ]]; then printf "Extracting mp3 from %s! | Start:%s End:%s\n" "${1}" "${2}" "${3}"
+        else printf "Extracting mp3 from %s! | Start:%s End:%s\n" "${1}" "$(lib time full "${2}")" "$(lib time full "${3}")"; fi
         ffmpeg -i "$1" "${OPTIONS[@]}" -c copy "${OUTPUT}" -v quiet >/dev/null 2>&1 || error_code=$?
     else
-        printf "Extracting %s | Start:%s End:%s\n" "${OUTPUT}" "$(lib time full "${2}")" "$(lib time full "${3}")"
+        if [[ "${2}" == *":"* ]] || [[ "${3}" == *":"* ]]; then printf "Extracting %s | Start:%s End:%s\n" "${OUTPUT}" "${2}" "${3}"
+        else printf "Extracting %s | Start:%s End:%s\n" "${OUTPUT}" "$(lib time full "${2}")" "$(lib time full "${3}")"; fi
         ffmpeg -i "$1" "${OPTIONS[@]}" "$OUTPUT" -v quiet >/dev/null 2>&1 || error_code=$?
 
         if [ -n "${TARGET_EXT}" ] && [ "$error_code" -eq "0" ]; then
