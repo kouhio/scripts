@@ -179,8 +179,6 @@ reset_handlers() {
     DELETE_AT_END=true              # Variable to indicate, if file is to be deleted at the end
     if ${KEEPORG}; then DELETE_AT_END=false; fi
     MASSIVE_ENDSIZE=0               # Size of the splitted files combined
-    c_col=0                         # Print starting position handlers
-    #c_row=0;
 }
 
 #***************************************************************************************************************
@@ -432,8 +430,8 @@ set_int() {
     debug_print
 
     set_error "interrupted" "" "1"
-    mapfile CHECKLIST <<<"$(pgrep -f $APP_STRING)"
-    mapfile -t -d ' ' PIDLIST <<<"$(pidof ${APP_NAME})"
+    mapfile CHECKLIST <<<"$(pgrep -f "${APP_STRING}")"
+    mapfile -t -d ' ' PIDLIST <<<"$(pidof "${APP_NAME}")"
     [ "${#CHECKLIST[@]}" -gt "1" ] && [ "$PRINT_INFO" -eq "0" ] && [ -z "${wait_start}" ] && killall -s 9 "${PIDLIST[@]}"
     [ "${PIDOF}" != "0" ] && wait ${PIDOF} 2>/dev/null
     PROCESS_INTERRUPTED=true
@@ -495,7 +493,7 @@ print_help() {
     printf "N=           -    Split filename with delimiter when using c= -option (if you use ; then use \\;)\n"
     printf "url=         -    Rename file by data read from given url\n"
     printf "T(arget)=    -    Target directory for the target file\n\n"
-    printf "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc\n"
+    printf "c(ut)=       -    time where to cut,time where to cut next piece,next piece,etc. Use skip instead of time if you want some specific portion to be skipped entierly\n"
     printf "c(ut)=       -    time to begin - time to end,next time to begin-time to end,etc\n"
     printf "C(ombine)=   -    same as cutting with begin-end, but will combine split videos to one\n"
     printf "             -    When setting cut or Combine, adding D as the last point, will delete the original file if successful\n\n"
@@ -534,40 +532,13 @@ print_help() {
 }
 
 #*************************************************************************************************************
-# Get current cursor position
-#*************************************************************************************************************
-get_cursor_position() {
-    exec < /dev/tty
-    savedtty=$(stty -g)
-
-    stty raw -echo min 0
-    echo -en "\e[6n" > /dev/tty
-    IFS=';' read -r -d R -a rawpos
-    stty "$savedtty"
-
-    #c_row=${rawpos[0]:2}  # Remove the leading 'ESC['
-    c_col=${rawpos[1]}
-    t_cols="$((($(tput cols) / 3) * 2))"
-    if [[ ! "${c_col}" =~ ^[0-9]+$ ]] ; then c_col="${PACKLEN}"; fi
-    if [[ "${c_col}" -ge "${t_cols}" ]]; then c_col="${t_cols}"; fi
-}
-
-#*************************************************************************************************************
-# Print information to last read position, or to a given position
+# Print information and return cursor back to pre-print position
 # 1 - String to print
-# 2 - alternative row number
-# 3 - alternative column position
 #*************************************************************************************************************
 print_last_pos() {
-    [ -z "${c_col}" ] && c_col=0
-    if [ "${c_col}" -le "0" ]; then get_cursor_position; fi
-    last_row="$(tput lines)"
-    max_width="$(($(tput cols) - 1))"
-
-    if [ "$((${#1} + c_col))" -gt "${max_width}" ]; then max_width="$((max_width - ${#1}))"; fi
-
-    if [ -n "${2}" ] && [ -n "${3}" ]; then printf "%s\33[%d;%dH" "${1:0:${max_width}}" "${2}" "${3}"
-    else                                    printf "%s\33[%d;%dH" "${1:0:${max_width}}" "${last_row}" "${c_col}"; fi
+    printf '\e[s'
+    printf "%s" "${1:0:${max_width}}"
+    printf '\e[u'
 }
 
 #*************************************************************************************************************
@@ -872,7 +843,7 @@ massive_filecheck() {
 
     if ${ERROR_WHILE_SPLITTING} || ${ERROR_WHILE_MORPH}; then
         PRINT "${CR}" "Something went wrong with splitting %s" "$FILE"
-        RETVAL=18
+        error "Splitting failed" "18"
         remove_broken_split_files
         return
     fi
@@ -897,7 +868,7 @@ massive_filecheck() {
 
     if ${SPLIT_AND_COMBINE} && [ -n "$MAX_SHORT_TIME" ] && [ "$TIME_SHORTENED" -gt "$MAX_SHORT_TIME" ]; then
         PRINT "RE" "${CR}" "Cutting over max-time:%s > %s, aborting!" "$(lib t f "${TIME_SHORTENED}")" "$(lib t f "${MAX_SHORT_TIME}")"
-        RETVAL=19
+        set_error "Cut-out time over max-time!" "19"
     elif [ "$MASSIVE_TIME_COMP" -ge "${MASSIVE_TIME_CHECK%.*}" ] && ! ${TOO_SMALL_FILE} && ! ${SPLITTING_ERROR}; then
         if ! ${KEEPORG} && ! ${ERROR_WHILE_MORPH}; then
             ((SPLITTER_TIMESAVE += MASSIVE_TIME_COMP))
@@ -909,7 +880,7 @@ massive_filecheck() {
         fi
     else
         PRINT "RE" "${CR}" "Something wrong with cut-out time (%s < %s) Small files: %s" "$MASSIVE_TIME_COMP" "$MASSIVE_TIME_CHECK" "$TOO_SMALL_FILE"
-        RETVAL=20
+        set_error "Cut-out time smaller than expected!" "20"
     fi
 }
 
@@ -929,7 +900,7 @@ set_beg_end() {
     verify_time_position "$3" "$ENDTIME" "Ending massive time pos:$COMBOARRAYPOS"
 
     if [ "${ENDTIME%.*}" -le "${BEGTIME%.*}" ] && [ "${ENDTIME%.*}" != "0" ]; then
-        PRINT "RE" "${CR}" "ending(%s) smaller than start(%s)" "$ENDTIME" "$BEGTIME"
+        PRINT "RE" "${CR}" "ending(%s) smaller than start(%s)" "$(date -d@"${ENDTIME}" -u +%T)" "$(date -d@"${BEGTIME}" -u +%T)"
         set_error "time incorrect" "24"
     fi
 }
@@ -960,7 +931,7 @@ new_massive_file_split() {
         fi
     fi
 
-    ERROR_WHILE_SPLITTING=false; MASSIVE_TIME_CHECK=0; MASSIVE_SPLIT=true; KEEPORG=true; IGNORE=true; DELETE_AT_END=false
+    ERROR_WHILE_SPLITTING=false; MASSIVE_TIME_CHECK=0; MASSIVE_SPLIT=true; KEEPORG=true; IGNORE=true; DELETE_AT_END=false; SKIPPED_ITEM=false
 
     if [ -f "$FILE" ]; then
         EXT_CURR="${FILE##*.}"
@@ -972,11 +943,13 @@ new_massive_file_split() {
 
         mapfile -t -d ',' array < <(printf "%s" "$1")
         SPLIT_MAX=${#array[@]}
-        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=false; COMBOARRAYPOS=1; KEEPORG=true
+        MASSIVE_COUNTER=0; LAST_SPLIT=0; DELETE_SET=false; COMBOARRAYPOS=1; KEEPORG=true; SKIPCOUNT=0
 
         # Verify each time point before doing anything else
         for index in "${!array[@]}"; do
             if [[ "${array[index]}" == *"D"* ]]; then DELETE_AT_END=true; break; fi
+            if [[ "${array[index]}" == *"skip"* ]]; then ((SKIPCOUNT++)); continue; fi
+
             if [ "$SPLIT_P2P" -gt "0" ]; then
                 mapfile -t -d '-' array2 < <(printf "%s" "${array[index]}")
                 set_beg_end "${array2[0]}" "${array2[1]}" "$ORG_LEN"
@@ -990,6 +963,7 @@ new_massive_file_split() {
 
         COMBOARRAYSIZE="${#array[@]}"; COMBOARRAYPOS=1
         if ${DELETE_AT_END}; then ((COMBOARRAYSIZE--)); fi
+        ((COMBOARRAYSIZE -= SKIPCOUNT))
 
         # If all time signatures are correct, start splitting
         for index in "${!array[@]}"; do
@@ -1006,14 +980,23 @@ new_massive_file_split() {
                 MASSIVE_TIME_CHECK=$(bc <<< "scale=0;(${MASSIVE_TIME_CHECK} + (${ENDTIME} - ${BEGTIME}))")
             else
                 SPLIT_POINT=$(calculate_time "${array[index]}")
+                if [ "${SPLIT_POINT}" == "skip" ]; then
+                    SKIPPED_ITEM=true
+                    continue
+                elif ${SKIPPED_ITEM}; then
+                    SKIPPED_ITEM=false
+                    LAST_SPLIT="${array[index]}"
+                    continue
+                fi
                 verify_time_position "$ORG_LEN" "$SPLIT_POINT" "Beginning point split"
+                LAST_SPL_CNT=$(calculate_time "${LAST_SPLIT}")
 
-                if [ "$SPLIT_POINT" -le "$LAST_SPLIT" ] && [ "$SPLIT_POINT" != "0" ]; then
+                if [ "$SPLIT_POINT" -le "$LAST_SPL_CNT" ] && [ "$SPLIT_POINT" != "0" ]; then
                     ERROR_WHILE_SPLITTING=true
                     PRINT "RE" "${CR}" "Split error %s - Time: %s <= %s" "$FILE" "$LAST_SPLIT" "$SPLIT_POINT"
-                    RETVAL=23
+                    set_error "Split error" "23"
                 else
-                    BEGTIME="$LAST_SPLIT"
+                    BEGTIME=$(calculate_time "$LAST_SPLIT")
                     if [ "$SPLIT_POINT" == "0" ]; then
                         ENDTIME=0
                         MASSIVE_TIME_CHECK=$(bc <<< "scale=0;(${MASSIVE_TIME_CHECK} + (${LEN} - ${BEGTIME}))")
@@ -1022,8 +1005,10 @@ new_massive_file_split() {
                         MASSIVE_TIME_CHECK=$(bc <<< "scale=0;(${MASSIVE_TIME_CHECK} + (${ENDTIME} - ${BEGTIME}))")
                     fi
 
+                    if [ "${ENDTIME}" == "0" ]; then set_beg_end "${LAST_SPLIT}" "0"
+                    else set_beg_end "${LAST_SPLIT}" "${array[index]}"; fi
                     pack_file
-                    LAST_SPLIT="$SPLIT_POINT"
+                    LAST_SPLIT="${array[index]}"
                 fi
             fi
 
@@ -1938,7 +1923,7 @@ read_crop_data_time() {
 loop_pid_time() {
     debug_print
 
-    AVG_EST=0; AVG_CNT=0; SEEKTIME=1; c_col=0; LAST_DIFFER=0 #c_row=0;
+    AVG_EST=0; AVG_CNT=0; SEEKTIME=1; LAST_DIFFER=0
 
     while [ -n "$1" ] && [ -n "$2" ]; do
         if ${PROCESS_INTERRUPTED}; then break; fi
@@ -1962,6 +1947,13 @@ loop_pid_time() {
                 elif [ "$SPLIT_TIME" -eq "0" ]; then PRINTOUT=" file:${PRINT_ITEM}/${FILEDURATION}"
                 elif [ "$SPLIT_TIME" -eq "2" ]; then PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "${CUTTING_INDICATOR}")"
                 else PRINTOUT=" file:${PRINT_ITEM}/$(calc_giv_time "$(((ORIGINAL_DURATION / 1000) - ${CUTTING_INDICATOR%.*}))")"; fi
+            elif [[ "${line}" == *"Enter command:"* ]]; then
+                set_error "Unknown mode '${line}'"
+                mapfile CHECKLIST <<<"$(pgrep -f "${APP_STRING}")"
+                mapfile -t -d ' ' PIDLIST <<<"$(pidof "${APP_NAME}")"
+                [ "${#CHECKLIST[@]}" -gt "1" ] && killall -s 9 "${PIDLIST[@]}"
+                PROCESS_INTERRUPTED=true
+                break
             elif ${MASSIVE_SPLIT} || [ "${CUTTING_TIME%.*}" -gt "0" ]; then
                 PRINTOUT=" seeking position"
                 ((SEEKTIME++))
@@ -1995,7 +1987,7 @@ check_output_errors() {
     [[ "${app_err}" == "1"* ]] && app_err=$(grep -E 'not found|error in an external library|invalid format character|Unknown error' "$PACKFILE")
 
     if [ -n "$app_err" ]; then
-        cp "${PACKFILE}" "./failure_${FILE}.txt"
+        cp "${PACKFILE}" "./failure_${FILE%.*}.txt"
         if [[ "${app_err}" == *"]"* ]]; then app_err="${app_err##*\]}"; fi
         #printf "\n    %s error:%s%s %s%s\n" "${APP_STRING}" "$CR" "$app_err" ""$(calc_dur)" "$CO"
         [ -z "$ERROR" ] && set_error "$(printf "app:%s" "${app_err}" | tr -d '\n')" "6"
@@ -2199,7 +2191,7 @@ burn_subs() {
                 else
                     APPEND "RC" "${CR}" "Failed (%s) %s" "$ERROR" "$(calc_time_tk)"
                     delete_file "${TARGET_NAME}"
-                    RETVAL=8
+                    set_error "Subs failed" "8"
                 fi
             else
                 PRINT "RE" "${CY}" "%s Subfile file:%s mkv:%s not found! suberr:%s" "${1:0:40}" "$SUB" "$MKVSUB" "$SUBERR"
@@ -2309,7 +2301,7 @@ handle_file_rename() {
         delete_file "$FILE$CONV_TYPE"
 
         if [ "$EXT_CURR" == "$CONV_CHECK" ] && ! ${COPY_ONLY}; then
-            RETVAL=9
+            set_error "Keeping original" "9"
             move_file "$FILE" "./Failed" "."
         fi
 
@@ -2369,6 +2361,9 @@ move_file() {
     else RUNNING_FILENAME="${TRGNAME}"; fi
 
     [ ! -d "${DIRNAME}" ] && mkdir -p "${DIRNAME}"
+    #if [[ "${RUNNING_FILENAME}" == *"${CONV_TYPE}${CONV_TYPE}" ]]; then RUNNING_FILENAME="${RUNNING_FILENAME//${CONV_TYPE}${CONV_TYPE}/${CONV_TYPE}}"; fi
+    #if [[ "${RUNNING_FILENAME}" == "COMBO_"* ]]; then RUNNING_FILENAME="${RUNNING_FILENAME//COMBO_/}"; fi
+    #if [ -f "${DIRNAME}/${RUNNING_FILENAME}" ]; then make_new_running_name "${RUNNING_FILENAME}"; fi
 
     mv "${SRCNAME}" "${DIRNAME}/${RUNNING_FILENAME}" || set_error "move error"
     if [ "${ERROR}" == "move error" ]; then
@@ -2754,7 +2749,7 @@ elif [ "$1" == "merge" ]; then COMBINEFILE=2; shift
 elif [ "$1" == "append" ]; then COMBINEFILE=3; shift; fi
 updated=false
 
-print_last_pos "" "" ""
+clear_column
 for var in "$@"; do
     if [ "$COMBINEFILE" != "0" ]; then
         COMBINELIST+=("$var")
