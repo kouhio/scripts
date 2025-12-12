@@ -360,6 +360,7 @@ printBaseData() {
     printToFile "export PROCESS_INTERRUPTED=false"
     printToFile "export COUNTED_ITEMS=0"
     printToFile "ERROR_CNT=0"
+    printToFile "ERR_LIST=()"
     printToFile "STT=\$(date +%s)"
 
     printToFile ""
@@ -383,7 +384,7 @@ printBaseData() {
     printToFile "    mv \"\$1\" \"\${CLEARNAME}.mp4\""
     printToFile "  elif [ -f \"\$INPUTFILE\" ]; then"
     printToFile "    . packAll.sh \"\$INPUTFILE\" \"\$@\""
-    printToFile "    if [ \$ERROR_COUNTER -gt 0 ]; then ((ERROR_CNT++)); fi"
+    printToFile "    if [ \$ERROR_COUNTER -gt 0 ]; then ((ERROR_CNT++)); ERR_LIST+=(\"\$INPUTFILE\"); fi"
     printToFile "    export ERROR_COUNTER=0"
     printToFile "  fi"
     printToFile "  if \$PROCESS_INTERRUPTED; then cleanup; fi"
@@ -464,6 +465,9 @@ printEndData() {
     printToFile "if [ \"\$EXIT_EXT_VAL\" -eq \"0\" ] && [ \"\$ERROR_CNT\" -eq \"0\" ]; then"
     printToFile "  rm $FILE"
     printToFile "  rm $VLC"
+    printToFile "else"
+    printToFile "  printf \"The following files failed:\\n\""
+    printToFile "  for i in \"\${ERR_LIST[@]}}\"; do printf \"%s\\n\" \"\${i}\""
     printToFile "fi"
 }
 

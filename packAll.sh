@@ -266,7 +266,7 @@ APPEND() {
     if [ "${1}" == "RC" ]; then ENDROW=true; shift; fi
 
     clr="${1}"; nfo="${2}"; shift 2
-    PRINTOUT_DATA+="$(printf " ${nfo}" "${@}")"
+    PRINTOUT_DATA+="$(printf "%s${nfo}" " " "${@}")"
     STRLEN="$(print_info "") "; STRLEN="${#STRLEN}"; STR_DIFF=$(get_str_diff "${PRINTOUT_DATA}")
     max_width="$(($(tput cols) - STRLEN + STR_DIFF))"
 
@@ -536,6 +536,8 @@ print_help() {
 # 1 - String to print
 #*************************************************************************************************************
 print_last_pos() {
+    STRLEN="$(print_info "") "; STRLEN="${#STRLEN}";
+    max_width="$(($(tput cols) - ${#1} - ${#PRINTOUT_DATA} - 1 - STRLEN))"
     printf '\e[s'
     printf "%s" "${1:0:${max_width}}"
     printf '\e[u'
